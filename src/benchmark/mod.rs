@@ -1,11 +1,10 @@
 pub mod discovery;
 pub mod runner;
-pub mod results;
 pub mod parser;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use crate::core::{GlobalConfig, FactorioExecutor};
+use crate::core::{GlobalConfig, FactorioExecutor, output};
 
 #[derive(Debug, Clone)]
 pub struct BenchmarkConfig {
@@ -28,7 +27,7 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
     let runner = runner::BenchmarkRunner::new(benchmark_config.clone(), factorio);
     let results = runner.run_all(save_files).await?;
 
-    // results::save_to_csv(&results, &benchmark_config.output)?;
+    output::write_results(&results, &Path::new("./output.csv"), &Path::new("./output.md"), &Path::new("/home/blousy/projects/rust/belt/templates/benchmark.md.hbs"))?;
 
     tracing::info!("Benchmark complete! Results saved to: {}", benchmark_config.output.display());
     tracing::info!("Total benchmarks run: {}", results.len());

@@ -1,0 +1,24 @@
+# Factorio Benchmark Results
+
+**Platform:** {{platform}}  
+**Factorio Version:** {{factorio_version}}  
+**Total Runs:** {{total_runs}}
+
+## Summary
+
+{{#each summaries}}
+### {{save_name}}
+- **Runs:** {{run_count}}
+- **Average UPS:** {{avg_ups}}
+- **Min UPS:** {{min_ups}}  
+- **Max UPS:** {{max_ups}}
+
+{{/each}}
+
+## Detailed Results
+
+| Save | Run | Avg (ms) | Min (ms) | Max (ms) | UPS | Execution Time (ms) |
+|------|-----|----------|----------|----------|-----|---------------------|
+{{#each results}}
+| {{save_name}} | {{run}} | {{avg_ms}} | {{min_ms}} | {{max_ms}} | {{effective_ups}} | {{execution_time_ms}} |
+{{/each}}
