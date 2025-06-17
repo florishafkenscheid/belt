@@ -35,6 +35,9 @@ enum Commands {
 
         #[arg(long, default_value = "results")]
         output: PathBuf,
+
+        #[arg(long, default_value = "templates/benchmark.md.hbs")]
+        template_path: PathBuf,
     },
 }
 
@@ -58,13 +61,14 @@ async fn main() -> Result<()> {
     };
 
     match cli.command {
-        Commands::Benchmark { saves_dir, ticks, runs, pattern, output } => {
+        Commands::Benchmark { saves_dir, ticks, runs, pattern, output, template_path } => {
             let benchmark_config = benchmark::BenchmarkConfig {
                 saves_dir,
                 ticks,
                 runs,
                 pattern,
                 output,
+                template_path,
             };
 
             benchmark::run(global_config, benchmark_config).await?;

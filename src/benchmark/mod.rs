@@ -13,6 +13,7 @@ pub struct BenchmarkConfig {
     pub runs: u32,
     pub pattern: Option<String>,
     pub output: PathBuf,
+    pub template_path: PathBuf,
 }
 
 pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig) -> anyhow::Result<()> {
@@ -28,7 +29,7 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
     let results = runner.run_all(save_files).await?;
 
     tracing::debug!("{}, {}", Path::join(&benchmark_config.output, "results.csv").display(), Path::join(&benchmark_config.output, "results.md").display());
-    output::write_results(&results, &PathBuf::from("results.csv"), &PathBuf::from("results.md"), &Path::new("templates/benchmark.md.hbs"))?;
+    output::write_results(&results, &Path::join(&benchmark_config.output, "results.csv"), &Path::join(&benchmark_config.output, "results.md"), &PathBuf::from(benchmark_config.template_path))?;
 
     tracing::info!("Benchmark complete! Results saved to: {}", benchmark_config.output.display());
     tracing::info!("Total benchmarks run: {}", results.len());

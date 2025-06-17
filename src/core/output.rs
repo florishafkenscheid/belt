@@ -58,7 +58,7 @@ fn write_markdown(
 ) -> Result<()> {
     let mut handlebars = Handlebars::new();
 
-    handlebars.register_template_file("benchmark.md.hbs", template_path)
+    handlebars.register_template_file("benchmark", template_path)
         .context("Failed to register template")?;
 
     // Find the highest avg_effective_ups across all benchmarks
