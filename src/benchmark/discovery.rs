@@ -6,7 +6,15 @@ pub fn find_save_files(saves_dir: &Path, pattern: Option<&str>) -> Result<Vec<Pa
         anyhow::bail!("Save directory does not exist: {}", saves_dir.display());
     }
 
-    let pattern = pattern.unwrap_or("");
+    if saves_dir.is_file() {
+        if saves_dir.extension().map_or(false, |ext| ext == "zip") {
+            return Ok(vec![saves_dir.to_path_buf()]);
+        } else {
+            anyhow::bail!("Expected a .zip file, found non-zip file: {}", saves_dir.display());
+        }
+    }
+
+    let pattern = pattern.unwrap_or("*");
     let search_pattern = saves_dir.join(format!("{}*.zip", pattern));
 
     let saves: Vec<PathBuf> = glob::glob(search_pattern.to_string_lossy().as_ref())
