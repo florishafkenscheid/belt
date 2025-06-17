@@ -33,7 +33,7 @@ enum Commands {
         #[arg(long)]
         pattern: Option<String>,
 
-        #[arg(long, default_value = "benchmark_results.csv")]
+        #[arg(long, default_value = "output.csv")]
         output: PathBuf,
     },
 }

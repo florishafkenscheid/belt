@@ -29,7 +29,7 @@ impl BenchmarkRunner {
         );
         progress.enable_steady_tick(Duration::from_millis(100));
 
-        let mut all_results = Vec::new();
+        let mut all_results = Vec::new(); 
 
         for (i, save_file) in save_files.iter().enumerate() {
             let save_name = save_file.file_stem()
@@ -40,9 +40,9 @@ impl BenchmarkRunner {
             progress.set_position(i as u64);
             progress.set_message(format!("{}", save_name));
 
-            match self.run_benchmark_for_save(save_file).await {
-                Ok(mut results) => {
-                    all_results.append(&mut results);
+            match self.run_benchmark_for_save(&save_file).await {
+                Ok(result) => {
+                    all_results.push(result);
                 }
                 Err(err) => {
                     tracing::error!("Benchmark failed for {}: {}", save_name, err);
@@ -55,11 +55,11 @@ impl BenchmarkRunner {
         Ok(all_results)
     }
 
-    async fn run_benchmark_for_save(&self, save_file: &Path) -> Result<Vec<BenchmarkResult>> {
+    async fn run_benchmark_for_save(&self, save_file: &Path) -> Result<BenchmarkResult> {
         self.sync_mods_for_save(save_file).await?;
         let log_output = self.execute_factorio_benchmark(save_file).await?;
-        let results = parser::parse_benchmark_log(&log_output, save_file, &self.config)?;
-        Ok(results)
+        let result = parser::parse_benchmark_log(&log_output, save_file, &self.config)?;
+        Ok(result)
     }
 
     async fn sync_mods_for_save(&self, save_file: &Path) -> Result<()> {

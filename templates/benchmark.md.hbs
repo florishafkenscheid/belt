@@ -2,23 +2,22 @@
 
 **Platform:** {{platform}}  
 **Factorio Version:** {{factorio_version}}  
-**Total Runs:** {{total_runs}}
 
-## Summary
+## Scenario
+Lorem ipsum..
 
-{{#each summaries}}
-### {{save_name}}
-- **Runs:** {{run_count}}
-- **Average UPS:** {{avg_ups}}
-- **Min UPS:** {{min_ups}}  
-- **Max UPS:** {{max_ups}}
+## Results
+| Metric            | Description                           |
+| ----------------- | ------------------------------------- |
+| **Mean UPS**      | Updates per second – higher is better |
+| **Mean Avg (ms)** | Average frame time – lower is better  |
+| **Mean Min (ms)** | Minimum frame time – lower is better  |
+| **Mean Max (ms)** | Maximum frame time – lower is better  |
 
-{{/each}}
-
-## Detailed Results
-
-| Save | Run | Avg (ms) | Min (ms) | Max (ms) | UPS | Execution Time (ms) |
-|------|-----|----------|----------|----------|-----|---------------------|
+| Save | Avg (ms) | Min (ms) | Max (ms) | UPS | Execution Time (ms) |
+|------|----------|----------|----------|-----|---------------------|
 {{#each results}}
-| {{save_name}} | {{run}} | {{avg_ms}} | {{min_ms}} | {{max_ms}} | {{effective_ups}} | {{execution_time_ms}} |
+| {{save_name}} | {{avg_ms}} | {{min_ms}} | {{max_ms}} | {{{avg_effective_ups}}} | {{total_execution_time_ms}} |
 {{/each}}
+
+## Conclusion
