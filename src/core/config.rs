@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 pub struct GlobalConfig {
     pub factorio_path: Option<PathBuf>,
     pub verbose: bool,
-    pub output_dir: PathBuf,
 }
 
 impl Default for GlobalConfig {
@@ -13,7 +12,6 @@ impl Default for GlobalConfig {
         Self {
             factorio_path: None,
             verbose: false,
-            output_dir: PathBuf::from("./output"),
         }
     }
 }

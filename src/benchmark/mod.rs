@@ -27,7 +27,8 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
     let runner = runner::BenchmarkRunner::new(benchmark_config.clone(), factorio);
     let results = runner.run_all(save_files).await?;
 
-    output::write_results(&results, &Path::new("./output.csv"), &Path::new("./output.md"), &Path::new("/home/blousy/projects/rust/belt/templates/benchmark.md.hbs"))?;
+    tracing::debug!("{}, {}", Path::join(&benchmark_config.output, "results.csv").display(), Path::join(&benchmark_config.output, "results.md").display());
+    output::write_results(&results, &PathBuf::from("results.csv"), &PathBuf::from("results.md"), &Path::new("templates/benchmark.md.hbs"))?;
 
     tracing::info!("Benchmark complete! Results saved to: {}", benchmark_config.output.display());
     tracing::info!("Total benchmarks run: {}", results.len());

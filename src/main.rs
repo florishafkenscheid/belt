@@ -2,7 +2,7 @@ mod core;
 mod benchmark;
 
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use std::{path::PathBuf};
 use anyhow::Result;
 
 #[derive(Parser)]
@@ -33,7 +33,7 @@ enum Commands {
         #[arg(long)]
         pattern: Option<String>,
 
-        #[arg(long, default_value = "output.csv")]
+        #[arg(long, default_value = "results")]
         output: PathBuf,
     },
 }
@@ -55,7 +55,6 @@ async fn main() -> Result<()> {
     let global_config = core::GlobalConfig {
         factorio_path: cli.factorio_path,
         verbose: cli.verbose,
-        output_dir: PathBuf::from("./output"),
     };
 
     match cli.command {
