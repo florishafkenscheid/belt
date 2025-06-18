@@ -61,6 +61,7 @@ impl BenchmarkRunner {
         if self.config.mods_dir == None {
             self.sync_mods_for_save(save_file).await?;
         };
+
         let log_output = self.execute_factorio_benchmark(save_file).await?;
         let result = parser::parse_benchmark_log(&log_output, save_file, &self.config).map_err(|_| BenchmarkError::ParseError { reason: "".to_string() })?;
         Ok(result)
@@ -108,13 +109,12 @@ impl BenchmarkRunner {
             "--disable-audio",
         ]);
 
-        if let Some(ref mods_file) = self.config.mods_dir {
+        if let Some(mods_file) = &self.config.mods_dir {
             cmd.arg("--mod-directory");
             cmd.arg(
                 mods_file.to_str().ok_or_else(|| BenchmarkError::InvalidModsFileName { path: mods_file.clone() })?
             );
         }
-
 
         cmd.stdout(Stdio::piped())
            .stderr(Stdio::piped());
