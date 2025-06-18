@@ -1,6 +1,6 @@
 # BELT: Benchmark for Engine Limits & Throughput
 > [!NOTE]
-> This was heavily inspired by abucnasty's work
+> This was heavily inspired by abucnasty's work.
 > I wanted to make a more universal, cross-platform version of the existing ps1 script.
 
 BELT is a wrapper for the `factorio --benchmark` command, to make it more user friendly, more efficient to use, and to generate templated markdown files with the gotten data.
@@ -15,7 +15,7 @@ BELT is a wrapper for the `factorio --benchmark` command, to make it more user f
 ## Quick Start
 ```bash
 # Install BELT
-cargo install belt // Todo
+cargo install belt # Doesn't work yet!
 
 # Run benchmarks on all saves in a directory
 belt benchmark ./saves --ticks 6000 --runs 5
@@ -33,7 +33,7 @@ belt benchmark ./saves --pattern "inserter*" --output ./benchmark-results
 
 ### From Crates.io
 ```bash
-cargo install belt
+cargo install belt # Doesn't work yet!
 ```
 
 ### From GitHub Releases
