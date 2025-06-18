@@ -32,8 +32,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4 # Uploads the created archive to GitHub Actions
         with:
-          name: linux-release # Name of the artifact
-          path: ${{ github.event.repository.name }}-linux-x86_64.tar.gz # Path to the file to upload
+          name: linux-release
+          path: ${{ github.event.repository.name }}-linux-x86_64.tar.gz
 
   # Job to build the Rust project for Windows x86_64
   build_windows:
@@ -74,8 +74,6 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          # Specify both target triples for macOS: Intel (x86_64) and Apple Silicon (aarch64)
-          # targets: x86_64-apple-darwin,aarch64-apple-darwin
       
       - name: Add macOS x86_64 target
         run: rustup target add x86_64-apple-darwin
@@ -131,7 +129,7 @@ jobs:
           body: |
             Release ${{ github.ref_name }}
 
-            This is an automated release for your Rust project.
+            This is an automated release for B.E.L.T.
             Includes binaries for Linux, Windows, and macOS.
           # Lists all the artifacts to be attached to the release.
           # The paths here correspond to where download-artifact saved them.
