@@ -114,6 +114,7 @@ impl BenchmarkRunner {
             cmd.arg(
                 mods_file.to_str().ok_or_else(|| BenchmarkError::InvalidModsFileName { path: mods_file.clone() })?
             );
+            tracing::debug!("Set the mod list to: {}", mods_file.display());
         }
 
         cmd.stdout(Stdio::piped())
