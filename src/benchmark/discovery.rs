@@ -14,7 +14,7 @@ pub fn find_save_files(saves_dir: &Path, pattern: Option<&str>) -> Result<Vec<Pa
         }
     }
 
-    let pattern = pattern.unwrap_or("*");
+    let pattern = pattern.unwrap_or("");
     let search_pattern = saves_dir.join(format!("{}*.zip", pattern));
 
     let saves: Vec<PathBuf> = glob::glob(search_pattern.to_string_lossy().as_ref())
