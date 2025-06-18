@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
-use anyhow::{Result};
 use tokio::process::Command;
+
+use crate::core::{BenchmarkError, Result};
 
 use super::platform;
 
@@ -24,7 +25,7 @@ impl FactorioExecutor {
                 tracing::info!("Using explicit Factorio path: {}", path.display());
                 return Ok(path);
             } else {
-                anyhow::bail!("Provided Factorio path does not exist: {}", path.display());
+                return Err(BenchmarkError::FactorioNotFoundAtPath { path: path });
             }
         }
 
@@ -37,7 +38,7 @@ impl FactorioExecutor {
             }
         }
 
-        anyhow::bail!("{}", platform::get_factorio_not_found_message());
+        Err(BenchmarkError::FactorioNotFound)
     }
 
     pub fn executable_path(&self) -> &Path {

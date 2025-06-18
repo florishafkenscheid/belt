@@ -1,8 +1,8 @@
-use anyhow::Result;
 use serde::{Serialize, Deserialize};
 use std::path::Path;
 
-use crate::benchmark::BenchmarkConfig;
+use crate::{benchmark::BenchmarkConfig};
+use crate::core::{BenchmarkError, Result};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BenchmarkResult {
@@ -93,7 +93,7 @@ pub fn parse_benchmark_log(log: &str, save_file: &Path, benchmark_config: &Bench
         }
 
         if run_count == 0 {
-            anyhow::bail!("No benchmark results found in log output");
+            return Err(BenchmarkError::NoBenchmarkResults);
         }
 
         Ok(BenchmarkResult {

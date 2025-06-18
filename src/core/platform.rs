@@ -38,16 +38,6 @@ pub fn get_default_factorio_paths() -> Vec<PathBuf> {
     paths
 }
 
-pub fn get_factorio_not_found_message() -> &'static str {
-    if cfg!(target_os = "windows") {
-        "Could not find Factorio executable. Please install via Steam or provide --factorio-path"
-    } else if cfg!(target_os = "linux") {
-        "Could not find Factorio executable. Please symlink factorio to ~/.local/bin/factorio or provide --factorio-path"
-    } else {
-        "Could not find Factorio executable. Please provide --factorio-path"
-    }
-}
-
 pub fn get_os_info() -> String {
     format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH)
 }

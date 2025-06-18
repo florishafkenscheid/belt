@@ -2,11 +2,11 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 use indicatif::{ProgressBar, ProgressStyle};
-use anyhow::{Context, Result};
 
 use crate::benchmark::parser;
 use crate::benchmark::parser::BenchmarkResult;
 use crate::core::FactorioExecutor;
+use crate::core::{BenchmarkError, Result};
 use super::{BenchmarkConfig};
 
 pub struct BenchmarkRunner {
@@ -24,7 +24,8 @@ impl BenchmarkRunner {
         progress.set_style(
             ProgressStyle::with_template(
                 "[{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}"
-            )?
+            )
+            .map_err(|e| BenchmarkError::ProgressBarError(e.to_string()))?
             .progress_chars("==")
         );
         progress.enable_steady_tick(Duration::from_millis(100));
@@ -33,7 +34,7 @@ impl BenchmarkRunner {
 
         for (i, save_file) in save_files.iter().enumerate() {
             let save_name = save_file.file_stem()
-                .context("Invalid save file name")?
+                .ok_or_else(|| BenchmarkError::InvalidSaveFileName { path: save_file.clone() })?
                 .to_string_lossy()
                 .to_string();
 
@@ -58,7 +59,7 @@ impl BenchmarkRunner {
     async fn run_benchmark_for_save(&self, save_file: &Path) -> Result<BenchmarkResult> {
         self.sync_mods_for_save(save_file).await?;
         let log_output = self.execute_factorio_benchmark(save_file).await?;
-        let result = parser::parse_benchmark_log(&log_output, save_file, &self.config)?;
+        let result = parser::parse_benchmark_log(&log_output, save_file, &self.config).map_err(|_| BenchmarkError::ParseError { reason: "".to_string() })?;
         Ok(result)
     }
 
@@ -66,23 +67,28 @@ impl BenchmarkRunner {
         let mut cmd = self.factorio.create_command();
 
         cmd.args(&[
-            "--sync-mods", save_file.to_str().unwrap()
+            "--sync-mods",
+            save_file.to_str()
+                .ok_or_else(|| BenchmarkError::InvalidSaveFileName { 
+                    path: save_file.to_path_buf()
+                })?
         ]);
 
         cmd.stdout(Stdio::piped())
            .stderr(Stdio::piped());
 
-        tracing::debug!("Syncing mods: {:?}", cmd);
+        tracing::debug!("Syncing mods to: {}", save_file.display());
 
-        let child = cmd.spawn()
-            .context("Failed to start Factorio mod sync process")?;
+        let child = cmd.spawn()?;
 
-        let output = child.wait_with_output().await
-            .context("Failed to wait for Factorio mod sync process")?;
+        let output = child.wait_with_output().await?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            anyhow::bail!("Factorio mod sync failed: {}", stderr);
+            return Err(BenchmarkError::FactorioProcessFailed {
+                code: output.status.code().unwrap_or(-1),
+                stderr: stderr.to_string()
+            });
         }
 
         tracing::debug!("Mod sync completed successfully");
@@ -93,7 +99,7 @@ impl BenchmarkRunner {
         let mut cmd = self.factorio.create_command(); 
 
         cmd.args(&[
-            "--benchmark", save_file.to_str().unwrap(),
+            "--benchmark", save_file.to_str().ok_or_else(|| BenchmarkError::InvalidSaveFileName { path: save_file.to_path_buf() })?,
             "--benchmark-ticks", &self.config.ticks.to_string(),
             "--benchmark-runs", &self.config.runs.to_string(),
             "--disable-audio",
@@ -104,19 +110,20 @@ impl BenchmarkRunner {
 
         tracing::debug!("Executing: {:?}", cmd);
 
-        let child = cmd.spawn()
-            .context("Failed to start Factorio process")?;
+        let child = cmd.spawn()?;
 
-        let output = child.wait_with_output().await
-            .context("Failed to wait for Factorio process")?;
+        let output = child.wait_with_output().await?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            anyhow::bail!("Factorio process failed: {}", stderr);
+            return Err(BenchmarkError::FactorioProcessFailed {
+                code: output.status.code().unwrap_or(-1),
+                stderr: stderr.to_string(),
+            });
         }
 
         let stdout = String::from_utf8(output.stdout)
-            .context("Factorio output is not valid UTF-8")?;
+            .map_err(|_| BenchmarkError::InvalidUtf8Output)?;
 
         Ok(stdout)
     }
