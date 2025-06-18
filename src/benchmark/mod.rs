@@ -12,8 +12,8 @@ pub struct BenchmarkConfig {
     pub ticks: u32,
     pub runs: u32,
     pub pattern: Option<String>,
-    pub output: PathBuf,
-    pub template_path: PathBuf,
+    pub output: Option<PathBuf>,
+    pub template_path: Option<PathBuf>,
 }
 
 pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig) -> anyhow::Result<()> {
@@ -28,10 +28,17 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
     let runner = runner::BenchmarkRunner::new(benchmark_config.clone(), factorio);
     let results = runner.run_all(save_files).await?;
 
-    tracing::debug!("{}, {}", Path::join(&benchmark_config.output, "results.csv").display(), Path::join(&benchmark_config.output, "results.md").display());
-    output::write_results(&results, &Path::join(&benchmark_config.output, "results.csv"), &Path::join(&benchmark_config.output, "results.md"), &PathBuf::from(benchmark_config.template_path))?;
+    let output_dir = benchmark_config.output.as_ref().map(|p| p.as_path()).unwrap_or_else(|| Path::new("."));
 
-    tracing::info!("Benchmark complete! Results saved to: {}", benchmark_config.output.display());
+    let csv_path = output_dir.join("results.csv");
+    let md_path = output_dir.join("results.md");
+
+    tracing::debug!("CSV Path: {}, Markdown Path: {}", csv_path.display(), md_path.display());
+
+    let template_path = benchmark_config.template_path.as_deref().unwrap_or_else(|| Path::new("templates/benchmark.md.hbs"));
+    output::write_results(&results, &csv_path, &md_path, template_path)?;
+
+    tracing::info!("Benchmark complete! Results saved to: {}", output_dir.display());
     tracing::info!("Total benchmarks run: {}", results.len());
 
     Ok(())

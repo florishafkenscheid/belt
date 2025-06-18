@@ -2,7 +2,7 @@ mod core;
 mod benchmark;
 
 use clap::{Parser, Subcommand};
-use std::{path::PathBuf};
+use std::path::{PathBuf};
 use anyhow::Result;
 
 #[derive(Parser)]
@@ -33,11 +33,11 @@ enum Commands {
         #[arg(long)]
         pattern: Option<String>,
 
-        #[arg(long, default_value = "results")]
-        output: PathBuf,
+        #[arg(long)]
+        output: Option<PathBuf>,
 
-        #[arg(long, default_value = "templates/benchmark.md.hbs")]
-        template_path: PathBuf,
+        #[arg(long)] 
+        template_path: Option<PathBuf>,
     },
 }
 
