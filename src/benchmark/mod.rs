@@ -38,7 +38,7 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
     let template_path = benchmark_config.template_path.as_deref().unwrap_or_else(|| Path::new("templates/benchmark.md.hbs"));
     output::write_results(&results, &csv_path, &md_path, template_path)?;
 
-    tracing::info!("Benchmark complete! Results saved to: {}", output_dir.display());
+    tracing::info!("Benchmark complete!");
     tracing::info!("Total benchmarks run: {}", results.len());
 
     Ok(())

@@ -91,7 +91,7 @@ fn write_markdown(
         "results": table_results,
     });
 
-    let rendered = handlebars.render("benchmark.md.hbs", &data)
+    let rendered = handlebars.render("benchmark", &data)
         .context("Failed to render template")?;
 
     std::fs::write(md_path, rendered)
