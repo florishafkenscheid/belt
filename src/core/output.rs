@@ -3,21 +3,26 @@ use anyhow::{Context, Result};
 use handlebars::Handlebars;
 use serde_json::json;
 
-use crate::benchmark::parser::BenchmarkResult;
+use crate::{benchmark::parser::BenchmarkResult};
 
 pub fn write_results(
     results: &[BenchmarkResult],
-    csv_path: &Path,
-    md_path: &Path,
+    output_dir: &Path,
     template_path: &Path
 ) -> Result<()> {
-    write_csv(results, csv_path)?;
-    write_markdown(results, md_path, template_path)?;
+    std::fs::create_dir_all(output_dir)
+        .with_context(|| format!("Failed to create the output directory: {}", output_dir.display()))?;
+
+    write_csv(results, output_dir)?;
+    write_markdown(results, output_dir, template_path)?;
+
     Ok(())
 }
 
-fn write_csv(results: &[BenchmarkResult], path: &Path) -> Result<()> {
-    let mut writer = csv::Writer::from_path(path)
+fn write_csv(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
+    let csv_path = output_dir.join("results.csv");
+
+    let mut writer = csv::Writer::from_path(&csv_path)
         .context("Failed to create CSV writer")?;
 
     writer.write_record(&[
@@ -47,17 +52,18 @@ fn write_csv(results: &[BenchmarkResult], path: &Path) -> Result<()> {
     }
 
     writer.flush().context("Failed to write CSV")?;
-    tracing::info!("Results written to {}", path.display());
+    tracing::info!("Results written to {}", csv_path.display());
     Ok(())
 }
 
 fn write_markdown(
     results: &[BenchmarkResult],
-    md_path: &Path,
+    output_dir: &Path,
     template_path: &Path,
 ) -> Result<()> {
-    let mut handlebars = Handlebars::new();
+    let md_path = output_dir.join("results.md");
 
+    let mut handlebars = Handlebars::new();
     handlebars.register_template_file("benchmark", template_path)
         .context("Failed to register template")?;
 
@@ -94,7 +100,7 @@ fn write_markdown(
     let rendered = handlebars.render("benchmark", &data)
         .context("Failed to render template")?;
 
-    std::fs::write(md_path, rendered)
+    std::fs::write(&md_path, rendered)
         .context("Failed to write markdown file")?;
         
     tracing::info!("Markdown report written to {}", md_path.display());
