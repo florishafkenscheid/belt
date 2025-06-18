@@ -21,6 +21,9 @@ pub enum BenchmarkError {
     #[error("Invalid save file name: {path}")]
     InvalidSaveFileName { path: PathBuf },
 
+    #[error("Invalid mods file name: {path}")]
+    InvalidModsFileName { path: PathBuf },
+
     #[error("Invalid UTF-8 in Factorio output")]
     InvalidUtf8Output,
 

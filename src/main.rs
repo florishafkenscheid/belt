@@ -38,6 +38,9 @@ enum Commands {
 
         #[arg(long)] 
         template_path: Option<PathBuf>,
+
+        #[arg(long)] 
+        mods_dir: Option<PathBuf>,
     },
 }
 
@@ -61,7 +64,7 @@ async fn main() -> Result<()> {
     };
 
     match cli.command {
-        Commands::Benchmark { saves_dir, ticks, runs, pattern, output, template_path } => {
+        Commands::Benchmark { saves_dir, ticks, runs, pattern, output, template_path, mods_dir } => {
             let benchmark_config = benchmark::BenchmarkConfig {
                 saves_dir,
                 ticks,
@@ -69,6 +72,7 @@ async fn main() -> Result<()> {
                 pattern,
                 output,
                 template_path,
+                mods_dir,
             };
 
             benchmark::run(global_config, benchmark_config).await?;
