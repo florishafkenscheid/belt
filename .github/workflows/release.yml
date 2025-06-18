@@ -75,7 +75,13 @@ jobs:
         with:
           toolchain: stable
           # Specify both target triples for macOS: Intel (x86_64) and Apple Silicon (aarch64)
-          targets: x86_64-apple-darwin,aarch64-apple-darwin
+          # targets: x86_64-apple-darwin,aarch64-apple-darwin
+      
+      - name: Add macOS x86_64 target
+        run: rustup target add x86_64-apple-darwin
+        
+      - name: Ad macOS aarch64 target
+        run: rustup target add aarch64-apple-darwin
 
       - name: Build for macOS (x86_64)
         run: cargo build --release --target x86_64-apple-darwin
