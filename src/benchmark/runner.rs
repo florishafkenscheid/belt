@@ -57,7 +57,11 @@ impl BenchmarkRunner {
     }
 
     async fn run_benchmark_for_save(&self, save_file: &Path) -> Result<BenchmarkResult> {
-        self.sync_mods_for_save(save_file).await?;
+        // If mods_file is not set, sync mods with the given save file
+        if self.config.mods_dir == None {
+            self.sync_mods_for_save(save_file).await?;
+        };
+
         let log_output = self.execute_factorio_benchmark(save_file).await?;
         let result = parser::parse_benchmark_log(&log_output, save_file, &self.config).map_err(|_| BenchmarkError::ParseError { reason: "".to_string() })?;
         Ok(result)
@@ -104,6 +108,14 @@ impl BenchmarkRunner {
             "--benchmark-runs", &self.config.runs.to_string(),
             "--disable-audio",
         ]);
+
+        if let Some(mods_file) = &self.config.mods_dir {
+            cmd.arg("--mod-directory");
+            cmd.arg(
+                mods_file.to_str().ok_or_else(|| BenchmarkError::InvalidModsFileName { path: mods_file.clone() })?
+            );
+            tracing::debug!("Set the mod list to: {}", mods_file.display());
+        }
 
         cmd.stdout(Stdio::piped())
            .stderr(Stdio::piped());

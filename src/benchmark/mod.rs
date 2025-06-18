@@ -14,6 +14,7 @@ pub struct BenchmarkConfig {
     pub pattern: Option<String>,
     pub output: Option<PathBuf>,
     pub template_path: Option<PathBuf>,
+    pub mods_dir: Option<PathBuf>,
 }
 
 pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig) -> anyhow::Result<()> {
