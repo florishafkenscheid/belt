@@ -1,13 +1,13 @@
+use indicatif::{ProgressBar, ProgressStyle};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
-use indicatif::{ProgressBar, ProgressStyle};
 
+use super::BenchmarkConfig;
 use crate::benchmark::parser;
 use crate::benchmark::parser::BenchmarkResult;
 use crate::core::FactorioExecutor;
 use crate::core::{BenchmarkError, Result};
-use super::{BenchmarkConfig};
 
 pub struct BenchmarkRunner {
     config: BenchmarkConfig,
@@ -23,18 +23,21 @@ impl BenchmarkRunner {
         let progress = ProgressBar::new(save_files.len() as u64);
         progress.set_style(
             ProgressStyle::with_template(
-                "[{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}"
+                "[{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}",
             )
             .map_err(|e| BenchmarkError::ProgressBarError(e.to_string()))?
-            .progress_chars("==")
+            .progress_chars("=="),
         );
         progress.enable_steady_tick(Duration::from_millis(100));
 
-        let mut all_results = Vec::new(); 
+        let mut all_results = Vec::new();
 
         for (i, save_file) in save_files.iter().enumerate() {
-            let save_name = save_file.file_stem()
-                .ok_or_else(|| BenchmarkError::InvalidSaveFileName { path: save_file.clone() })?
+            let save_name = save_file
+                .file_stem()
+                .ok_or_else(|| BenchmarkError::InvalidSaveFileName {
+                    path: save_file.clone(),
+                })?
                 .to_string_lossy()
                 .to_string();
 
@@ -63,7 +66,12 @@ impl BenchmarkRunner {
         };
 
         let log_output = self.execute_factorio_benchmark(save_file).await?;
-        let result = parser::parse_benchmark_log(&log_output, save_file, &self.config).map_err(|_| BenchmarkError::ParseError { reason: "".to_string() })?;
+        let result =
+            parser::parse_benchmark_log(&log_output, save_file, &self.config).map_err(|_| {
+                BenchmarkError::ParseError {
+                    reason: "".to_string(),
+                }
+            })?;
         Ok(result)
     }
 
@@ -72,14 +80,14 @@ impl BenchmarkRunner {
 
         cmd.args(&[
             "--sync-mods",
-            save_file.to_str()
-                .ok_or_else(|| BenchmarkError::InvalidSaveFileName { 
-                    path: save_file.to_path_buf()
-                })?
+            save_file
+                .to_str()
+                .ok_or_else(|| BenchmarkError::InvalidSaveFileName {
+                    path: save_file.to_path_buf(),
+                })?,
         ]);
 
-        cmd.stdout(Stdio::piped())
-           .stderr(Stdio::piped());
+        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         tracing::debug!("Syncing mods to: {}", save_file.display());
 
@@ -91,7 +99,7 @@ impl BenchmarkRunner {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(BenchmarkError::FactorioProcessFailed {
                 code: output.status.code().unwrap_or(-1),
-                stderr: stderr.to_string()
+                stderr: stderr.to_string(),
             });
         }
 
@@ -100,25 +108,35 @@ impl BenchmarkRunner {
     }
 
     async fn execute_factorio_benchmark(&self, save_file: &Path) -> Result<String> {
-        let mut cmd = self.factorio.create_command(); 
+        let mut cmd = self.factorio.create_command();
 
         cmd.args(&[
-            "--benchmark", save_file.to_str().ok_or_else(|| BenchmarkError::InvalidSaveFileName { path: save_file.to_path_buf() })?,
-            "--benchmark-ticks", &self.config.ticks.to_string(),
-            "--benchmark-runs", &self.config.runs.to_string(),
+            "--benchmark",
+            save_file
+                .to_str()
+                .ok_or_else(|| BenchmarkError::InvalidSaveFileName {
+                    path: save_file.to_path_buf(),
+                })?,
+            "--benchmark-ticks",
+            &self.config.ticks.to_string(),
+            "--benchmark-runs",
+            &self.config.runs.to_string(),
             "--disable-audio",
         ]);
 
         if let Some(mods_file) = &self.config.mods_dir {
             cmd.arg("--mod-directory");
             cmd.arg(
-                mods_file.to_str().ok_or_else(|| BenchmarkError::InvalidModsFileName { path: mods_file.clone() })?
+                mods_file
+                    .to_str()
+                    .ok_or_else(|| BenchmarkError::InvalidModsFileName {
+                        path: mods_file.clone(),
+                    })?,
             );
             tracing::debug!("Set the mod list to: {}", mods_file.display());
         }
 
-        cmd.stdout(Stdio::piped())
-           .stderr(Stdio::piped());
+        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         tracing::debug!("Executing: {:?}", cmd);
 
@@ -134,8 +152,8 @@ impl BenchmarkRunner {
             });
         }
 
-        let stdout = String::from_utf8(output.stdout)
-            .map_err(|_| BenchmarkError::InvalidUtf8Output)?;
+        let stdout =
+            String::from_utf8(output.stdout).map_err(|_| BenchmarkError::InvalidUtf8Output)?;
 
         Ok(stdout)
     }

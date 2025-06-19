@@ -5,14 +5,20 @@ pub fn get_default_factorio_paths() -> Vec<PathBuf> {
 
     if cfg!(target_os = "windows") {
         // Steam
-        paths.push(PathBuf::from(r"C:\Program Files (x86)\Steam\steamapps\common\Factorio\bin\x64\factorio.exe"));
+        paths.push(PathBuf::from(
+            r"C:\Program Files (x86)\Steam\steamapps\common\Factorio\bin\x64\factorio.exe",
+        ));
 
         // Standalone
-        paths.push(PathBuf::from(r"C:\Program Files\Factorio\bin\x64\factorio.exe"));
+        paths.push(PathBuf::from(
+            r"C:\Program Files\Factorio\bin\x64\factorio.exe",
+        ));
 
         // User steam library (uncommon)
         if let Some(home) = dirs::home_dir() {
-            paths.push(home.join(r"AppData\Local\Steam\steamapps\common\Factorio\bin\x64\factorio.exe"));
+            paths.push(
+                home.join(r"AppData\Local\Steam\steamapps\common\Factorio\bin\x64\factorio.exe"),
+            );
         }
     } else if cfg!(target_os = "linux") {
         // User bin (symlinked, personally have this)
@@ -30,9 +36,13 @@ pub fn get_default_factorio_paths() -> Vec<PathBuf> {
         }
     } else if cfg!(target_os = "macos") {
         if let Some(home) = dirs::home_dir() {
-            paths.push(home.join("Library/Application Support/Steam/steamapps/common/Factorio/bin/x64/factorio"));
+            paths.push(home.join(
+                "Library/Application Support/Steam/steamapps/common/Factorio/bin/x64/factorio",
+            ));
         }
-        paths.push(PathBuf::from("/Applications/factorio.app/Contents/MacOS/factorio"));
+        paths.push(PathBuf::from(
+            "/Applications/factorio.app/Contents/MacOS/factorio",
+        ));
     }
 
     paths

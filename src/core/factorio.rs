@@ -31,7 +31,7 @@ impl FactorioExecutor {
 
         let candidates = platform::get_default_factorio_paths();
 
-        for candidate in candidates{
+        for candidate in candidates {
             if candidate.exists() {
                 tracing::info!("Found Factorio at: {}", candidate.display());
                 return Ok(candidate);

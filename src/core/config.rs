@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GlobalConfig {
@@ -11,7 +11,7 @@ impl Default for GlobalConfig {
     fn default() -> Self {
         Self {
             factorio_path: None,
-            verbose: false
+            verbose: false,
         }
     }
 }

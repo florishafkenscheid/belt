@@ -1,17 +1,21 @@
-use std::path::{Path};
 use anyhow::{Context, Result};
 use handlebars::Handlebars;
 use serde_json::json;
+use std::path::Path;
 
-use crate::{benchmark::parser::BenchmarkResult};
+use crate::benchmark::parser::BenchmarkResult;
 
 pub fn write_results(
     results: &[BenchmarkResult],
     output_dir: &Path,
-    template_path: &Path
+    template_path: &Path,
 ) -> Result<()> {
-    std::fs::create_dir_all(output_dir)
-        .with_context(|| format!("Failed to create the output directory: {}", output_dir.display()))?;
+    std::fs::create_dir_all(output_dir).with_context(|| {
+        format!(
+            "Failed to create the output directory: {}",
+            output_dir.display()
+        )
+    })?;
 
     write_csv(results, output_dir)?;
     write_markdown(results, output_dir, template_path)?;
@@ -22,8 +26,7 @@ pub fn write_results(
 fn write_csv(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
     let csv_path = output_dir.join("results.csv");
 
-    let mut writer = csv::Writer::from_path(&csv_path)
-        .context("Failed to create CSV writer")?;
+    let mut writer = csv::Writer::from_path(&csv_path).context("Failed to create CSV writer")?;
 
     writer.write_record(&[
         "save_name",
@@ -64,11 +67,13 @@ fn write_markdown(
     let md_path = output_dir.join("results.md");
 
     let mut handlebars = Handlebars::new();
-    handlebars.register_template_file("benchmark", template_path)
+    handlebars
+        .register_template_file("benchmark", template_path)
         .context("Failed to register template")?;
 
     // Find the highest avg_effective_ups across all benchmarks
-    let max_avg_ups = results.iter()
+    let max_avg_ups = results
+        .iter()
         .map(|r| r.avg_effective_ups as u64)
         .max()
         .unwrap_or(0);
@@ -97,12 +102,12 @@ fn write_markdown(
         "results": table_results,
     });
 
-    let rendered = handlebars.render("benchmark", &data)
+    let rendered = handlebars
+        .render("benchmark", &data)
         .context("Failed to render template")?;
 
-    std::fs::write(&md_path, rendered)
-        .context("Failed to write markdown file")?;
-        
+    std::fs::write(&md_path, rendered).context("Failed to write markdown file")?;
+
     tracing::info!("Markdown report written to {}", md_path.display());
     Ok(())
 }

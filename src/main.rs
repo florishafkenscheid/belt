@@ -1,9 +1,9 @@
-mod core;
 mod benchmark;
+mod core;
 
-use clap::{Parser, Subcommand};
-use std::path::{PathBuf};
 use anyhow::Result;
+use clap::{Parser, Subcommand};
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(name = "belt")]
@@ -36,10 +36,10 @@ enum Commands {
         #[arg(long)]
         output: Option<PathBuf>,
 
-        #[arg(long)] 
+        #[arg(long)]
         template_path: Option<PathBuf>,
 
-        #[arg(long)] 
+        #[arg(long)]
         mods_dir: Option<PathBuf>,
     },
 }
@@ -64,7 +64,15 @@ async fn main() -> Result<()> {
     };
 
     match cli.command {
-        Commands::Benchmark { saves_dir, ticks, runs, pattern, output, template_path, mods_dir } => {
+        Commands::Benchmark {
+            saves_dir,
+            ticks,
+            runs,
+            pattern,
+            output,
+            template_path,
+            mods_dir,
+        } => {
             let benchmark_config = benchmark::BenchmarkConfig {
                 saves_dir,
                 ticks,
