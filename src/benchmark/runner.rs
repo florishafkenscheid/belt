@@ -42,9 +42,9 @@ impl BenchmarkRunner {
                 .to_string();
 
             progress.set_position(i as u64);
-            progress.set_message(format!("{}", save_name));
+            progress.set_message(save_name.to_string());
 
-            match self.run_benchmark_for_save(&save_file).await {
+            match self.run_benchmark_for_save(save_file).await {
                 Ok(result) => {
                     all_results.push(result);
                 }
@@ -61,7 +61,7 @@ impl BenchmarkRunner {
 
     async fn run_benchmark_for_save(&self, save_file: &Path) -> Result<BenchmarkResult> {
         // If mods_file is not set, sync mods with the given save file
-        if self.config.mods_dir == None {
+        if Option::is_none(&self.config.mods_dir) {
             self.sync_mods_for_save(save_file).await?;
         };
 
@@ -78,7 +78,7 @@ impl BenchmarkRunner {
     async fn sync_mods_for_save(&self, save_file: &Path) -> Result<()> {
         let mut cmd = self.factorio.create_command();
 
-        cmd.args(&[
+        cmd.args([
             "--sync-mods",
             save_file
                 .to_str()
@@ -110,7 +110,7 @@ impl BenchmarkRunner {
     async fn execute_factorio_benchmark(&self, save_file: &Path) -> Result<String> {
         let mut cmd = self.factorio.create_command();
 
-        cmd.args(&[
+        cmd.args([
             "--benchmark",
             save_file
                 .to_str()

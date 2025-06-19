@@ -25,7 +25,7 @@ impl FactorioExecutor {
                 tracing::info!("Using explicit Factorio path: {}", path.display());
                 return Ok(path);
             } else {
-                return Err(BenchmarkError::FactorioNotFoundAtPath { path: path });
+                return Err(BenchmarkError::FactorioNotFoundAtPath { path });
             }
         }
 
@@ -48,6 +48,4 @@ impl FactorioExecutor {
     pub fn create_command(&self) -> Command {
         Command::new(&self.executable_path)
     }
-
-    // pub async fn get_version(&self) -> Result<String> { }
 }

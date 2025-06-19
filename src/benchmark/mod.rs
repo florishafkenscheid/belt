@@ -40,8 +40,7 @@ pub async fn run(
 
     let output_dir = benchmark_config
         .output
-        .as_ref()
-        .map(|p| p.as_path())
+        .as_deref()
         .unwrap_or_else(|| Path::new("."));
 
     let csv_path = output_dir.join("results.csv");
@@ -57,7 +56,7 @@ pub async fn run(
         .template_path
         .as_deref()
         .unwrap_or_else(|| Path::new("templates/benchmark.md.hbs"));
-    output::write_results(&results, &output_dir, template_path)?;
+    output::write_results(&results, output_dir, template_path)?;
 
     tracing::info!("Benchmark complete!");
     tracing::info!("Total benchmarks run: {}", results.len());

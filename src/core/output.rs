@@ -28,7 +28,7 @@ fn write_csv(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
 
     let mut writer = csv::Writer::from_path(&csv_path).context("Failed to create CSV writer")?;
 
-    writer.write_record(&[
+    writer.write_record([
         "save_name",
         "avg_ms",
         "min_ms",
@@ -41,7 +41,7 @@ fn write_csv(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
     ])?;
 
     for result in results {
-        writer.write_record(&[
+        writer.write_record([
             &result.save_name,
             &result.avg_ms.to_string(),
             &result.min_ms.to_string(),

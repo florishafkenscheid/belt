@@ -10,7 +10,7 @@ pub fn find_save_files(saves_dir: &Path, pattern: Option<&str>) -> Result<Vec<Pa
     }
 
     if saves_dir.is_file() {
-        if saves_dir.extension().map_or(false, |ext| ext == "zip") {
+        if saves_dir.extension().is_some_and(|ext| ext == "zip") {
             return Ok(vec![saves_dir.to_path_buf()]);
         } else {
             return Err(BenchmarkError::InvalidSaveFile {
@@ -51,7 +51,7 @@ pub fn validate_save_files(save_files: &[PathBuf]) -> Result<()> {
             });
         }
 
-        if !save_file.extension().map_or(false, |ext| ext == "zip") {
+        if save_file.extension().is_none_or(|ext| ext == "zip") {
             tracing::warn!(
                 "Save file {} does not have .zip extension",
                 save_file.display()
