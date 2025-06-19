@@ -102,3 +102,16 @@ belt benchmark ./my-saves --pattern science --output science-results
 # Run a benchmark on the my-saves directory, with an explicit path to the factorio binary
 belt --factorio-path /path/to/factorio benchmark ./my-saves
 ```
+
+## Contributing
+Any help is welcome. Whether you have never written a line of code, or simply don't know Rust. This is what the CI/CD pipeline is for!
+Bug reports and feature requests can be submitting through GitHub Issues.
+
+If you want to contribute, please open an issue to discuss the proposed changes before submitting a pull request.
+
+### Standards
+On every push a linter and formatter checks the code, so just write the code however you want and fix any errors that occur.
+> [!NOTE]
+> To do this locally, run `cargo fmt` and `cargo clippy -- -D warnings`
+
+I follow the [Conventional Commits specification](https://www.conventionalcommits.org/) as a standard for my commit messages, I can only encourage you do the same.
