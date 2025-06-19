@@ -1,4 +1,7 @@
 # BELT: Benchmark for Engine Limits & Throughput
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/florishafkenscheid/belt/ci.yml?label=master)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/florishafkenscheid/belt/release.yml?label=release)
+
 > [!NOTE]
 > This was heavily inspired by abucnasty's work.
 > I wanted to make a more universal, cross-platform version of the existing ps1 script.
@@ -6,11 +9,11 @@
 BELT is a wrapper for the `factorio --benchmark` command, to make it more user friendly, more efficient to use, and to generate templated markdown files with the gotten data.
 
 ## Features
-- [ ] **Benchmarking** - Benchmark a single save or a whole directory 
+- [ ] **Benchmarking** - Benchmark a single save or a whole directory
 - [ ] **Cross-platform** - Works on Windows, macOS, and Linux
 - [ ] **Multiple output formats** - CSV and Markdown reports
 - [ ] **Pattern matching** - Filter save files by name patterns
-- [ ] **Async execution** - Fast parallel processing 
+- [ ] **Async execution** - Fast parallel processing
 
 ## Quick Start
 ```bash
