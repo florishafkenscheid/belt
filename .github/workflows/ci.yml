@@ -7,7 +7,7 @@ on:
     branches: [ master ]
 
 jobs:
-  # This job will run linting and testing for Rust projects
+  # This job will run linting, formatting, and testing for Rust projects
   lint_and_test:
     name: Lint & Test Rust
     runs-on: ubuntu-latest
@@ -26,6 +26,11 @@ jobs:
         with:
           command: clippy
           args: --all-targets --all-features -- -D warnings
+
+      - name: Run fmt (formatter)
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
 
       - name: Run tests
         uses: actions-rs/cargo@v1
