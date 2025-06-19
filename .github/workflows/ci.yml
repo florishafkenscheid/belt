@@ -9,7 +9,7 @@ on:
 jobs:
   # This job will run linting, formatting, and testing for Rust projects
   lint_and_test:
-    name: Lint & Test Rust
+    name: Lint, Format & Test Rust
     runs-on: ubuntu-latest
 
     steps:
