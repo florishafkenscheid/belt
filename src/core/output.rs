@@ -3,7 +3,7 @@ use handlebars::Handlebars;
 use serde_json::json;
 use std::path::Path;
 
-use crate::benchmark::parser::BenchmarkResult;
+use crate::benchmark::parser::{BenchmarkResult};
 
 pub fn write_results(
     results: &[BenchmarkResult],
@@ -30,28 +30,32 @@ fn write_csv(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
 
     writer.write_record([
         "save_name",
+        "run_index",
+        "execution_time_ms",
         "avg_ms",
         "min_ms",
         "max_ms",
-        "ticks",
-        "execution_time_ms",
         "effective_ups",
+        "ticks",
         "factorio_version",
         "platform",
     ])?;
 
     for result in results {
-        writer.write_record([
-            &result.save_name,
-            &result.avg_ms.to_string(),
-            &result.min_ms.to_string(),
-            &result.max_ms.to_string(),
-            &result.ticks.to_string(),
-            &result.total_execution_time_ms.to_string(),
-            &result.avg_effective_ups.to_string(),
-            &result.factorio_version,
-            &result.platform,
-        ])?;
+        for (i, run) in result.runs.iter().enumerate() {
+            writer.write_record([
+                &result.save_name,
+                &i.to_string(),
+                &run.execution_time_ms.to_string(),
+                &run.avg_ms.to_string(),
+                &run.min_ms.to_string(),
+                &run.max_ms.to_string(),
+                &run.effective_ups.to_string(),
+                &result.ticks.to_string(),
+                &result.factorio_version,
+                &result.platform,
+            ])?;
+        }
     }
 
     writer.flush().context("Failed to write CSV")?;
@@ -71,29 +75,48 @@ fn write_markdown(
         .register_template_file("benchmark", template_path)
         .context("Failed to register template")?;
 
-    // Find the highest avg_effective_ups across all benchmarks
-    let max_avg_ups = results
-        .iter()
-        .map(|r| r.avg_effective_ups as u64)
-        .max()
-        .unwrap_or(0);
-
-    // Prepare results for the table with bold formatting
+    // Calculate aggregated metrics for each benchmark result
     let mut table_results = Vec::new();
     for result in results {
-        let avg_ups = result.avg_effective_ups as u64;
-        let avg_ms_rounded = (result.avg_ms * 1000.0).round() / 1000.0;
-        let min_ms_rounded = (result.min_ms * 1000.0).round() / 1000.0;
-        let max_ms_rounded = (result.max_ms * 1000.0).round() / 1000.0;
+        // Aggregate metrics from all runs
+        let total_execution_time_ms: f64 = result.runs.iter().map(|r| r.execution_time_ms).sum();
+        let avg_ms: f64 = result.runs.iter().map(|r| r.avg_ms).sum::<f64>() / result.runs.len() as f64;
+        let min_ms: f64 = result.runs.iter().map(|r| r.min_ms).min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or(0.0);
+        let max_ms: f64 = result.runs.iter().map(|r| r.max_ms).max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or(0.0);
+        let avg_effective_ups: f64 = result.runs.iter().map(|r| r.effective_ups).sum::<f64>() / result.runs.len() as f64;
+
+        // Round values for display
+        let avg_ms_rounded = (avg_ms * 1000.0).round() / 1000.0;
+        let min_ms_rounded = (min_ms * 1000.0).round() / 1000.0;
+        let max_ms_rounded = (max_ms * 1000.0).round() / 1000.0;
+        let avg_ups = avg_effective_ups as u64;
 
         table_results.push(json!({
             "save_name": result.save_name,
             "avg_ms": format!("{:.3}", avg_ms_rounded),
             "min_ms": format!("{:.3}", min_ms_rounded),
             "max_ms": format!("{:.3}", max_ms_rounded),
-            "avg_effective_ups": if avg_ups == max_avg_ups { format!("**{}**", avg_ups) } else { avg_ups.to_string() },
-            "total_execution_time_ms": result.total_execution_time_ms,
+            "avg_effective_ups": avg_ups.to_string(),
+            "total_execution_time_ms": total_execution_time_ms as u64,
         }));
+    }
+
+    // Find the highest avg_effective_ups across all benchmarks for highlighting
+    if !table_results.is_empty() {
+        let max_avg_ups = table_results
+            .iter()
+            .map(|r| r["avg_effective_ups"].as_str().unwrap_or("0").parse::<u64>().unwrap_or(0))
+            .max()
+            .unwrap_or(0);
+
+        // Add bold formatting to the highest UPS value
+        for result in &mut table_results {
+            let ups_str = result["avg_effective_ups"].as_str().unwrap_or("0");
+            let ups = ups_str.parse::<u64>().unwrap_or(0);
+            if ups == max_avg_ups {
+                result["avg_effective_ups"] = json!(format!("**{}**", ups));
+            }
+        }
     }
 
     let data = json!({

@@ -37,7 +37,7 @@ pub fn get_default_factorio_paths() -> Vec<PathBuf> {
     } else if cfg!(target_os = "macos") {
         if let Some(home) = dirs::home_dir() {
             paths.push(home.join(
-                "Library/Application Support/Steam/steamapps/common/Factorio/bin/x64/factorio",
+                "Library/Application Support/Steam/steamapps/common/Factorio/factorio.app/Contents/MacOS/factorio",
             ));
         }
         paths.push(PathBuf::from(

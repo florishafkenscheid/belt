@@ -5,14 +5,19 @@ use crate::benchmark::BenchmarkConfig;
 use crate::core::{BenchmarkError, Result};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BenchmarkResult {
-    pub save_name: String,
+pub struct BenchmarkRun {
+    pub execution_time_ms: f64,
     pub avg_ms: f64,
     pub min_ms: f64,
     pub max_ms: f64,
+    pub effective_ups: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BenchmarkResult {
+    pub save_name: String,
     pub ticks: u32,
-    pub total_execution_time_ms: u64,
-    pub avg_effective_ups: f64,
+    pub runs: Vec<BenchmarkRun>,
     pub factorio_version: String,
     pub platform: String,
 }
@@ -33,20 +38,12 @@ pub fn parse_benchmark_log(
 
     let lines: Vec<&str> = log.lines().collect();
 
-    let mut total_execution_time_ms = 0.0;
-    let mut avg_ms_sum = 0.0;
-    let mut min_ms = f64::MAX;
-    let mut max_ms = f64::MIN;
-    let mut effective_ups_sum = 0.0;
-    let mut run_count = 0;
-
+    let mut runs = Vec::new();
     let mut i = 0;
 
     while i < lines.len() {
         if let Some(line) = lines.get(i) {
             if line.contains("Performed") && line.contains("updates in") && line.contains("ms") {
-                run_count += 1;
-
                 // e.g.: Performed 6000 updates in 2233.749 ms
                 let parts: Vec<&str> = line.split_whitespace().collect();
 
@@ -54,7 +51,6 @@ pub fn parse_benchmark_log(
                     .get(4)
                     .and_then(|s| s.parse::<f64>().ok())
                     .unwrap_or(0.0);
-                total_execution_time_ms += execution_time_ms;
 
                 if let Some(perf_line) = lines.get(i + 1) {
                     if perf_line.contains("avg:")
@@ -69,23 +65,20 @@ pub fn parse_benchmark_log(
                             .and_then(|pos| parts.get(pos + 1))
                             .and_then(|s| s.parse::<f64>().ok())
                             .unwrap_or(0.0);
-                        avg_ms_sum += avg_ms;
 
-                        let current_min = parts
+                        let min_ms = parts
                             .iter()
                             .position(|&x| x == "min:")
                             .and_then(|pos| parts.get(pos + 1))
                             .and_then(|s| s.parse::<f64>().ok())
                             .unwrap_or(0.0);
-                        min_ms = min_ms.min(current_min);
 
-                        let current_max = parts
+                        let max_ms = parts
                             .iter()
                             .position(|&x| x == "max:")
                             .and_then(|pos| parts.get(pos + 1))
                             .and_then(|s| s.parse::<f64>().ok())
                             .unwrap_or(0.0);
-                        max_ms = max_ms.max(current_max);
 
                         let effective_ups = if execution_time_ms > 0.0 {
                             1000.0 * benchmark_config.ticks as f64 / execution_time_ms
@@ -93,7 +86,13 @@ pub fn parse_benchmark_log(
                             0.0
                         };
 
-                        effective_ups_sum += effective_ups;
+                        runs.push(BenchmarkRun {
+                            execution_time_ms,
+                            avg_ms,
+                            min_ms,
+                            max_ms,
+                            effective_ups,
+                        });
                     }
                 }
             }
@@ -101,18 +100,14 @@ pub fn parse_benchmark_log(
         i += 1;
     }
 
-    if run_count == 0 {
+    if runs.is_empty() {
         return Err(BenchmarkError::NoBenchmarkResults);
     }
 
     Ok(BenchmarkResult {
         save_name,
-        avg_ms: avg_ms_sum / run_count as f64,
-        min_ms,
-        max_ms,
         ticks: benchmark_config.ticks,
-        total_execution_time_ms: total_execution_time_ms as u64,
-        avg_effective_ups: effective_ups_sum / run_count as f64,
+        runs,
         factorio_version: version,
         platform: crate::core::platform::get_os_info(),
     })
