@@ -51,7 +51,7 @@ pub fn validate_save_files(save_files: &[PathBuf]) -> Result<()> {
             });
         }
 
-        if save_file.extension().is_none_or(|ext| ext == "zip") {
+        if save_file.extension().is_none_or(|ext| ext != "zip") {
             tracing::warn!(
                 "Save file {} does not have .zip extension",
                 save_file.display()
