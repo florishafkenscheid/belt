@@ -96,10 +96,10 @@ impl BenchmarkRunner {
         let output = child.wait_with_output().await?;
 
         if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
+            let err = output.stdout.last().unwrap();
             return Err(BenchmarkError::FactorioProcessFailed {
                 code: output.status.code().unwrap_or(-1),
-                stderr: stderr.to_string(),
+                err: err.to_string(),
             });
         }
 
@@ -145,10 +145,10 @@ impl BenchmarkRunner {
         let output = child.wait_with_output().await?;
 
         if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
+            let err = output.stdout.last().unwrap();
             return Err(BenchmarkError::FactorioProcessFailed {
                 code: output.status.code().unwrap_or(-1),
-                stderr: stderr.to_string(),
+                err: err.to_string(),
             });
         }
 

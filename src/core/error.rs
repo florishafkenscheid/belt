@@ -30,8 +30,8 @@ pub enum BenchmarkError {
     #[error("Progress bar template error: {0}")]
     ProgressBarError(String),
 
-    #[error("Factorio process failed with exit code {code}: {stderr}")]
-    FactorioProcessFailed { code: i32, stderr: String },
+    #[error("Factorio process failed with exit code {code}: {err}")]
+    FactorioProcessFailed { code: i32, err: String },
 
     #[error("No benchmark results found in Factorio output")]
     NoBenchmarkResults,
