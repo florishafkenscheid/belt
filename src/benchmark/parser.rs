@@ -11,6 +11,7 @@ pub struct BenchmarkRun {
     pub min_ms: f64,
     pub max_ms: f64,
     pub effective_ups: f64,
+    pub base_diff: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -92,6 +93,7 @@ pub fn parse_benchmark_log(
                             min_ms,
                             max_ms,
                             effective_ups,
+                            base_diff: 0.0, // Will be calculated later
                         });
                     }
                 }
@@ -111,4 +113,21 @@ pub fn parse_benchmark_log(
         factorio_version: version,
         platform: crate::core::platform::get_os_info(),
     })
+}
+
+pub fn calculate_base_differences(results: &mut [BenchmarkResult]) {
+    // Find the minimum effective_ups across all runs in all results
+    let min_effective_ups = results
+        .iter()
+        .flat_map(|result| result.runs.iter())
+        .map(|run| run.effective_ups)
+        .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+        .unwrap_or(0.0);
+
+    // Calculate base_diff for each run
+    for result in results.iter_mut() {
+        for run in result.runs.iter_mut() {
+            run.base_diff = run.effective_ups - min_effective_ups;
+        }
+    }
 }

@@ -3,7 +3,7 @@ use handlebars::Handlebars;
 use serde_json::json;
 use std::path::Path;
 
-use crate::benchmark::parser::{BenchmarkResult};
+use crate::benchmark::parser::BenchmarkResult;
 
 pub fn write_results(
     results: &[BenchmarkResult],
@@ -36,6 +36,7 @@ fn write_csv(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
         "min_ms",
         "max_ms",
         "effective_ups",
+        "base_diff",
         "ticks",
         "factorio_version",
         "platform",
@@ -51,6 +52,14 @@ fn write_csv(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
                 &run.min_ms.to_string(),
                 &run.max_ms.to_string(),
                 &run.effective_ups.to_string(),
+                &format!(
+                    "{:.2}",
+                    if run.effective_ups > run.base_diff {
+                        (run.base_diff / (run.effective_ups - run.base_diff)) * 100.0
+                    } else {
+                        0.0
+                    }
+                ),
                 &result.ticks.to_string(),
                 &result.factorio_version,
                 &result.platform,
@@ -80,10 +89,28 @@ fn write_markdown(
     for result in results {
         // Aggregate metrics from all runs
         let total_execution_time_ms: f64 = result.runs.iter().map(|r| r.execution_time_ms).sum();
-        let avg_ms: f64 = result.runs.iter().map(|r| r.avg_ms).sum::<f64>() / result.runs.len() as f64;
-        let min_ms: f64 = result.runs.iter().map(|r| r.min_ms).min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or(0.0);
-        let max_ms: f64 = result.runs.iter().map(|r| r.max_ms).max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or(0.0);
-        let avg_effective_ups: f64 = result.runs.iter().map(|r| r.effective_ups).sum::<f64>() / result.runs.len() as f64;
+        let avg_ms: f64 =
+            result.runs.iter().map(|r| r.avg_ms).sum::<f64>() / result.runs.len() as f64;
+
+        let min_ms: f64 = result
+            .runs
+            .iter()
+            .map(|r| r.min_ms)
+            .min_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap_or(0.0);
+
+        let max_ms: f64 = result
+            .runs
+            .iter()
+            .map(|r| r.max_ms)
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap_or(0.0);
+
+        let avg_effective_ups: f64 =
+            result.runs.iter().map(|r| r.effective_ups).sum::<f64>() / result.runs.len() as f64;
+
+        let avg_base_diff: f64 =
+            result.runs.iter().map(|r| r.base_diff).sum::<f64>() / result.runs.len() as f64;
 
         // Round values for display
         let avg_ms_rounded = (avg_ms * 1000.0).round() / 1000.0;
@@ -91,12 +118,22 @@ fn write_markdown(
         let max_ms_rounded = (max_ms * 1000.0).round() / 1000.0;
         let avg_ups = avg_effective_ups as u64;
 
+        // Calculate percentage improvement from base (worst performer)
+        let base_ups = avg_effective_ups - avg_base_diff;
+        let percentage_improvement = if base_ups > 0.0 {
+            (avg_base_diff / base_ups) * 100.0
+        } else {
+            0.0
+        };
+        let percentage_rounded = (percentage_improvement * 100.0).round() / 100.0;
+
         table_results.push(json!({
             "save_name": result.save_name,
             "avg_ms": format!("{:.3}", avg_ms_rounded),
             "min_ms": format!("{:.3}", min_ms_rounded),
             "max_ms": format!("{:.3}", max_ms_rounded),
             "avg_effective_ups": avg_ups.to_string(),
+            "percentage_improvement": format!("{:.2}%", percentage_rounded),
             "total_execution_time_ms": total_execution_time_ms as u64,
         }));
     }
@@ -105,7 +142,13 @@ fn write_markdown(
     if !table_results.is_empty() {
         let max_avg_ups = table_results
             .iter()
-            .map(|r| r["avg_effective_ups"].as_str().unwrap_or("0").parse::<u64>().unwrap_or(0))
+            .map(|r| {
+                r["avg_effective_ups"]
+                    .as_str()
+                    .unwrap_or("0")
+                    .parse::<u64>()
+                    .unwrap_or(0)
+            })
             .max()
             .unwrap_or(0);
 

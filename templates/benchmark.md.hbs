@@ -1,7 +1,7 @@
 # Factorio Benchmark Results
 
-**Platform:** {{platform}}  
-**Factorio Version:** {{factorio_version}}  
+**Platform:** {{platform}}
+**Factorio Version:** {{factorio_version}}
 
 ## Scenario
 Lorem ipsum..
@@ -14,10 +14,10 @@ Lorem ipsum..
 | **Mean Min (ms)** | Minimum frame time – lower is better  |
 | **Mean Max (ms)** | Maximum frame time – lower is better  |
 
-| Save | Avg (ms) | Min (ms) | Max (ms) | UPS | Execution Time (ms) |
-|------|----------|----------|----------|-----|---------------------|
+| Save | Avg (ms) | Min (ms) | Max (ms) | UPS | Execution Time (ms) | % Difference from base |
+|------|----------|----------|----------|-----|---------------------|------------------------|
 {{#each results}}
-| {{save_name}} | {{avg_ms}} | {{min_ms}} | {{max_ms}} | {{{avg_effective_ups}}} | {{total_execution_time_ms}} |
+| {{save_name}} | {{avg_ms}} | {{min_ms}} | {{max_ms}} | {{{avg_effective_ups}}} | {{total_execution_time_ms}} | {{avg_base_diff}}% |
 {{/each}}
 
 ## Conclusion
