@@ -36,7 +36,7 @@ fn write_csv(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
         "min_ms",
         "max_ms",
         "effective_ups",
-        "base_diff",
+        "percentage_improvement",
         "ticks",
         "factorio_version",
         "platform",
@@ -53,8 +53,8 @@ fn write_csv(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
                 &run.max_ms.to_string(),
                 &run.effective_ups.to_string(),
                 &format!(
-                    "{:.2}",
-                    if run.effective_ups > run.base_diff {
+                    "{:.2}%",
+                    if run.effective_ups - run.base_diff > 0.0 {
                         (run.base_diff / (run.effective_ups - run.base_diff)) * 100.0
                     } else {
                         0.0
@@ -125,7 +125,6 @@ fn write_markdown(
         } else {
             0.0
         };
-        let percentage_rounded = (percentage_improvement * 100.0).round() / 100.0;
 
         table_results.push(json!({
             "save_name": result.save_name,
@@ -133,7 +132,7 @@ fn write_markdown(
             "min_ms": format!("{:.3}", min_ms_rounded),
             "max_ms": format!("{:.3}", max_ms_rounded),
             "avg_effective_ups": avg_ups.to_string(),
-            "percentage_improvement": format!("{:.2}%", percentage_rounded),
+            "percentage_improvement": format!("{:.2}%", percentage_improvement),
             "total_execution_time_ms": total_execution_time_ms as u64,
         }));
     }
