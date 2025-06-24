@@ -36,7 +36,8 @@ pub async fn run(
     discovery::validate_save_files(&save_files)?;
 
     let runner = runner::BenchmarkRunner::new(benchmark_config.clone(), factorio);
-    let results = runner.run_all(save_files).await?;
+    let mut results = runner.run_all(save_files).await?;
+    parser::calculate_base_differences(&mut results);
 
     let output_dir = benchmark_config
         .output
