@@ -52,14 +52,7 @@ fn write_csv(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
                 &run.min_ms.to_string(),
                 &run.max_ms.to_string(),
                 &run.effective_ups.to_string(),
-                &format!(
-                    "{:.2}%",
-                    if run.effective_ups - run.base_diff > 0.0 {
-                        (run.base_diff / (run.effective_ups - run.base_diff)) * 100.0
-                    } else {
-                        0.0
-                    }
-                ),
+                &run.base_diff.to_string(),
                 &result.ticks.to_string(),
                 &result.factorio_version,
                 &result.platform,
