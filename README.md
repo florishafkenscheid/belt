@@ -77,6 +77,7 @@ belt benchmark /path/to/saves --pattern "benchmark" --output /path/to/output/dir
 | `--runs <RUNS>` | How many runs per save file | `5` |
 | `--pattern <PATTERN>` | A pattern to match against when searching for save files in `<SAVES_DIR>` | `*` |
 | `--output <OUTPUT_DIR>` | A directory to output the .csv and .md files to | `.` |
+| `--mods-dir <MODS_DIR>` | A directory containing mods to be used for the benchmark | `--sync-mods` on each save file |
 
 ### Global Options
 | Option | Description | Default |
@@ -101,6 +102,12 @@ belt benchmark ./my-saves --pattern science --output science-results
 ```bash
 # Run a benchmark on the my-saves directory, with an explicit path to the factorio binary
 belt --factorio-path /path/to/factorio benchmark ./my-saves
+```
+
+#### Example 4: Specifying a mod list
+```bash
+# Run a benchmark on the my-saves directory and a mod directory
+belt --factorio-path /path/to/factorio --mods-dir /path/to/mods benchmark ./my-saves
 ```
 
 ## Contributing
