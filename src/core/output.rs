@@ -3,7 +3,7 @@ use handlebars::Handlebars;
 use serde_json::json;
 use std::path::Path;
 
-use crate::benchmark::parser::BenchmarkResult;
+use crate::benchmark::{charts, parser::BenchmarkResult};
 
 pub fn write_results(
     results: &[BenchmarkResult],
@@ -18,7 +18,9 @@ pub fn write_results(
     })?;
 
     write_csv(results, output_dir)?;
-    write_markdown(results, output_dir, template_path)?;
+    if charts::generate_charts(results, output_dir).is_ok() {
+        write_markdown(results, output_dir, template_path)?;
+    }
 
     Ok(())
 }

@@ -56,6 +56,9 @@ pub enum BenchmarkError {
 
     #[error("JSON Serialization error: {0}")]
     JsonError(#[from] serde_json::Error),
+
+    #[error("Chart generation error: {0}")]
+    ChartGenerationError(#[from] charming::EchartsError),
 }
 
 pub type Result<T> = std::result::Result<T, BenchmarkError>;
