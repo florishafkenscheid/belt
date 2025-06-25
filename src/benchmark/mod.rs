@@ -1,3 +1,4 @@
+pub mod charts;
 pub mod discovery;
 pub mod parser;
 pub mod runner;
@@ -44,19 +45,13 @@ pub async fn run(
         .as_deref()
         .unwrap_or_else(|| Path::new("."));
 
-    let csv_path = output_dir.join("results.csv");
-    let md_path = output_dir.join("results.md");
-
-    tracing::debug!(
-        "CSV Path: {}, Markdown Path: {}",
-        csv_path.display(),
-        md_path.display()
-    );
+    tracing::debug!("Output directory: {}", output_dir.display());
 
     let template_path = benchmark_config
         .template_path
         .as_deref()
         .unwrap_or_else(|| Path::new("templates/benchmark.md.hbs"));
+    
     output::write_results(&results, output_dir, template_path)?;
 
     tracing::info!("Benchmark complete!");
