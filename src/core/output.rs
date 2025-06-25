@@ -27,7 +27,7 @@ pub fn write_results(
 fn write_csv(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
     let csv_path = output_dir.join("results.csv");
 
-    let mut writer = csv::Writer::from_path(&csv_path).map_err(|e| BenchmarkError::CsvError(e))?;
+    let mut writer = csv::Writer::from_path(&csv_path).map_err(BenchmarkError::CsvError)?;
 
     writer.write_record([
         "save_name",
@@ -61,7 +61,7 @@ fn write_csv(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
         }
     }
 
-    writer.flush().map_err(|e| BenchmarkError::IoError(e))?;
+    writer.flush().map_err(BenchmarkError::IoError)?;
     tracing::info!("Results written to {}", csv_path.display());
     Ok(())
 }
@@ -163,9 +163,9 @@ fn write_markdown(
 
     let rendered = handlebars
         .render("benchmark", &data)
-        .map_err(|e| BenchmarkError::TemplateError(e))?;
+        .map_err(BenchmarkError::TemplateError)?;
 
-    std::fs::write(&md_path, rendered).map_err(|e| BenchmarkError::IoError(e))?;
+    std::fs::write(&md_path, rendered).map_err(BenchmarkError::IoError)?;
 
     tracing::info!("Markdown report written to {}", md_path.display());
     Ok(())
