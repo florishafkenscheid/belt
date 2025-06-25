@@ -116,18 +116,33 @@ pub fn parse_benchmark_log(
 }
 
 pub fn calculate_base_differences(results: &mut [BenchmarkResult]) {
-    // Find the minimum effective_ups across all runs in all results
-    let min_effective_ups = results
+    // Calculate average effective_ups for each save
+    let avg_ups_per_save: Vec<f64> = results
         .iter()
-        .flat_map(|result| result.runs.iter())
-        .map(|run| run.effective_ups)
+        .map(|result| {
+            let total_ups: f64 = result.runs.iter().map(|run| run.effective_ups).sum();
+            total_ups / result.runs.len() as f64
+        })
+        .collect();
+
+    // Find the minimum average effective_ups across all saves
+    let min_avg_ups = avg_ups_per_save
+        .iter()
         .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+        .copied()
         .unwrap_or(0.0);
 
-    // Calculate base_diff for each run
-    for result in results.iter_mut() {
+    // Calculate base_diff as percentage improvement for each run relative to the worst-performing save's average
+    for (result_idx, result) in results.iter_mut().enumerate() {
+        let save_avg_ups = avg_ups_per_save[result_idx];
+        let percentage_improvement = if min_avg_ups > 0.0 {
+            ((save_avg_ups - min_avg_ups) / min_avg_ups) * 100.0
+        } else {
+            0.0
+        };
+
         for run in result.runs.iter_mut() {
-            run.base_diff = run.effective_ups - min_effective_ups;
+            run.base_diff = percentage_improvement;
         }
     }
 }

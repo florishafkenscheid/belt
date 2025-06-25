@@ -112,21 +112,13 @@ fn write_markdown(
         let max_ms_rounded = (max_ms * 1000.0).round() / 1000.0;
         let avg_ups = avg_effective_ups as u64;
 
-        // Calculate percentage improvement from base (worst performer)
-        let base_ups = avg_effective_ups - avg_base_diff;
-        let percentage_improvement = if base_ups > 0.0 {
-            (avg_base_diff / base_ups) * 100.0
-        } else {
-            0.0
-        };
-
         table_results.push(json!({
             "save_name": result.save_name,
             "avg_ms": format!("{:.3}", avg_ms_rounded),
             "min_ms": format!("{:.3}", min_ms_rounded),
             "max_ms": format!("{:.3}", max_ms_rounded),
             "avg_effective_ups": avg_ups.to_string(),
-            "percentage_improvement": format!("{:.2}%", percentage_improvement),
+            "percentage_improvement": format!("{:.2}%", avg_base_diff),
             "total_execution_time_ms": total_execution_time_ms as u64,
         }));
     }
