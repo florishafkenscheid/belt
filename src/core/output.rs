@@ -1,20 +1,19 @@
-use anyhow::{Context, Result};
 use handlebars::Handlebars;
 use serde_json::json;
 use std::path::Path;
 
-use crate::benchmark::{charts, parser::BenchmarkResult};
+use crate::{
+    benchmark::{charts, parser::BenchmarkResult},
+    core::{BenchmarkError, Result},
+};
 
 pub fn write_results(
     results: &[BenchmarkResult],
     output_dir: &Path,
     template_path: &Path,
 ) -> Result<()> {
-    std::fs::create_dir_all(output_dir).with_context(|| {
-        format!(
-            "Failed to create the output directory: {}",
-            output_dir.display()
-        )
+    std::fs::create_dir_all(output_dir).map_err(|_| BenchmarkError::DirectoryCreationFailed {
+        path: output_dir.to_path_buf(),
     })?;
 
     write_csv(results, output_dir)?;
@@ -28,7 +27,7 @@ pub fn write_results(
 fn write_csv(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
     let csv_path = output_dir.join("results.csv");
 
-    let mut writer = csv::Writer::from_path(&csv_path).context("Failed to create CSV writer")?;
+    let mut writer = csv::Writer::from_path(&csv_path).map_err(|e| BenchmarkError::CsvError(e))?;
 
     writer.write_record([
         "save_name",
@@ -62,7 +61,7 @@ fn write_csv(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
         }
     }
 
-    writer.flush().context("Failed to write CSV")?;
+    writer.flush().map_err(|e| BenchmarkError::IoError(e))?;
     tracing::info!("Results written to {}", csv_path.display());
     Ok(())
 }
@@ -77,7 +76,7 @@ fn write_markdown(
     let mut handlebars = Handlebars::new();
     handlebars
         .register_template_file("benchmark", template_path)
-        .context("Failed to register template")?;
+        .map_err(|e| BenchmarkError::TemplateError(e.into()))?;
 
     // Calculate aggregated metrics for each benchmark result
     let mut table_results = Vec::new();
@@ -164,9 +163,9 @@ fn write_markdown(
 
     let rendered = handlebars
         .render("benchmark", &data)
-        .context("Failed to render template")?;
+        .map_err(|e| BenchmarkError::TemplateError(e))?;
 
-    std::fs::write(&md_path, rendered).context("Failed to write markdown file")?;
+    std::fs::write(&md_path, rendered).map_err(|e| BenchmarkError::IoError(e))?;
 
     tracing::info!("Markdown report written to {}", md_path.display());
     Ok(())

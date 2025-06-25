@@ -1,7 +1,7 @@
 mod benchmark;
 mod core;
 
-use anyhow::Result;
+use crate::core::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 

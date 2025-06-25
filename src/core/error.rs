@@ -59,6 +59,9 @@ pub enum BenchmarkError {
 
     #[error("Chart generation error: {0}")]
     ChartGenerationError(#[from] charming::EchartsError),
+
+    #[error("Failed to create directory: {path}")]
+    DirectoryCreationFailed { path: PathBuf },
 }
 
 pub type Result<T> = std::result::Result<T, BenchmarkError>;

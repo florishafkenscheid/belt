@@ -5,7 +5,7 @@ pub mod runner;
 
 use std::path::{Path, PathBuf};
 
-use crate::core::{FactorioExecutor, GlobalConfig, output};
+use crate::core::{FactorioExecutor, GlobalConfig, Result, output};
 
 #[derive(Debug, Clone)]
 pub struct BenchmarkConfig {
@@ -18,10 +18,7 @@ pub struct BenchmarkConfig {
     pub mods_dir: Option<PathBuf>,
 }
 
-pub async fn run(
-    global_config: GlobalConfig,
-    benchmark_config: BenchmarkConfig,
-) -> anyhow::Result<()> {
+pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig) -> Result<()> {
     tracing::info!("Starting benchmark with config: {:?}", benchmark_config);
 
     let factorio = FactorioExecutor::discover(global_config.factorio_path)?;
