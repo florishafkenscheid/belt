@@ -51,7 +51,7 @@ pub async fn run(
         .template_path
         .as_deref()
         .unwrap_or_else(|| Path::new("templates/benchmark.md.hbs"));
-    
+
     output::write_results(&results, output_dir, template_path)?;
 
     tracing::info!("Benchmark complete!");

@@ -1,144 +1,144 @@
 name: Rust Release Workflow
 
 on:
-  push:
-    tags:
-      - 'v*'
+    push:
+        tags:
+            - "v*"
 
 jobs:
-  # Job to build the Rust project for Linux x86_64
-  build_linux:
-    name: Build for Linux (x86_64)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    # Job to build the Rust project for Linux x86_64
+    build_linux:
+        name: Build for Linux (x86_64)
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          targets: x86_64-unknown-linux-gnu
+            - name: Install Rust
+              uses: actions-rs/toolchain@v1
+              with:
+                  toolchain: stable
+                  targets: x86_64-unknown-linux-gnu
 
-      - name: Build release binary
-        run: |
-          cargo build --release --target x86_64-unknown-linux-gnu
+            - name: Build release binary
+              run: |
+                  cargo build --release --target x86_64-unknown-linux-gnu
 
-      - name: Archive binary
-        # Creates a gzipped tarball of the binary
-        # `${{ github.event.repository.name }}` dynamically uses your repository's name
-        run: tar -czvf ${{ github.event.repository.name }}-linux-x86_64.tar.gz -C target/x86_64-unknown-linux-gnu/release ${{ github.event.repository.name }}
+            - name: Archive binary
+              # Creates a gzipped tarball of the binary
+              # `${{ github.event.repository.name }}` dynamically uses your repository's name
+              run: tar -czvf ${{ github.event.repository.name }}-linux-x86_64.tar.gz -C target/x86_64-unknown-linux-gnu/release ${{ github.event.repository.name }}
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4 # Uploads the created archive to GitHub Actions
-        with:
-          name: linux-release
-          path: ${{ github.event.repository.name }}-linux-x86_64.tar.gz
+            - name: Upload artifact
+              uses: actions/upload-artifact@v4 # Uploads the created archive to GitHub Actions
+              with:
+                  name: linux-release
+                  path: ${{ github.event.repository.name }}-linux-x86_64.tar.gz
 
-  # Job to build the Rust project for Windows x86_64
-  build_windows:
-    name: Build for Windows (x86_64)
-    runs-on: windows-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    # Job to build the Rust project for Windows x86_64
+    build_windows:
+        name: Build for Windows (x86_64)
+        runs-on: windows-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          targets: x86_64-pc-windows-gnu
+            - name: Install Rust
+              uses: actions-rs/toolchain@v1
+              with:
+                  toolchain: stable
+                  targets: x86_64-pc-windows-msvc
 
-      - name: Build release binary
-        run: cargo build --release --target x86_64-pc-windows-gnu
+            - name: Build release binary
+              run: cargo build --release --target x86_64-pc-windows-gnu
 
-      - name: Archive binary
-        # Use PowerShell's Compress-Archive for .zip files on Windows
-        run: Compress-Archive -Path target/x86_64-pc-windows-gnu/release/${{ github.event.repository.name }}.exe -DestinationPath ${{ github.event.repository.name }}-windows-x86_64.zip
+            - name: Archive binary
+              # Use PowerShell's Compress-Archive for .zip files on Windows
+              run: Compress-Archive -Path target/x86_64-pc-windows-gnu/release/${{ github.event.repository.name }}.exe -DestinationPath ${{ github.event.repository.name }}-windows-x86_64.zip
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-release
-          path: ${{ github.event.repository.name }}-windows-x86_64.zip
+            - name: Upload artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: windows-release
+                  path: ${{ github.event.repository.name }}-windows-x86_64.zip
 
-  # Job to build the Rust project for macOS (both Intel and Apple Silicon)
-  build_macos:
-    name: Build for macOS (x86_64 & arm64)
-    runs-on: macos-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    # Job to build the Rust project for macOS (both Intel and Apple Silicon)
+    build_macos:
+        name: Build for macOS (x86_64 & arm64)
+        runs-on: macos-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-      
-      - name: Add macOS x86_64 target
-        run: rustup target add x86_64-apple-darwin
-        
-      - name: Ad macOS aarch64 target
-        run: rustup target add aarch64-apple-darwin
+            - name: Install Rust
+              uses: actions-rs/toolchain@v1
+              with:
+                  toolchain: stable
 
-      - name: Build for macOS (x86_64)
-        run: cargo build --release --target x86_64-apple-darwin
+            - name: Add macOS x86_64 target
+              run: rustup target add x86_64-apple-darwin
 
-      - name: Archive binary (x86_64)
-        run: tar -czvf ${{ github.event.repository.name }}-macos-x86_64.tar.gz -C target/x86_64-apple-darwin/release ${{ github.event.repository.name }}
+            - name: Ad macOS aarch64 target
+              run: rustup target add aarch64-apple-darwin
 
-      - name: Upload artifact (x86_64)
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-x86_64-release
-          path: ${{ github.event.repository.name }}-macos-x86_64.tar.gz
+            - name: Build for macOS (x86_64)
+              run: cargo build --release --target x86_64-apple-darwin
 
-      - name: Build for macOS (aarch64)
-        run: cargo build --release --target aarch64-apple-darwin
+            - name: Archive binary (x86_64)
+              run: tar -czvf ${{ github.event.repository.name }}-macos-x86_64.tar.gz -C target/x86_64-apple-darwin/release ${{ github.event.repository.name }}
 
-      - name: Archive binary (aarch64)
-        run: tar -czvf ${{ github.event.repository.name }}-macos-aarch64.tar.gz -C target/aarch64-apple-darwin/release ${{ github.event.repository.name }}
+            - name: Upload artifact (x86_64)
+              uses: actions/upload-artifact@v4
+              with:
+                  name: macos-x86_64-release
+                  path: ${{ github.event.repository.name }}-macos-x86_64.tar.gz
 
-      - name: Upload artifact (aarch64)
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-aarch64-release
-          path: ${{ github.event.repository.name }}-macos-aarch64.tar.gz
+            - name: Build for macOS (aarch64)
+              run: cargo build --release --target aarch64-apple-darwin
 
-  # Job to create the GitHub Release and attach all built artifacts
-  create_release:
-    name: Create GitHub Release
-    runs-on: ubuntu-latest
-    # This job depends on all the build jobs completing successfully first
-    needs: [build_linux, build_windows, build_macos]
-    # Required permission to create releases in the repository
-    permissions:
-      contents: write
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          # Downloads all artifacts generated by previous jobs into a temporary directory
-          path: artifacts
+            - name: Archive binary (aarch64)
+              run: tar -czvf ${{ github.event.repository.name }}-macos-aarch64.tar.gz -C target/aarch64-apple-darwin/release ${{ github.event.repository.name }}
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2 # Action to create a release
-        with:
-          # The tag_name is automatically available from the push event
-          tag_name: ${{ github.ref_name }}
-          body: |
-            Release ${{ github.ref_name }}
+            - name: Upload artifact (aarch64)
+              uses: actions/upload-artifact@v4
+              with:
+                  name: macos-aarch64-release
+                  path: ${{ github.event.repository.name }}-macos-aarch64.tar.gz
 
-            This is an automated release for B.E.L.T.
-            Includes binaries for Linux, Windows, and macOS.
-          # Lists all the artifacts to be attached to the release.
-          # The paths here correspond to where download-artifact saved them.
-          files: |
-            artifacts/linux-release/${{ github.event.repository.name }}-linux-x86_64.tar.gz
-            artifacts/windows-release/${{ github.event.repository.name }}-windows-x86_64.zip
-            artifacts/macos-x86_64-release/${{ github.event.repository.name }}-macos-x86_64.tar.gz
-            artifacts/macos-aarch64-release/${{ github.event.repository.name }}-macos-aarch64.tar.gz
-        env:
-          # GITHUB_TOKEN is automatically provided by GitHub Actions
-          # and has the necessary permissions for this action
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    # Job to create the GitHub Release and attach all built artifacts
+    create_release:
+        name: Create GitHub Release
+        runs-on: ubuntu-latest
+        # This job depends on all the build jobs completing successfully first
+        needs: [build_linux, build_windows, build_macos]
+        # Required permission to create releases in the repository
+        permissions:
+            contents: write
+        steps:
+            - name: Download all artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  # Downloads all artifacts generated by previous jobs into a temporary directory
+                  path: artifacts
+
+            - name: Create GitHub Release
+              uses: softprops/action-gh-release@v2 # Action to create a release
+              with:
+                  # The tag_name is automatically available from the push event
+                  tag_name: ${{ github.ref_name }}
+                  body: |
+                      Release ${{ github.ref_name }}
+
+                      This is an automated release for B.E.L.T.
+                      Includes binaries for Linux, Windows, and macOS.
+                  # Lists all the artifacts to be attached to the release.
+                  # The paths here correspond to where download-artifact saved them.
+                  files: |
+                      artifacts/linux-release/${{ github.event.repository.name }}-linux-x86_64.tar.gz
+                      artifacts/windows-release/${{ github.event.repository.name }}-windows-x86_64.zip
+                      artifacts/macos-x86_64-release/${{ github.event.repository.name }}-macos-x86_64.tar.gz
+                      artifacts/macos-aarch64-release/${{ github.event.repository.name }}-macos-aarch64.tar.gz
+              env:
+                  # GITHUB_TOKEN is automatically provided by GitHub Actions
+                  # and has the necessary permissions for this action
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
