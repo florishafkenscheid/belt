@@ -38,11 +38,11 @@ pub fn generate_ups_chart(results: &[BenchmarkResult]) -> Result<Chart> {
         .map(|result| result.save_name.clone())
         .collect();
 
-    let avg_ups_values: Vec<f64> = results
+    let avg_ups_values: Vec<i64> = results
         .iter()
         .map(|result| {
             let total_ups: f64 = result.runs.iter().map(|run| run.effective_ups).sum();
-            total_ups / result.runs.len() as f64
+            (total_ups / result.runs.len() as f64) as i64
         })
         .collect();
 
@@ -64,12 +64,7 @@ pub fn generate_ups_chart(results: &[BenchmarkResult]) -> Result<Chart> {
         .series(
             Bar::new()
                 .name("Effective UPS")
-                .data(
-                    avg_ups_values
-                        .iter()
-                        .map(|v| format!("{:.2}", v))
-                        .collect::<Vec<_>>(),
-                )
+                .data(avg_ups_values)
                 .label(Label::new().show(true).position(LabelPosition::Inside)),
         );
 
@@ -86,12 +81,13 @@ pub fn generate_base_chart(results: &[BenchmarkResult]) -> Result<Chart> {
         .iter()
         .map(|result| {
             let total_base_diffs: f64 = result.runs.iter().map(|run| run.base_diff).sum();
-            total_base_diffs / result.runs.len() as f64
+            let avg = total_base_diffs / result.runs.len() as f64;
+            (avg * 100.0).round() / 100.0
         })
         .collect();
 
     let chart = Chart::new()
-        .title(Title::new().text("Benchmark Results - Average Base Difference"))
+        .title(Title::new().text("Benchmark Results - Percentage Improvement"))
         .grid(
             Grid::new()
                 .left("3%")
@@ -107,13 +103,8 @@ pub fn generate_base_chart(results: &[BenchmarkResult]) -> Result<Chart> {
         .y_axis(Axis::new().type_(AxisType::Category).data(save_names))
         .series(
             Bar::new()
-                .name("Base Difference")
-                .data(
-                    base_diffs
-                        .iter()
-                        .map(|v| format!("{:.2}", v))
-                        .collect::<Vec<_>>(),
-                )
+                .name("Percentage Improvement")
+                .data(base_diffs)
                 .label(Label::new().show(true).position(LabelPosition::Inside)),
         );
 
