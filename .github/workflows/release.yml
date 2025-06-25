@@ -50,11 +50,11 @@ jobs:
                   targets: x86_64-pc-windows-msvc
 
             - name: Build release binary
-              run: cargo build --release --target x86_64-pc-windows-gnu
+              run: cargo build --release --target x86_64-pc-windows-msvc
 
             - name: Archive binary
               # Use PowerShell's Compress-Archive for .zip files on Windows
-              run: Compress-Archive -Path target/x86_64-pc-windows-gnu/release/${{ github.event.repository.name }}.exe -DestinationPath ${{ github.event.repository.name }}-windows-x86_64.zip
+              run: Compress-Archive -Path target/x86_64-pc-windows-msvc/release/${{ github.event.repository.name }}.exe -DestinationPath ${{ github.event.repository.name }}-windows-x86_64.zip
 
             - name: Upload artifact
               uses: actions/upload-artifact@v4
