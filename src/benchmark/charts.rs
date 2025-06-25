@@ -4,7 +4,7 @@ use std::path::Path;
 use charming::{
     Chart, ImageRenderer,
     component::{Axis, Grid, Title},
-    element::AxisType,
+    element::{AxisType, Label, LabelPosition},
     series::Bar,
     theme::Theme,
 };
@@ -61,7 +61,17 @@ pub fn generate_ups_chart(results: &[BenchmarkResult]) -> Result<Chart> {
                 .boundary_gap(("0", "0.01")),
         )
         .y_axis(Axis::new().type_(AxisType::Category).data(save_names))
-        .series(Bar::new().name("Effective UPS").data(avg_ups_values));
+        .series(
+            Bar::new()
+                .name("Effective UPS")
+                .data(
+                    avg_ups_values
+                        .iter()
+                        .map(|v| format!("{:.2}", v))
+                        .collect::<Vec<_>>(),
+                )
+                .label(Label::new().show(true).position(LabelPosition::Inside)),
+        );
 
     Ok(chart)
 }
@@ -95,7 +105,17 @@ pub fn generate_base_chart(results: &[BenchmarkResult]) -> Result<Chart> {
                 .boundary_gap(("0", "0.01")),
         )
         .y_axis(Axis::new().type_(AxisType::Category).data(save_names))
-        .series(Bar::new().name("Base Difference").data(base_diffs));
+        .series(
+            Bar::new()
+                .name("Base Difference")
+                .data(
+                    base_diffs
+                        .iter()
+                        .map(|v| format!("{:.2}", v))
+                        .collect::<Vec<_>>(),
+                )
+                .label(Label::new().show(true).position(LabelPosition::Inside)),
+        );
 
     Ok(chart)
 }
