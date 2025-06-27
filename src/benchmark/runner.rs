@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
+use tokio::time::Instant;
 
 use super::{BenchmarkConfig, RunOrder};
 use crate::benchmark::parser;
@@ -30,6 +31,7 @@ impl BenchmarkRunner {
     pub async fn run_all(&self, save_files: Vec<PathBuf>) -> Result<Vec<BenchmarkResult>> {
         let execution_schedule = self.create_execution_schedule(&save_files);
         let total_jobs = execution_schedule.len();
+        let start_time = Instant::now();
 
         let progress = ProgressBar::new(total_jobs as u64);
         progress.set_style(
@@ -66,7 +68,24 @@ impl BenchmarkRunner {
                 .to_string();
 
             progress.set_position(job_index as u64);
-            progress.set_message(format!("{} (run {})", save_name, job.run_index + 1));
+
+            let eta_message = if job_index > 0 {
+                let elapsed = start_time.elapsed();
+                let avg_time_per_job = elapsed / job_index as u32;
+                let remaining_jobs = total_jobs - job_index;
+                let estimated_remaining = avg_time_per_job * remaining_jobs as u32;
+
+                format!(
+                    "{} (run {}) [ETA: {}]",
+                    save_name,
+                    job.run_index + 1,
+                    format_duration(estimated_remaining)
+                )
+            } else {
+                format!("{} (run {})", save_name, job.run_index + 1)
+            };
+
+            progress.set_message(eta_message);
 
             match self.run_single_benchmark(&job.save_file).await {
                 Ok(run) => {
@@ -275,5 +294,21 @@ impl BenchmarkRunner {
             String::from_utf8(output.stdout).map_err(|_| BenchmarkError::InvalidUtf8Output)?;
 
         Ok(stdout)
+    }
+}
+
+fn format_duration(duration: Duration) -> String {
+    let total_secs = duration.as_secs();
+
+    if total_secs < 60 {
+        format!("{total_secs}s")
+    } else if total_secs < 3600 {
+        let mins = total_secs / 60;
+        let secs = total_secs % 60;
+        format!("{mins}m{secs}s")
+    } else {
+        let hours = total_secs / 3600;
+        let mins = (total_secs % 3600) / 60;
+        format!("{hours}h{mins}m")
     }
 }
