@@ -1,5 +1,5 @@
 [package]
-name = "belt"
+name = "factorio-belt"
 version = "1.5.1"
 edition = "2024"
 description = "A fast, cross-platform Factorio benchmarking tool"
