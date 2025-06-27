@@ -27,10 +27,7 @@ pub fn generate_charts(results: &[BenchmarkResult], output_dir: &Path) -> Result
     charts.push(base_chart);
 
     for (index, chart) in charts.iter().enumerate() {
-        renderer.save(
-            chart,
-            output_dir.join(format!("result_{}_chart.svg", index)),
-        )?;
+        renderer.save(chart, output_dir.join(format!("result_{index}_chart.svg")))?;
     }
 
     Ok(())
