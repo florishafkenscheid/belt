@@ -301,14 +301,14 @@ fn format_duration(duration: Duration) -> String {
     let total_secs = duration.as_secs();
 
     if total_secs < 60 {
-        format!("{}s", total_secs)
+        format!("{total_secs}s")
     } else if total_secs < 3600 {
         let mins = total_secs / 60;
         let secs = total_secs % 60;
-        format!("{}m{}s", mins, secs)
+        format!("{mins}m{secs}s")
     } else {
         let hours = total_secs / 3600;
         let mins = (total_secs % 3600) / 60;
-        format!("{}h{}m", hours, mins)
+        format!("{hours}h{mins}m")
     }
 }
