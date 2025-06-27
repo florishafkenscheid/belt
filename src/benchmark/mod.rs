@@ -5,7 +5,31 @@ pub mod runner;
 
 use std::path::{Path, PathBuf};
 
-use crate::core::{FactorioExecutor, GlobalConfig, Result, output};
+use crate::core::{BenchmarkError, FactorioExecutor, GlobalConfig, Result, output};
+
+#[derive(Debug, Clone, Default)]
+pub enum RunOrder {
+    Sequential,
+    Random,
+    #[default]
+    Grouped,
+}
+
+impl std::str::FromStr for RunOrder {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "sequential" => Ok(RunOrder::Sequential),
+            "random" => Ok(RunOrder::Random),
+            "grouped" => Ok(RunOrder::Grouped),
+            _ => Err(BenchmarkError::InvalidRunOrder {
+                input: s.to_string(),
+            }
+            .to_string()),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct BenchmarkConfig {
@@ -16,6 +40,7 @@ pub struct BenchmarkConfig {
     pub output: Option<PathBuf>,
     pub template_path: Option<PathBuf>,
     pub mods_dir: Option<PathBuf>,
+    pub run_order: RunOrder,
 }
 
 pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig) -> Result<()> {

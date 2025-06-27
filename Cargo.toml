@@ -36,3 +36,4 @@ indicatif = "0.17"
 dirs = "^6"
 thiserror = "^2"
 charming = { version = "0.6.0", features = ["ssr"] }
+rand = "0.9.1"

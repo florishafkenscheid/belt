@@ -41,6 +41,12 @@ enum Commands {
 
         #[arg(long)]
         mods_dir: Option<PathBuf>,
+
+        #[arg(long, default_value = "grouped")]
+        #[arg(
+            help = "Execution order: sequential (A,B,A,B), random (A,B,B,A), or grouped (A,A,B,B)"
+        )]
+        run_order: benchmark::RunOrder,
     },
 }
 
@@ -72,6 +78,7 @@ async fn main() -> Result<()> {
             output,
             template_path,
             mods_dir,
+            run_order,
         } => {
             let benchmark_config = benchmark::BenchmarkConfig {
                 saves_dir,
@@ -81,6 +88,7 @@ async fn main() -> Result<()> {
                 output,
                 template_path,
                 mods_dir,
+                run_order,
             };
 
             benchmark::run(global_config, benchmark_config).await?;
