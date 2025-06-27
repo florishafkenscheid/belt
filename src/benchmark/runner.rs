@@ -34,7 +34,7 @@ impl BenchmarkRunner {
         let progress = ProgressBar::new(total_jobs as u64);
         progress.set_style(
             ProgressStyle::with_template(
-                "[{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}",
+                "[{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg} [ETA: {eta}]",
             )
             .map_err(|e| BenchmarkError::ProgressBarError(e.to_string()))?
             .progress_chars("=="),
