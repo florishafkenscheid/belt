@@ -66,12 +66,16 @@ fn generate_ups_charts(results: &[BenchmarkResult]) -> Result<Vec<Chart>> {
         .x_axis(
             Axis::new()
                 .type_(AxisType::Value)
-                .boundary_gap(("0", "0.01")),
+                .boundary_gap(("0", "0.01"))
+                .split_area(SplitArea::new().show(false))
+                .split_line(SplitLine::new().show(false)),
         )
         .y_axis(
             Axis::new()
                 .type_(AxisType::Category)
-                .data(save_names.clone()),
+                .data(save_names.clone())
+                .split_area(SplitArea::new().show(false))
+                .split_line(SplitLine::new().show(true)),
         )
         .series(
             Bar::new()
@@ -106,8 +110,8 @@ fn generate_ups_charts(results: &[BenchmarkResult]) -> Result<Vec<Chart>> {
                 .data(boxplot_data.category_names)
                 .boundary_gap(true)
                 .axis_label(AxisLabel::new().rotate(45.0).interval(0))
-                .split_area(SplitArea::new().show(true))
-                .split_line(SplitLine::new().show(false)),
+                .split_area(SplitArea::new().show(false))
+                .split_line(SplitLine::new().show(true)),
         )
         .y_axis(
             Axis::new()
@@ -116,7 +120,8 @@ fn generate_ups_charts(results: &[BenchmarkResult]) -> Result<Vec<Chart>> {
                 .min(y_axis_min_buffered)
                 .max(y_axis_max_buffered)
                 .interval((y_axis_max_buffered - y_axis_min_buffered) / 5.0)
-                .split_area(SplitArea::new().show(false)),
+                .split_area(SplitArea::new().show(false))
+                .split_line(SplitLine::new().show(false)),
         )
         .series(
             Boxplot::new()
@@ -166,9 +171,16 @@ fn generate_base_chart(results: &[BenchmarkResult]) -> Result<Chart> {
         .x_axis(
             Axis::new()
                 .type_(AxisType::Value)
-                .boundary_gap(("0", "0.01")),
+                .split_area(SplitArea::new().show(false))
+                .split_line(SplitLine::new().show(false)),
         )
-        .y_axis(Axis::new().type_(AxisType::Category).data(save_names))
+        .y_axis(
+            Axis::new()
+                .type_(AxisType::Category)
+                .data(save_names)
+                .split_area(SplitArea::new().show(false))
+                .split_line(SplitLine::new().show(true)),
+        )
         .series(
             Bar::new()
                 .name("Percentage Improvement")
