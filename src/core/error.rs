@@ -62,6 +62,9 @@ pub enum BenchmarkError {
 
     #[error("Failed to create directory: {path}")]
     DirectoryCreationFailed { path: PathBuf },
+
+    #[error("Invalid run order: {input}. Valid options: sequential, random, grouped")]
+    InvalidRunOrder { input: String },
 }
 
 pub type Result<T> = std::result::Result<T, BenchmarkError>;
