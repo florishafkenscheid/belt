@@ -18,7 +18,7 @@ BELT is a wrapper for the `factorio --benchmark` command, to make it more user f
 ## Quick Start
 ```bash
 # Install BELT
-cargo install belt # Doesn't work yet!
+cargo install factorio-belt
 
 # Run benchmarks on all saves in a directory
 belt benchmark ./saves --ticks 6000 --runs 5
@@ -36,7 +36,7 @@ belt benchmark ./saves --pattern "inserter*" --output ./benchmark-results
 
 ### From Crates.io
 ```bash
-cargo install belt # Doesn't work yet!
+cargo install factorio-belt
 ```
 
 ### From GitHub Releases
