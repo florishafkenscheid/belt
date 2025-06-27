@@ -56,6 +56,18 @@ impl BenchmarkRunner {
         }
 
         progress.finish_with_message("Benchmarking complete!");
+
+        all_results.sort_by(|a, b| {
+            let avg_a: f64 =
+                a.runs.iter().map(|run| run.effective_ups).sum::<f64>() / a.runs.len() as f64;
+            let avg_b: f64 =
+                b.runs.iter().map(|run| run.effective_ups).sum::<f64>() / b.runs.len() as f64;
+
+            avg_a
+                .partial_cmp(&avg_b)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
         Ok(all_results)
     }
 
