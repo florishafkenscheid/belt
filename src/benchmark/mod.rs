@@ -77,7 +77,13 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
     output::write_results(&results, output_dir, template_path)?;
 
     tracing::info!("Benchmark complete!");
-    tracing::info!("Total benchmarks run: {}", results.len());
+    tracing::info!(
+        "Total benchmarks run: {}",
+        results
+            .iter()
+            .map(|result| result.runs.len() as u64)
+            .sum::<u64>()
+    );
 
     Ok(())
 }
