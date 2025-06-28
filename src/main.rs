@@ -69,7 +69,7 @@ async fn main() -> Result<()> {
         verbose: cli.verbose,
     };
 
-    match cli.command {
+    let benchmark_result = match cli.command {
         Commands::Benchmark {
             saves_dir,
             ticks,
@@ -91,8 +91,18 @@ async fn main() -> Result<()> {
                 run_order,
             };
 
-            benchmark::run(global_config, benchmark_config).await?;
+            benchmark::run(global_config, benchmark_config).await
         }
+    };
+
+    if let Err(e) = benchmark_result {
+        tracing::error!("{e}");
+
+        if let Some(hint_text) = e.get_hint() {
+            tracing::error!("{hint_text}");
+        }
+
+        std::process::exit(1);
     }
 
     Ok(())

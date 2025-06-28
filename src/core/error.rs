@@ -30,8 +30,8 @@ pub enum BenchmarkError {
     #[error("Progress bar template error: {0}")]
     ProgressBarError(String),
 
-    #[error("Factorio process failed with exit code {code}: {err}")]
-    FactorioProcessFailed { code: i32, err: String },
+    #[error("Factorio process failed with exit code {code}.")]
+    FactorioProcessFailed { code: i32, hint: Option<String> },
 
     #[error("No benchmark results found in Factorio output")]
     NoBenchmarkResults,
@@ -65,6 +65,16 @@ pub enum BenchmarkError {
 
     #[error("Invalid run order: {input}. Valid options: sequential, random, grouped")]
     InvalidRunOrder { input: String },
+}
+
+impl BenchmarkError {
+    pub fn get_hint(&self) -> Option<&str> {
+        if let BenchmarkError::FactorioProcessFailed { hint, .. } = self {
+            hint.as_deref()
+        } else {
+            None
+        }
+    }
 }
 
 pub type Result<T> = std::result::Result<T, BenchmarkError>;

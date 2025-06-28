@@ -87,21 +87,10 @@ impl BenchmarkRunner {
 
             progress.set_message(eta_message);
 
-            match self.run_single_benchmark(&job.save_file).await {
-                Ok(run) => {
-                    if let Some(runs) = results_map.get_mut(&save_name) {
-                        runs.push(run);
-                    }
-                }
-                Err(err) => {
-                    tracing::error!(
-                        "Benchmark failed for {} run {}: {}",
-                        save_name,
-                        job.run_index + 1,
-                        err
-                    );
-                    continue;
-                }
+            let run = self.run_single_benchmark(&job.save_file).await?;
+
+            if let Some(runs) = results_map.get_mut(&save_name) {
+                runs.push(run);
             }
         }
 
@@ -238,10 +227,23 @@ impl BenchmarkRunner {
         let output = child.wait_with_output().await?;
 
         if !output.status.success() {
-            let err = output.stdout.last().unwrap();
+            let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr_str = String::from_utf8_lossy(&output.stderr).to_string();
+
+            let hint = if stdout_str.contains("already running")
+                || stderr_str.contains("already running")
+            {
+                Some(
+                    "Factorio might already be running. Please close any open Factorio instances."
+                        .to_string(),
+                )
+            } else {
+                None
+            };
+
             return Err(BenchmarkError::FactorioProcessFailed {
                 code: output.status.code().unwrap_or(-1),
-                err: err.to_string(),
+                hint,
             });
         }
 
@@ -283,10 +285,23 @@ impl BenchmarkRunner {
         let output = child.wait_with_output().await?;
 
         if !output.status.success() {
-            let err = output.stdout.last().unwrap();
+            let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr_str = String::from_utf8_lossy(&output.stderr).to_string();
+
+            let hint = if stdout_str.contains("already running")
+                || stderr_str.contains("already running")
+            {
+                Some(
+                    "Factorio might already be running. Please close any open Factorio instances."
+                        .to_string(),
+                )
+            } else {
+                None
+            };
+
             return Err(BenchmarkError::FactorioProcessFailed {
                 code: output.status.code().unwrap_or(-1),
-                err: err.to_string(),
+                hint,
             });
         }
 
