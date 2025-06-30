@@ -1,3 +1,7 @@
+//! Core functionality for BELT.
+//!
+//! Provides configuration, error types, Factorio process management, output handling, and platform utilities.
+
 pub mod config;
 pub mod error;
 pub mod factorio;
