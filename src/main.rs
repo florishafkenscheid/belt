@@ -1,3 +1,7 @@
+//! Main binary entrypoint for the BELT benchmarking tool.
+//!
+//! Parses CLI arguments, sets up logging, and dispatches to subcommands.
+
 mod benchmark;
 mod core;
 
@@ -52,8 +56,10 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Parse input
     let cli = Cli::parse();
 
+    // Toggle the tracing level
     if cli.verbose {
         tracing_subscriber::fmt()
             .with_max_level(tracing::Level::DEBUG)
@@ -64,12 +70,15 @@ async fn main() -> Result<()> {
             .init();
     }
 
+    // Create a global config for all subcommands
     let global_config = core::GlobalConfig {
         factorio_path: cli.factorio_path,
         verbose: cli.verbose,
     };
 
+    // Capture the result of the benchmark
     let benchmark_result = match cli.command {
+        // Run the benchmark with a newly created benchmark config
         Commands::Benchmark {
             saves_dir,
             ticks,
@@ -95,6 +104,7 @@ async fn main() -> Result<()> {
         }
     };
 
+    // If benchmark::run results in an error, print and exit
     if let Err(e) = benchmark_result {
         tracing::error!("{e}");
 
