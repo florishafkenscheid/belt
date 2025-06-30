@@ -1,5 +1,10 @@
+//! Platform-specific helpers for BELT.
+//!
+//! Provides OS detection and default Factorio installation path discovery.
+
 use std::path::PathBuf;
 
+/// Get all reasonable Factorio paths based on the user's operating system
 pub fn get_default_factorio_paths() -> Vec<PathBuf> {
     let mut paths = Vec::new();
 
@@ -48,6 +53,7 @@ pub fn get_default_factorio_paths() -> Vec<PathBuf> {
     paths
 }
 
+/// Get operating system info
 pub fn get_os_info() -> String {
     format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH)
 }

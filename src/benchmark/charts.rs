@@ -1,3 +1,7 @@
+//! Chart generation for benchmark results.
+//!
+//! Uses the `charming` crate to render SVG charts for UPS and improvement metrics.
+
 use crate::{
     benchmark::parser::BenchmarkResult,
     core::{BenchmarkError, Result},
@@ -12,11 +16,15 @@ use charming::{
     theme::Theme,
 };
 
+/// Generates all charts for the given benchmark results.
+///
+/// Returns an error fi no results are provided.
 pub fn generate_charts(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
     if results.is_empty() {
         return Err(BenchmarkError::NoBenchmarkResults);
     }
 
+    // Create a new charming renderer
     let mut renderer = ImageRenderer::new(1000, 1000).theme(Theme::Walden);
 
     let ups_charts = generate_ups_charts(results)?; // Returns Vec<Chart>
@@ -26,6 +34,7 @@ pub fn generate_charts(results: &[BenchmarkResult], output_dir: &Path) -> Result
     charts.extend(ups_charts); // So, have to extend & push
     charts.push(base_chart);
 
+    // Write all charts to files
     for (index, chart) in charts.iter().enumerate() {
         renderer.save(chart, output_dir.join(format!("result_{index}_chart.svg")))?;
     }
@@ -33,14 +42,17 @@ pub fn generate_charts(results: &[BenchmarkResult], output_dir: &Path) -> Result
     Ok(())
 }
 
+/// Generates ups charts for the given benchmark results.
 fn generate_ups_charts(results: &[BenchmarkResult]) -> Result<Vec<Chart>> {
     let mut charts = Vec::new();
 
+    // Collect save names
     let save_names: Vec<String> = results
         .iter()
         .map(|result| result.save_name.clone())
         .collect();
 
+    // Collect the average ups values
     let avg_ups_values: Vec<i64> = results
         .iter()
         .map(|result| {
@@ -140,12 +152,15 @@ fn generate_ups_charts(results: &[BenchmarkResult]) -> Result<Vec<Chart>> {
     Ok(charts)
 }
 
+/// Generate the improvement percentage chart for the given benchmark results
 fn generate_base_chart(results: &[BenchmarkResult]) -> Result<Chart> {
+    // Collect save names
     let save_names: Vec<String> = results
         .iter()
         .map(|result| result.save_name.clone())
         .collect();
 
+    // Collect base differences
     let base_diffs: Vec<f64> = results
         .iter()
         .map(|result| {
@@ -155,6 +170,7 @@ fn generate_base_chart(results: &[BenchmarkResult]) -> Result<Chart> {
         })
         .collect();
 
+    // Create the chart
     let chart = Chart::new()
         .title(
             Title::new()
@@ -199,7 +215,9 @@ struct BoxplotData {
     max_value: f64,
 }
 
+/// Manually calculate the boxplot data given the benchmark results
 fn calculate_boxplot_data(results: &[BenchmarkResult]) -> BoxplotData {
+    // Collect save names
     let save_names: Vec<String> = results
         .iter()
         .map(|result| result.save_name.clone())
@@ -209,6 +227,7 @@ fn calculate_boxplot_data(results: &[BenchmarkResult]) -> BoxplotData {
     let mut outliers: Vec<(usize, f64)> = Vec::new();
     let mut all_individual_ups: Vec<f64> = Vec::new();
 
+    // Iterate over every result and push UPS values
     for result in results {
         let mut values: Vec<f64> = result.runs.iter().map(|run| run.effective_ups).collect();
         values.sort_by(|a, b| a.partial_cmp(b).unwrap());

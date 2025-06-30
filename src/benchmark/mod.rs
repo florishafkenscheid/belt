@@ -1,3 +1,7 @@
+//! Benchmarking module
+//!
+//! Contains logic for running, parsing, and reporting Factorio benchmarks.
+
 pub mod charts;
 pub mod discovery;
 pub mod parser;
@@ -15,6 +19,7 @@ pub enum RunOrder {
     Grouped,
 }
 
+// Get a RunOrder from a string
 impl std::str::FromStr for RunOrder {
     type Err = String;
 
@@ -43,25 +48,32 @@ pub struct BenchmarkConfig {
     pub run_order: RunOrder,
 }
 
+// Run all of the benchmarks, capture the logs and write the results to files.
 pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig) -> Result<()> {
     tracing::info!("Starting benchmark with config: {:?}", benchmark_config);
 
+    // Find the Factorio binary
     let factorio = FactorioExecutor::discover(global_config.factorio_path)?;
     tracing::info!(
         "Using Factorio at: {}",
         factorio.executable_path().display()
     );
 
+    // Find the specified save files
     let save_files = discovery::find_save_files(
         &benchmark_config.saves_dir,
         benchmark_config.pattern.as_deref(),
     )?;
+    // Validate the found save files
     discovery::validate_save_files(&save_files)?;
 
+    // Run the benchmarks
     let runner = runner::BenchmarkRunner::new(benchmark_config.clone(), factorio);
     let mut results = runner.run_all(save_files).await?;
+    // Calculate the percentage difference from the worst performer
     parser::calculate_base_differences(&mut results);
 
+    // Capture specified, or use a default output directory
     let output_dir = benchmark_config
         .output
         .as_deref()
@@ -69,11 +81,13 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
 
     tracing::debug!("Output directory: {}", output_dir.display());
 
+    // Capture specified, or use a default template file
     let template_path = benchmark_config
         .template_path
         .as_deref()
         .unwrap_or_else(|| Path::new("templates/benchmark.md.hbs"));
 
+    // Write the results to the csv and md files
     output::write_results(&results, output_dir, template_path)?;
 
     tracing::info!("Benchmark complete!");

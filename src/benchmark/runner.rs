@@ -1,3 +1,5 @@
+//! Running and collecting logs of benchmarks on save file(s)
+
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
@@ -12,6 +14,7 @@ use crate::benchmark::parser::{BenchmarkResult, BenchmarkRun};
 use crate::core::FactorioExecutor;
 use crate::core::{BenchmarkError, Result};
 
+/// A job, indicating a single benchmark run, to be used in queues of a specific order
 #[derive(Debug, Clone)]
 struct ExecutionJob {
     save_file: PathBuf,
@@ -23,15 +26,18 @@ pub struct BenchmarkRunner {
     factorio: FactorioExecutor,
 }
 
+/// Runs the benchmarks, keeps a progress bar updated and returns results.
 impl BenchmarkRunner {
     pub fn new(config: BenchmarkConfig, factorio: FactorioExecutor) -> Self {
         Self { config, factorio }
     }
 
+    /// Run benchmarks for all save files
     pub async fn run_all(&self, save_files: Vec<PathBuf>) -> Result<Vec<BenchmarkResult>> {
         let execution_schedule = self.create_execution_schedule(&save_files);
         let total_jobs = execution_schedule.len();
         let start_time = Instant::now();
+        let mut parsed_version = String::new();
 
         let progress = ProgressBar::new(total_jobs as u64);
         progress.set_style(
@@ -87,7 +93,9 @@ impl BenchmarkRunner {
 
             progress.set_message(eta_message);
 
-            let run = self.run_single_benchmark(&job.save_file).await?;
+            // Run a single benchmark and get the run data and version
+            let (run, version) = self.run_single_benchmark(&job.save_file).await?;
+            parsed_version = version;
 
             if let Some(runs) = results_map.get_mut(&save_name) {
                 runs.push(run);
@@ -112,7 +120,7 @@ impl BenchmarkRunner {
                         save_name: save_name.clone(),
                         ticks: self.config.ticks,
                         runs,
-                        factorio_version: "unknown".to_string(),
+                        factorio_version: parsed_version.clone(),
                         platform: crate::core::platform::get_os_info(),
                     });
                 }
@@ -134,6 +142,7 @@ impl BenchmarkRunner {
         Ok(all_results)
     }
 
+    /// Create the execution schedule based on the RunOrder
     fn create_execution_schedule(&self, save_files: &[PathBuf]) -> Vec<ExecutionJob> {
         let mut schedule = Vec::new();
 
@@ -169,6 +178,7 @@ impl BenchmarkRunner {
                         });
                     }
                 }
+
                 let mut rng = rand::rng();
                 schedule.shuffle(&mut rng);
             }
@@ -183,7 +193,8 @@ impl BenchmarkRunner {
         schedule
     }
 
-    async fn run_single_benchmark(&self, save_file: &Path) -> Result<BenchmarkRun> {
+    /// Returns the benchmark run and the parsed Factorio version string
+    async fn run_single_benchmark(&self, save_file: &Path) -> Result<(BenchmarkRun, String)> {
         // If mods_file is not set, sync mods with the given save file
         if self.config.mods_dir.is_none() {
             self.sync_mods_for_save(save_file).await?;
@@ -191,9 +202,9 @@ impl BenchmarkRunner {
 
         let log_output = self.execute_single_factorio_benchmark(save_file).await?;
         let result =
-            parser::parse_benchmark_log(&log_output, save_file, &self.config).map_err(|_| {
+            parser::parse_benchmark_log(&log_output, save_file, &self.config).map_err(|e| {
                 BenchmarkError::ParseError {
-                    reason: "Failed to parse benchmark log".to_string(),
+                    reason: format!("Failed to parse benchmark log: {e}"),
                 }
             })?;
 
@@ -204,9 +215,12 @@ impl BenchmarkRunner {
             });
         }
 
-        Ok(result.runs.into_iter().next().unwrap())
+        // Return the run and the version, preserving the parsed version.
+        let run = result.runs.into_iter().next().unwrap();
+        Ok((run, result.factorio_version))
     }
 
+    /// Sync Factorio's mods to the given save
     async fn sync_mods_for_save(&self, save_file: &Path) -> Result<()> {
         let mut cmd = self.factorio.create_command();
 
@@ -251,6 +265,7 @@ impl BenchmarkRunner {
         Ok(())
     }
 
+    /// Execute a single factorio benchmark run
     async fn execute_single_factorio_benchmark(&self, save_file: &Path) -> Result<String> {
         let mut cmd = self.factorio.create_command();
 
@@ -268,21 +283,21 @@ impl BenchmarkRunner {
             "--disable-audio",
         ]);
 
-        if let Some(mods_file) = &self.config.mods_dir {
+        // Run with the argument --mod-directory if a mod-directory was given
+        if let Some(mods_dir) = &self.config.mods_dir {
             cmd.arg("--mod-directory");
             cmd.arg(
-                mods_file
+                mods_dir
                     .to_str()
                     .ok_or_else(|| BenchmarkError::InvalidModsFileName {
-                        path: mods_file.clone(),
+                        path: mods_dir.clone(),
                     })?,
             );
         }
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
-        let child = cmd.spawn()?;
-        let output = child.wait_with_output().await?;
+        let output = cmd.spawn()?.wait_with_output().await?;
 
         if !output.status.success() {
             let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();
@@ -312,6 +327,7 @@ impl BenchmarkRunner {
     }
 }
 
+/// Helper function to turn a Duration into a nicely formatted string
 fn format_duration(duration: Duration) -> String {
     let total_secs = duration.as_secs();
 

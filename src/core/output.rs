@@ -1,3 +1,7 @@
+//! Output utilities for BELT.
+//!
+//! Handles writing benchmark results to CSV and Markdown files, and manages report formatting.
+
 use handlebars::Handlebars;
 use serde_json::json;
 use std::path::Path;
@@ -7,6 +11,7 @@ use crate::{
     core::{BenchmarkError, Result},
 };
 
+/// Create the specified directory, generate charts, and write the given results
 pub fn write_results(
     results: &[BenchmarkResult],
     output_dir: &Path,
@@ -24,6 +29,7 @@ pub fn write_results(
     Ok(())
 }
 
+/// Write the results to a CSV file
 fn write_csv(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
     let csv_path = output_dir.join("results.csv");
 
@@ -66,6 +72,7 @@ fn write_csv(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Write the results to a Markdown file
 fn write_markdown(
     results: &[BenchmarkResult],
     output_dir: &Path,
