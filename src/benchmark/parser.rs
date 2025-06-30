@@ -1,9 +1,12 @@
+//! Parsing and aggregation of Factorio benchmark logs
+
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 use crate::benchmark::BenchmarkConfig;
 use crate::core::{BenchmarkError, Result};
 
+/// The result of a benchmark of a single run
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BenchmarkRun {
     pub execution_time_ms: f64,
@@ -14,6 +17,7 @@ pub struct BenchmarkRun {
     pub base_diff: f64,
 }
 
+/// The result of a benchmark of a file
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BenchmarkResult {
     pub save_name: String,
@@ -23,13 +27,16 @@ pub struct BenchmarkResult {
     pub platform: String,
 }
 
+/// Parsing of the given Factorio output
 pub fn parse_benchmark_log(
     log: &str,
     save_file: &Path,
     benchmark_config: &BenchmarkConfig,
 ) -> Result<BenchmarkResult> {
+    // Get save name from file
     let save_name = save_file.file_stem().unwrap().to_string_lossy().to_string();
 
+    // Get the Factorio version from the line containing "Factorio" and "(build"
     let version = log
         .lines()
         .find(|line| line.contains("Factorio") && line.contains("(build"))
@@ -37,11 +44,13 @@ pub fn parse_benchmark_log(
         .unwrap_or("unknown")
         .to_string();
 
+    // Collect all lines of the log
     let lines: Vec<&str> = log.lines().collect();
 
     let mut runs = Vec::new();
     let mut i = 0;
 
+    // Iterate over every line, checking for keywords that indicate resulting data
     while i < lines.len() {
         if let Some(line) = lines.get(i) {
             if line.contains("Performed") && line.contains("updates in") && line.contains("ms") {
@@ -115,6 +124,7 @@ pub fn parse_benchmark_log(
     })
 }
 
+/// Calculate the base differences of a list of save's results.
 pub fn calculate_base_differences(results: &mut [BenchmarkResult]) {
     // Calculate average effective_ups for each save
     let avg_ups_per_save: Vec<f64> = results
