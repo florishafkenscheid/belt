@@ -1,6 +1,9 @@
+//! Error types for BELT.
+
 use std::path::PathBuf;
 use thiserror::Error;
 
+/// All errors than can occur in BELT.
 #[derive(Error, Debug)]
 pub enum BenchmarkError {
     #[error("Factorio executable not found")]
@@ -67,6 +70,7 @@ pub enum BenchmarkError {
     InvalidRunOrder { input: String },
 }
 
+/// Get a hint for the FactorioProcessFailed error, if it exists
 impl BenchmarkError {
     pub fn get_hint(&self) -> Option<&str> {
         if let BenchmarkError::FactorioProcessFailed { hint, .. } = self {
@@ -77,4 +81,5 @@ impl BenchmarkError {
     }
 }
 
+/// A convenient result type for BELT
 pub type Result<T> = std::result::Result<T, BenchmarkError>;
