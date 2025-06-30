@@ -1,7 +1,10 @@
+//! Finding and validating Factorio save files
+
 use std::path::{Path, PathBuf};
 
 use crate::core::error::{BenchmarkError, Result};
 
+/// Find save files in a given path
 pub fn find_save_files(saves_dir: &Path, pattern: Option<&str>) -> Result<Vec<PathBuf>> {
     if !saves_dir.exists() {
         return Err(BenchmarkError::SaveDirectoryNotFound {
@@ -9,6 +12,7 @@ pub fn find_save_files(saves_dir: &Path, pattern: Option<&str>) -> Result<Vec<Pa
         });
     }
 
+    // If the given path is a file, check the extension and return
     if saves_dir.is_file() {
         if saves_dir.extension().is_some_and(|ext| ext == "zip") {
             return Ok(vec![saves_dir.to_path_buf()]);
@@ -20,13 +24,16 @@ pub fn find_save_files(saves_dir: &Path, pattern: Option<&str>) -> Result<Vec<Pa
         }
     }
 
+    // Set up the whole pattern
     let pattern = pattern.unwrap_or("");
     let search_pattern = saves_dir.join(format!("{pattern}*.zip"));
 
+    // Search using the pattern
     let saves: Vec<PathBuf> = glob::glob(search_pattern.to_string_lossy().as_ref())?
         .filter_map(std::result::Result::ok)
         .collect();
 
+    // If empty, return
     if saves.is_empty() {
         return Err(BenchmarkError::NoSaveFilesFound {
             pattern: pattern.to_string(),
@@ -42,8 +49,10 @@ pub fn find_save_files(saves_dir: &Path, pattern: Option<&str>) -> Result<Vec<Pa
     Ok(saves)
 }
 
+/// Validate found save files
 pub fn validate_save_files(save_files: &[PathBuf]) -> Result<()> {
     for save_file in save_files {
+        // Check if file exists
         if !save_file.exists() {
             return Err(BenchmarkError::InvalidSaveFile {
                 path: save_file.clone(),
@@ -51,6 +60,7 @@ pub fn validate_save_files(save_files: &[PathBuf]) -> Result<()> {
             });
         }
 
+        // Check extension
         if save_file.extension().is_none_or(|ext| ext != "zip") {
             tracing::warn!(
                 "Save file {} does not have .zip extension",
