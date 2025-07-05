@@ -12,20 +12,17 @@ use charming::{
     Chart, ImageRenderer,
     component::{Axis, Grid, Title},
     element::{AxisLabel, AxisType, ItemStyle, Label, LabelPosition, SplitArea, SplitLine},
-    series::{Bar, Boxplot, Scatter},
+    series::{Bar, Boxplot, Line, Scatter},
     theme::Theme,
 };
 
 /// Generates all charts for the given benchmark results.
 ///
 /// Returns an error fi no results are provided.
-pub fn generate_charts(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
+pub async fn generate_charts(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
     if results.is_empty() {
         return Err(BenchmarkError::NoBenchmarkResults);
     }
-
-    // Create a new charming renderer
-    let mut renderer = ImageRenderer::new(1000, 1000).theme(Theme::Walden);
 
     let ups_charts = generate_ups_charts(results)?; // Returns Vec<Chart>
     let base_chart = generate_base_chart(results)?; // Returns Chart
@@ -34,6 +31,7 @@ pub fn generate_charts(results: &[BenchmarkResult], output_dir: &Path) -> Result
     charts.extend(ups_charts); // So, have to extend & push
     charts.push(base_chart);
 
+    let mut renderer = ImageRenderer::new(1000, 1000).theme(Theme::Walden);
     // Write all charts to files
     for (index, chart) in charts.iter().enumerate() {
         renderer.save(chart, output_dir.join(format!("result_{index}_chart.svg")))?;
@@ -150,6 +148,40 @@ fn generate_ups_charts(results: &[BenchmarkResult]) -> Result<Vec<Chart>> {
     charts.push(boxplot_chart);
 
     Ok(charts)
+}
+
+/// Generate a line chart from verbose per-tick benchmark data
+pub fn generate_verbose_chart(verbose_csv_data: &str, title: &str) -> Result<Chart> {
+    let mut reader = csv::Reader::from_reader(verbose_csv_data.as_bytes());
+
+    let mut ticks: Vec<u64> = Vec::new();
+    let mut whole_updates_ms: Vec<f64> = Vec::new();
+
+    for result in reader.records() {
+        let record = result?;
+        if let (Some(tick_str), Some(update_ns_str)) = (record.get(0), record.get(2)) {
+            if let Ok(tick) = tick_str.trim_start_matches('t').parse::<u64>() {
+                if let Ok(update_ns) = update_ns_str.parse::<f64>() {
+                    ticks.push(tick);
+                    whole_updates_ms.push(update_ns / 1_000_000.0); // Convert to milliseconds for readability
+                }
+            }
+        }
+    }
+    let tick_labels: Vec<String> = ticks.iter().map(|t| t.to_string()).collect();
+
+    let chart = Chart::new()
+        .title(Title::new().text(title).left("center"))
+        .x_axis(
+            Axis::new()
+                .type_(AxisType::Category)
+                .data(tick_labels)
+                .split_line(SplitLine::new().show(false)),
+        )
+        .y_axis(Axis::new().type_(AxisType::Value).name("Update Time (ms)"))
+        .series(Line::new().data(whole_updates_ms).show_symbol(false));
+
+    Ok(chart)
 }
 
 /// Generate the improvement percentage chart for the given benchmark results

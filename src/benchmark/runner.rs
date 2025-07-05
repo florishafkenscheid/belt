@@ -1,5 +1,7 @@
 //! Running and collecting logs of benchmarks on save file(s)
 
+use charming::ImageRenderer;
+use charming::theme::Theme;
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
@@ -19,6 +21,11 @@ use crate::core::{BenchmarkError, Result};
 struct ExecutionJob {
     save_file: PathBuf,
     run_index: usize,
+}
+
+pub struct FactorioOutput {
+    pub summary: String,
+    pub verbose_data: Option<String>,
 }
 
 pub struct BenchmarkRunner {
@@ -94,7 +101,7 @@ impl BenchmarkRunner {
             progress.set_message(eta_message);
 
             // Run a single benchmark and get the run data and version
-            let (run, version) = self.run_single_benchmark(&job.save_file).await?;
+            let (run, version) = self.run_single_benchmark(job).await?;
             parsed_version = version;
 
             if let Some(runs) = results_map.get_mut(&save_name) {
@@ -194,18 +201,55 @@ impl BenchmarkRunner {
     }
 
     /// Returns the benchmark run and the parsed Factorio version string
-    async fn run_single_benchmark(&self, save_file: &Path) -> Result<(BenchmarkRun, String)> {
+    async fn run_single_benchmark(&self, job: &ExecutionJob) -> Result<(BenchmarkRun, String)> {
         // If mods_file is not set, sync mods with the given save file
         if self.config.mods_dir.is_none() {
-            self.sync_mods_for_save(save_file).await?;
+            self.sync_mods_for_save(&job.save_file).await?;
         }
 
-        let log_output = self.execute_single_factorio_benchmark(save_file).await?;
-        let result =
-            parser::parse_benchmark_log(&log_output, save_file, &self.config).map_err(|e| {
-                BenchmarkError::ParseError {
-                    reason: format!("Failed to parse benchmark log: {e}"),
+        let factorio_output = self
+            .execute_single_factorio_benchmark(&job.save_file)
+            .await?;
+
+        if self.config.verbose_charts {
+            if let Some(verbose_data) = &factorio_output.verbose_data {
+                let save_name = &job.save_file.file_stem().unwrap().to_string_lossy();
+                let title = format!(
+                    "wholeUpdate per Tick for {} - Run {}",
+                    save_name,
+                    &job.run_index + 1
+                );
+
+                match crate::benchmark::charts::generate_verbose_chart(verbose_data, &title) {
+                    Ok(chart) => {
+                        let chart_path = self
+                            .config
+                            .output
+                            .as_deref()
+                            .unwrap_or(Path::new("."))
+                            .join(format!(
+                                "{}_run{}_verbose.svg",
+                                save_name,
+                                &job.run_index + 1
+                            ));
+
+                        let mut renderer = ImageRenderer::new(1000, 1000).theme(Theme::Walden);
+                        if let Err(e) = renderer.save(&chart, &chart_path) {
+                            tracing::error!("Failed to save verbose chart: {e}");
+                        } else {
+                            tracing::info!("Verbose chart saved to {}", chart_path.display());
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to parse verbose data for chart: {e}");
+                    }
                 }
+            }
+        }
+
+        let result = parser::parse_benchmark_log(&factorio_output, &job.save_file, &self.config)
+            .map_err(|e| BenchmarkError::ParseError {
+                reason: format!("Failed to parse benchmark log: {e}"),
             })?;
 
         // Extract the single run (since we're only running 1 benchmark at a time)
@@ -266,7 +310,7 @@ impl BenchmarkRunner {
     }
 
     /// Execute a single factorio benchmark run
-    async fn execute_single_factorio_benchmark(&self, save_file: &Path) -> Result<String> {
+    async fn execute_single_factorio_benchmark(&self, save_file: &Path) -> Result<FactorioOutput> {
         let mut cmd = self.factorio.create_command();
 
         cmd.args([
@@ -282,6 +326,11 @@ impl BenchmarkRunner {
             "1", // Always run single benchmark
             "--disable-audio",
         ]);
+
+        if self.config.verbose_charts {
+            cmd.arg("--benchmark-verbose");
+            cmd.arg("all");
+        }
 
         // Run with the argument --mod-directory if a mod-directory was given
         if let Some(mods_dir) = &self.config.mods_dir {
@@ -322,8 +371,27 @@ impl BenchmarkRunner {
 
         let stdout =
             String::from_utf8(output.stdout).map_err(|_| BenchmarkError::InvalidUtf8Output)?;
+        const VERBOSE_HEADER: &str = "tick,timestamp,wholeUpdate";
 
-        Ok(stdout)
+        if let Some(index) = stdout.find(VERBOSE_HEADER) {
+            let (summary, verbose_part) = stdout.split_at(index);
+
+            let cleaned_verbose_data: String = verbose_part
+                .lines()
+                .filter(|line| line.starts_with("tick,") || line.starts_with('t'))
+                .collect::<Vec<&str>>()
+                .join("\n");
+
+            Ok(FactorioOutput {
+                summary: summary.to_string(),
+                verbose_data: Some(cleaned_verbose_data),
+            })
+        } else {
+            Ok(FactorioOutput {
+                summary: stdout,
+                verbose_data: None,
+            })
+        }
     }
 }
 
