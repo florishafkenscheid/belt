@@ -68,6 +68,18 @@ pub enum BenchmarkError {
 
     #[error("Invalid run order: {input}. Valid options: sequential, random, grouped")]
     InvalidRunOrder { input: String },
+
+    #[error("Invalid blueprint path: {path} - {reason}")]
+    InvalidBlueprintPath { path: PathBuf, reason: String },
+
+    #[error("Invalid blueprint string: {path} - {reason}")]
+    InvalidBlueprintString { path: PathBuf, reason: String },
+
+    #[error("Blueprint decoding error: {path} - {reason}")]
+    BlueprintDecode { path: PathBuf, reason: String },
+
+    #[error("Blueprint encoding error: {reason}")]
+    BlueprintEncode { reason: String },
 }
 
 /// Get a hint for the FactorioProcessFailed error, if it exists
