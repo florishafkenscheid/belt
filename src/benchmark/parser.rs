@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 use crate::benchmark::BenchmarkConfig;
+use crate::benchmark::runner::FactorioOutput;
 use crate::core::{BenchmarkError, Result};
 
 /// The result of a benchmark of a single run
@@ -29,7 +30,7 @@ pub struct BenchmarkResult {
 
 /// Parsing of the given Factorio output
 pub fn parse_benchmark_log(
-    log: &str,
+    log: &FactorioOutput,
     save_file: &Path,
     benchmark_config: &BenchmarkConfig,
 ) -> Result<BenchmarkResult> {
@@ -38,6 +39,7 @@ pub fn parse_benchmark_log(
 
     // Get the Factorio version from the line containing "Factorio" and "(build"
     let version = log
+        .summary
         .lines()
         .find(|line| line.contains("Factorio") && line.contains("(build"))
         .and_then(|line| line.split_whitespace().nth(4))
@@ -45,7 +47,7 @@ pub fn parse_benchmark_log(
         .to_string();
 
     // Collect all lines of the log
-    let lines: Vec<&str> = log.lines().collect();
+    let lines: Vec<&str> = log.summary.lines().collect();
 
     let mut runs = Vec::new();
     let mut i = 0;

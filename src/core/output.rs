@@ -12,17 +12,13 @@ use crate::{
 };
 
 /// Create the specified directory, generate charts, and write the given results
-pub fn write_results(
+pub async fn write_results(
     results: &[BenchmarkResult],
     output_dir: &Path,
     template_path: &Path,
 ) -> Result<()> {
-    std::fs::create_dir_all(output_dir).map_err(|_| BenchmarkError::DirectoryCreationFailed {
-        path: output_dir.to_path_buf(),
-    })?;
-
     write_csv(results, output_dir)?;
-    if charts::generate_charts(results, output_dir).is_ok() {
+    if charts::generate_charts(results, output_dir).await.is_ok() {
         write_markdown(results, output_dir, template_path)?;
     }
 

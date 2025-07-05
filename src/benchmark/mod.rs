@@ -46,6 +46,7 @@ pub struct BenchmarkConfig {
     pub template_path: Option<PathBuf>,
     pub mods_dir: Option<PathBuf>,
     pub run_order: RunOrder,
+    pub verbose_charts: bool,
 }
 
 // Run all of the benchmarks, capture the logs and write the results to files.
@@ -66,6 +67,14 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
     )?;
     // Validate the found save files
     discovery::validate_save_files(&save_files)?;
+
+    let output_dir = benchmark_config
+        .output
+        .as_deref()
+        .unwrap_or_else(|| Path::new("."));
+    std::fs::create_dir_all(output_dir).map_err(|_| BenchmarkError::DirectoryCreationFailed {
+        path: output_dir.to_path_buf(),
+    })?;
 
     // Run the benchmarks
     let runner = runner::BenchmarkRunner::new(benchmark_config.clone(), factorio);
@@ -88,7 +97,7 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
         .unwrap_or_else(|| Path::new("templates/benchmark.md.hbs"));
 
     // Write the results to the csv and md files
-    output::write_results(&results, output_dir, template_path)?;
+    output::write_results(&results, output_dir, template_path).await?;
 
     tracing::info!("Benchmark complete!");
     tracing::info!(

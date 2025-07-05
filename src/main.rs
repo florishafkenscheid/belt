@@ -51,6 +51,9 @@ enum Commands {
             help = "Execution order: sequential (A,B,A,B), random (A,B,B,A), or grouped (A,A,B,B)"
         )]
         run_order: benchmark::RunOrder,
+
+        #[arg(long, help = "Generate per-tick charts from verbose benchmark output")]
+        verbose_charts: bool,
     },
 }
 
@@ -88,6 +91,7 @@ async fn main() -> Result<()> {
             template_path,
             mods_dir,
             run_order,
+            verbose_charts,
         } => {
             let benchmark_config = benchmark::BenchmarkConfig {
                 saves_dir,
@@ -98,6 +102,7 @@ async fn main() -> Result<()> {
                 template_path,
                 mods_dir,
                 run_order,
+                verbose_charts,
             };
 
             benchmark::run(global_config, benchmark_config).await
