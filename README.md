@@ -112,6 +112,9 @@ belt --factorio-path /path/to/factorio benchmark ./my-saves
 belt --factorio-path /path/to/factorio --mods-dir /path/to/mods benchmark ./my-saves
 ```
 
+### Advanced Usage
+While `belt benchmark` offers sensible default, optimizing `--ticks` and `--runs` can refine your results. `--ticks` sets the simulation duration per run, while `--runs` determines the number of repetitions. Through testing, I've found that **fewer runs with more tickS** generally offers the most consistent UPS results for the shortest overall benchmark time, by reducing overhead from repeated Factorio launches. Experiment with these values for your specific saevs to find the optimal balance for accuracy and speed.
+
 ## Contributing
 Any help is welcome. Whether you have never written a line of code, or simply don't know Rust. This is what the CI/CD pipeline is for!
 Bug reports and feature requests can be submitting through GitHub Issues.
