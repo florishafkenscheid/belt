@@ -78,6 +78,8 @@ belt benchmark /path/to/saves --pattern "benchmark" --output /path/to/output/dir
 | `--pattern <PATTERN>` | A pattern to match against when searching for save files in `<SAVES_DIR>` | `*` |
 | `--output <OUTPUT_DIR>` | A directory to output the .csv and .md files to | `.` |
 | `--mods-dir <MODS_DIR>` | A directory containing mods to be used for the benchmark | `--sync-mods` on each save file |
+| `--run-order <RUN_ORDER>` | In which order to run the benchmarks. Available: `sequential`, `random`, `grouped` | `grouped` |
+| `--verbose-charts` | Generates more charts based on the `--benchmark-verbose` factorio argument | `false` |
 
 ### Global Options
 | Option | Description | Default |
@@ -109,6 +111,9 @@ belt --factorio-path /path/to/factorio benchmark ./my-saves
 # Run a benchmark on the my-saves directory and a mod directory
 belt --factorio-path /path/to/factorio --mods-dir /path/to/mods benchmark ./my-saves
 ```
+
+### Advanced Usage
+While `belt benchmark` offers sensible default, optimizing `--ticks` and `--runs` can refine your results. `--ticks` sets the simulation duration per run, while `--runs` determines the number of repetitions. Through testing, I've found that **fewer runs with more tickS** generally offers the most consistent UPS results for the shortest overall benchmark time, by reducing overhead from repeated Factorio launches. Experiment with these values for your specific saevs to find the optimal balance for accuracy and speed.
 
 ## Contributing
 Any help is welcome. Whether you have never written a line of code, or simply don't know Rust. This is what the CI/CD pipeline is for!
