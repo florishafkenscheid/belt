@@ -78,6 +78,8 @@ belt benchmark /path/to/saves --pattern "benchmark" --output /path/to/output/dir
 | `--pattern <PATTERN>` | A pattern to match against when searching for save files in `<SAVES_DIR>` | `*` |
 | `--output <OUTPUT_DIR>` | A directory to output the .csv and .md files to | `.` |
 | `--mods-dir <MODS_DIR>` | A directory containing mods to be used for the benchmark | `--sync-mods` on each save file |
+| `--run-order <RUN_ORDER>` | In which order to run the benchmarks. Available: `sequential`, `random`, `grouped` | `grouped` |
+| `--verbose-charts` | Generates more charts based on the `--benchmark-verbose` factorio argument | `false` |
 
 ### Global Options
 | Option | Description | Default |
