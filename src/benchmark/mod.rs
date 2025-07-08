@@ -9,6 +9,8 @@ pub mod runner;
 
 use std::path::{Path, PathBuf};
 
+use charming::{ImageRenderer, theme::Theme};
+
 use crate::core::{BenchmarkError, FactorioExecutor, GlobalConfig, Result, output};
 
 #[derive(Debug, Clone, Default)]
@@ -75,20 +77,43 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
     std::fs::create_dir_all(output_dir).map_err(|_| BenchmarkError::DirectoryCreationFailed {
         path: output_dir.to_path_buf(),
     })?;
+    tracing::debug!("Output directory: {}", output_dir.display());
 
     // Run the benchmarks
     let runner = runner::BenchmarkRunner::new(benchmark_config.clone(), factorio);
-    let mut results = runner.run_all(save_files).await?;
+    let (mut results, verbose_data) = runner.run_all(save_files).await?;
     // Calculate the percentage difference from the worst performer
     parser::calculate_base_differences(&mut results);
 
-    // Capture specified, or use a default output directory
-    let output_dir = benchmark_config
-        .output
-        .as_deref()
-        .unwrap_or_else(|| Path::new("."));
+    let mut renderer = ImageRenderer::new(1000, 1000).theme(Theme::Walden);
 
-    tracing::debug!("Output directory: {}", output_dir.display());
+    if !verbose_data.is_empty() {
+        tracing::info!("Generating verbose charts...");
+
+        for data in &verbose_data {
+            let title = format!(
+                "wholeUpdate per Tick for {} - Run {}",
+                data.save_name,
+                data.run_index + 1
+            );
+
+            match charts::generate_verbose_chart(&data.csv_data, &title) {
+                Ok(chart) => {
+                    let chart_path = output_dir.join(format!(
+                        "{}_run{}_verbose.svg",
+                        data.save_name,
+                        data.run_index + 1
+                    ));
+                    if let Err(e) = renderer.save(&chart, &chart_path) {
+                        tracing::error!("Failed to save verbose chart for {}: {e}", data.save_name);
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Failed to create verbose chart for {}: {e}", data.save_name)
+                }
+            }
+        }
+    }
 
     // Capture specified, or use a default template file
     let template_path = benchmark_config
@@ -97,7 +122,7 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
         .unwrap_or_else(|| Path::new("templates/results.md.hbs"));
 
     // Write the results to the csv and md files
-    output::write_results(&results, output_dir, template_path).await?;
+    output::write_results(&results, output_dir, template_path, &mut renderer).await?;
 
     tracing::info!("Benchmark complete!");
     tracing::info!(
