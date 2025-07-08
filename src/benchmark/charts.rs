@@ -13,13 +13,16 @@ use charming::{
     component::{Axis, Grid, Title},
     element::{AxisLabel, AxisType, ItemStyle, Label, LabelPosition, SplitArea, SplitLine},
     series::{Bar, Boxplot, Line, Scatter},
-    theme::Theme,
 };
 
 /// Generates all charts for the given benchmark results.
 ///
 /// Returns an error fi no results are provided.
-pub async fn generate_charts(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
+pub async fn generate_charts(
+    results: &[BenchmarkResult],
+    output_dir: &Path,
+    renderer: &mut ImageRenderer,
+) -> Result<()> {
     if results.is_empty() {
         return Err(BenchmarkError::NoBenchmarkResults);
     }
@@ -31,7 +34,6 @@ pub async fn generate_charts(results: &[BenchmarkResult], output_dir: &Path) -> 
     charts.extend(ups_charts); // So, have to extend & push
     charts.push(base_chart);
 
-    let mut renderer = ImageRenderer::new(1000, 1000).theme(Theme::Walden);
     // Write all charts to files
     for (index, chart) in charts.iter().enumerate() {
         renderer.save(chart, output_dir.join(format!("result_{index}_chart.svg")))?;

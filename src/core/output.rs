@@ -2,6 +2,7 @@
 //!
 //! Handles writing benchmark results to CSV and Markdown files, and manages report formatting.
 
+use charming::ImageRenderer;
 use handlebars::Handlebars;
 use serde_json::json;
 use std::path::Path;
@@ -16,9 +17,13 @@ pub async fn write_results(
     results: &[BenchmarkResult],
     output_dir: &Path,
     template_path: &Path,
+    renderer: &mut ImageRenderer,
 ) -> Result<()> {
     write_csv(results, output_dir)?;
-    if charts::generate_charts(results, output_dir).await.is_ok() {
+    if charts::generate_charts(results, output_dir, renderer)
+        .await
+        .is_ok()
+    {
         write_markdown(results, output_dir, template_path)?;
     }
 

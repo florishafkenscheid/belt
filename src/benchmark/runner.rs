@@ -1,7 +1,5 @@
 //! Running and collecting logs of benchmarks on save file(s)
 
-use charming::ImageRenderer;
-use charming::theme::Theme;
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
@@ -12,7 +10,7 @@ use tokio::time::Instant;
 
 use super::{BenchmarkConfig, RunOrder};
 use crate::benchmark::parser;
-use crate::benchmark::parser::{BenchmarkResult, BenchmarkRun};
+use crate::benchmark::parser::BenchmarkResult;
 use crate::core::FactorioExecutor;
 use crate::core::{BenchmarkError, Result};
 
@@ -21,6 +19,12 @@ use crate::core::{BenchmarkError, Result};
 struct ExecutionJob {
     save_file: PathBuf,
     run_index: usize,
+}
+
+pub struct VerboseData {
+    pub save_name: String,
+    pub run_index: usize,
+    pub csv_data: String,
 }
 
 pub struct FactorioOutput {
@@ -40,11 +44,15 @@ impl BenchmarkRunner {
     }
 
     /// Run benchmarks for all save files
-    pub async fn run_all(&self, save_files: Vec<PathBuf>) -> Result<Vec<BenchmarkResult>> {
+    pub async fn run_all(
+        &self,
+        save_files: Vec<PathBuf>,
+    ) -> Result<(Vec<BenchmarkResult>, Vec<VerboseData>)> {
         let execution_schedule = self.create_execution_schedule(&save_files);
         let total_jobs = execution_schedule.len();
         let start_time = Instant::now();
-        let mut parsed_version = String::new();
+        let mut all_verbose_data: Vec<VerboseData> = Vec::new();
+        let mut results_map: HashMap<String, BenchmarkResult> = HashMap::new();
 
         let progress = ProgressBar::new(total_jobs as u64);
         progress.set_style(
@@ -55,19 +63,6 @@ impl BenchmarkRunner {
             .progress_chars("=="),
         );
         progress.enable_steady_tick(Duration::from_millis(100));
-
-        // Initialize results structure
-        let mut results_map: HashMap<String, Vec<BenchmarkRun>> = HashMap::new();
-        for save_file in &save_files {
-            let save_name = save_file
-                .file_stem()
-                .ok_or_else(|| BenchmarkError::InvalidSaveFileName {
-                    path: save_file.clone(),
-                })?
-                .to_string_lossy()
-                .to_string();
-            results_map.insert(save_name, Vec::new());
-        }
 
         // Execute jobs according to schedule
         for (job_index, job) in execution_schedule.iter().enumerate() {
@@ -101,38 +96,22 @@ impl BenchmarkRunner {
             progress.set_message(eta_message);
 
             // Run a single benchmark and get the run data and version
-            let (run, version) = self.run_single_benchmark(job).await?;
-            parsed_version = version;
+            let (mut result_for_run, verbose_data) = self.run_single_benchmark(job).await?;
 
-            if let Some(runs) = results_map.get_mut(&save_name) {
-                runs.push(run);
+            if let Some(existing_result) = results_map.get_mut(&result_for_run.save_name) {
+                existing_result.runs.append(&mut result_for_run.runs);
+            } else {
+                results_map.insert(result_for_run.save_name.clone(), result_for_run);
+            }
+
+            if let Some(data) = verbose_data {
+                all_verbose_data.push(data);
             }
         }
 
         progress.finish_with_message("Benchmarking complete!");
 
-        let mut all_results = Vec::new();
-        for save_file in save_files {
-            let save_name = save_file
-                .file_stem()
-                .ok_or_else(|| BenchmarkError::InvalidSaveFileName {
-                    path: save_file.clone(),
-                })?
-                .to_string_lossy()
-                .to_string();
-
-            if let Some(runs) = results_map.remove(&save_name) {
-                if !runs.is_empty() {
-                    all_results.push(BenchmarkResult {
-                        save_name: save_name.clone(),
-                        ticks: self.config.ticks,
-                        runs,
-                        factorio_version: parsed_version.clone(),
-                        platform: crate::core::platform::get_os_info(),
-                    });
-                }
-            }
-        }
+        let mut all_results: Vec<BenchmarkResult> = results_map.into_values().collect();
 
         // Sort by performance
         all_results.sort_by(|a, b| {
@@ -146,7 +125,7 @@ impl BenchmarkRunner {
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
-        Ok(all_results)
+        Ok((all_results, all_verbose_data))
     }
 
     /// Create the execution schedule based on the RunOrder
@@ -201,7 +180,10 @@ impl BenchmarkRunner {
     }
 
     /// Returns the benchmark run and the parsed Factorio version string
-    async fn run_single_benchmark(&self, job: &ExecutionJob) -> Result<(BenchmarkRun, String)> {
+    async fn run_single_benchmark(
+        &self,
+        job: &ExecutionJob,
+    ) -> Result<(BenchmarkResult, Option<VerboseData>)> {
         // If mods_file is not set, sync mods with the given save file
         if self.config.mods_dir.is_none() {
             self.sync_mods_for_save(&job.save_file).await?;
@@ -211,46 +193,26 @@ impl BenchmarkRunner {
             .execute_single_factorio_benchmark(&job.save_file)
             .await?;
 
-        if self.config.verbose_charts {
-            if let Some(verbose_data) = &factorio_output.verbose_data {
-                let save_name = &job.save_file.file_stem().unwrap().to_string_lossy();
-                let title = format!(
-                    "wholeUpdate per Tick for {} - Run {}",
-                    save_name,
-                    &job.run_index + 1
-                );
+        let verbose_data_for_return = if self.config.verbose_charts {
+            factorio_output.verbose_data.map(|csv_data| VerboseData {
+                save_name: job
+                    .save_file
+                    .file_stem()
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_string(),
+                run_index: job.run_index,
+                csv_data,
+            })
+        } else {
+            None
+        };
 
-                match crate::benchmark::charts::generate_verbose_chart(verbose_data, &title) {
-                    Ok(chart) => {
-                        let chart_path = self
-                            .config
-                            .output
-                            .as_deref()
-                            .unwrap_or(Path::new("."))
-                            .join(format!(
-                                "{}_run{}_verbose.svg",
-                                save_name,
-                                &job.run_index + 1
-                            ));
-
-                        let mut renderer = ImageRenderer::new(1000, 1000).theme(Theme::Walden);
-                        if let Err(e) = renderer.save(&chart, &chart_path) {
-                            tracing::error!("Failed to save verbose chart: {e}");
-                        } else {
-                            tracing::info!("Verbose chart saved to {}", chart_path.display());
-                        }
-                    }
-                    Err(e) => {
-                        tracing::error!("Failed to parse verbose data for chart: {e}");
-                    }
-                }
-            }
-        }
-
-        let result = parser::parse_benchmark_log(&factorio_output, &job.save_file, &self.config)
-            .map_err(|e| BenchmarkError::ParseError {
-                reason: format!("Failed to parse benchmark log: {e}"),
-            })?;
+        let result =
+            parser::parse_benchmark_log(&factorio_output.summary, &job.save_file, &self.config)
+                .map_err(|e| BenchmarkError::ParseError {
+                    reason: format!("Failed to parse benchmark log: {e}"),
+                })?;
 
         // Extract the single run (since we're only running 1 benchmark at a time)
         if result.runs.len() != 1 {
@@ -259,9 +221,7 @@ impl BenchmarkRunner {
             });
         }
 
-        // Return the run and the version, preserving the parsed version.
-        let run = result.runs.into_iter().next().unwrap();
-        Ok((run, result.factorio_version))
+        Ok((result, verbose_data_for_return))
     }
 
     /// Sync Factorio's mods to the given save
