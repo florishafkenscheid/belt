@@ -339,3 +339,50 @@ fn calculate_boxplot_data(results: &[BenchmarkResult]) -> BoxplotData {
         max_value: max_ups,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use serde_json::Value;
+
+    use super::*;
+
+    #[test]
+    fn test_generate_verbose_chart() {
+        const VERBOSE_DATA: &str = r#"tick,timestamp,wholeUpdate,latencyUpdate,gameUpdate,planetsUpdate,controlBehaviorUpdate,transportLinesUpdate,electricHeatFluidCircuitUpdate,electricNetworkUpdate,heatNetworkUpdate,fluidFlowUpdate,entityUpdate,lightningUpdate,tileHeatingUpdate,particleUpdate,mapGenerator,mapGeneratorBasicTilesSupportCompute,mapGeneratorBasicTilesSupportApply,mapGeneratorCorrectedTilesPrepare,mapGeneratorCorrectedTilesCompute,mapGeneratorCorrectedTilesApply,mapGeneratorVariations,mapGeneratorEntitiesPrepare,mapGeneratorEntitiesCompute,mapGeneratorEntitiesApply,spacePlatforms,collectorNavMesh,collectorNavMeshPathfinding,collectorNavMeshRaycast,crcComputation,consistencyScraper,logisticManagerUpdate,constructionManagerUpdate,pathFinder,trains,trainPathFinder,commander,chartRefresh,luaGarbageIncremental,chartUpdate,scriptUpdate,
+t0,140,11080261,0,7623950,7070,522710,276560,140340,125110,0,130850,6408320,0,0,1990,1540,0,0,0,0,0,0,0,0,0,86650,890,0,0,0,1370,1570,9750,0,106700,0,2800,0,3173091,15050,272070,
+t1,11086741,3044471,0,2682401,5060,267110,113670,84680,77910,0,39790,2041151,0,0,2030,1220,0,0,0,0,0,0,0,0,0,88040,830,0,0,0,1450,1490,6490,0,31860,0,3140,0,330670,9480,28920,
+t2,14133402,2424960,0,2099110,3820,194460,90000,83820,76800,0,33390,1513910,0,0,1480,880,0,0,0,0,0,0,0,0,0,147930,780,0,0,0,1270,1250,4330,0,25400,0,2390,0,294020,9520,30040,"#;
+        let chart = generate_verbose_chart(VERBOSE_DATA, "Test Verbose Chart").unwrap();
+
+        let chart_json: Value = serde_json::to_value(&chart).expect("Chart should be serializable");
+
+        let series_array = chart_json["series"][0]["data"]
+            .as_array()
+            .expect("Series data should be an array");
+        assert_eq!(series_array.len(), 3, "Should have parsed 3 data points");
+
+        let first_val_ms = series_array[0]
+            .as_f64()
+            .expect("Series data should be a float");
+        let expected_val_ms = 11.080261;
+        assert!(
+            (first_val_ms - expected_val_ms).abs() < 0.0001,
+            "The nanosecond to millisecond conversion for the first point is incorrect"
+        );
+
+        let x_axis_data = chart_json["xAxis"]["data"]
+            .as_array()
+            .expect("X-axis data should be an array");
+        assert_eq!(x_axis_data.len(), 3, "Should have 3 x-axis labels");
+        assert_eq!(
+            x_axis_data[0].as_str().unwrap(),
+            "0",
+            "First x-axis label should be '0'"
+        );
+        assert_eq!(
+            x_axis_data[2].as_str().unwrap(),
+            "2",
+            "Third x-axis label should be '2'"
+        );
+    }
+}

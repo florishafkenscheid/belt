@@ -7,7 +7,7 @@ use crate::benchmark::BenchmarkConfig;
 use crate::core::{BenchmarkError, Result};
 
 /// The result of a benchmark of a single run
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BenchmarkRun {
     pub execution_time_ms: f64,
     pub avg_ms: f64,
@@ -18,7 +18,7 @@ pub struct BenchmarkRun {
 }
 
 /// The result of a benchmark of a file
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BenchmarkResult {
     pub save_name: String,
     pub ticks: u32,
@@ -154,5 +154,83 @@ pub fn calculate_base_differences(results: &mut [BenchmarkResult]) {
         for run in result.runs.iter_mut() {
             run.base_diff = percentage_improvement;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_calculate_base_differences_simple() {
+        let mut results = vec![
+            BenchmarkResult {
+                save_name: "base_save".to_string(),
+                runs: vec![BenchmarkRun {
+                    effective_ups: 50.0,
+                    ..Default::default()
+                }],
+                ..Default::default()
+            },
+            BenchmarkResult {
+                save_name: "fast_save".to_string(),
+                runs: vec![BenchmarkRun {
+                    effective_ups: 100.0,
+                    ..Default::default()
+                }],
+                ..Default::default()
+            },
+        ];
+
+        calculate_base_differences(&mut results);
+
+        assert_eq!(
+            results[0].runs[0].base_diff, 0.0,
+            "The worst-performing save should have 0% improvement"
+        );
+        assert_eq!(
+            results[1].runs[0].base_diff, 100.0,
+            "A save with double the UPS should show 100% improvement"
+        );
+    }
+
+    #[test]
+    fn test_parse_benchmark_log() {
+        // Abridged output
+        const FACTORIO_OUTPUT: &str = r#"0.000 2025-07-09 17:16:57; Factorio 2.0.55 (build 83138, linux64, full, space-age)
+   Performed 1000 updates in 2138.223 ms
+   avg: 2.138 ms, min: 1.367 ms, max: 11.710 ms
+   checksum: 2846200395
+   7.737 Goodbye"#;
+
+        let save_path = Path::new("test_save.zip");
+
+        let config = BenchmarkConfig {
+            ticks: 1000,
+            ..Default::default()
+        };
+
+        let result = parse_benchmark_log(FACTORIO_OUTPUT, save_path, &config).unwrap();
+
+        // Check misc info
+        assert_eq!(result.save_name, "test_save");
+        assert_eq!(result.factorio_version, "2.0.55");
+        assert_eq!(result.ticks, 1000);
+
+        // Only 1 run
+        assert_eq!(result.runs.len(), 1, "Expected to parse exactly one run");
+
+        // Convenience
+        let run = &result.runs[0];
+
+        // Check actual benchmark info
+        assert_eq!(run.execution_time_ms, 2138.223);
+        assert_eq!(run.avg_ms, 2.138);
+        assert_eq!(run.min_ms, 1.367);
+        assert_eq!(run.max_ms, 11.710);
+
+        let expected_ups = 1000.0 * 1000.0 / 2138.223; // ~467.67
+        let difference = (run.effective_ups - expected_ups).abs();
+        assert!(difference < 0.001, "Effective UPS calculation is incorrect");
     }
 }
