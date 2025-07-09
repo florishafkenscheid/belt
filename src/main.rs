@@ -3,7 +3,9 @@
 //! Parses CLI arguments, sets up logging, and dispatches to subcommands.
 
 mod benchmark;
+mod blueprint;
 mod core;
+mod util;
 
 use crate::core::Result;
 use clap::{Parser, Subcommand};
@@ -54,6 +56,19 @@ enum Commands {
 
         #[arg(long, help = "Generate per-tick charts from verbose benchmark output")]
         verbose_charts: bool,
+    },
+    Blueprint {
+        #[arg(long, group = "blueprint_source")]
+        string: Option<String>,
+
+        #[arg(long, group = "blueprint_source", default_value = "blueprints")]
+        file: PathBuf,
+
+        #[arg(long, default_value = "generated_saves/")]
+        output: PathBuf,
+
+        #[arg(long, default_value = "false")]
+        recursive: bool,
     },
 }
 
@@ -106,6 +121,16 @@ async fn main() -> Result<()> {
             };
 
             benchmark::run(global_config, benchmark_config).await
+        }
+        // Run the blueprint generation with a newly created blueprint config
+        Commands::Blueprint { string, file, output, recursive } => {
+            let blueprint_config = blueprint::BlueprintConfig {
+                string,
+                file,
+                output,
+                recursive,
+            };
+            blueprint::run(&blueprint_config).await
         }
     };
 
