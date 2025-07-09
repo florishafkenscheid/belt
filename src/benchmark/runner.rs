@@ -371,3 +371,15 @@ fn format_duration(duration: Duration) -> String {
         format!("{hours}h{mins}m")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_duration() {
+        assert_eq!(format_duration(Duration::from_secs(59)), "59s");
+        assert_eq!(format_duration(Duration::from_secs(61)), "1m1s");
+        assert_eq!(format_duration(Duration::from_secs(3661)), "1h1m");
+    }
+}

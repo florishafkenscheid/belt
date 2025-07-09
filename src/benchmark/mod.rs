@@ -38,7 +38,7 @@ impl std::str::FromStr for RunOrder {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct BenchmarkConfig {
     pub saves_dir: PathBuf,
     pub ticks: u32,
