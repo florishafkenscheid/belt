@@ -16,7 +16,7 @@ fn test_benchmark_command_creates_output_files() -> Result<(), Box<dyn Error>> {
         "Performed 10 updates in 100.000 ms\navg: 10.000 ms, min: 10.000 ms, max: 10.000 ms";
     std::fs::write(
         &fake_factorio_exe,
-        format!("#!/bin/sh\necho '{}'", fake_output),
+        format!("#!/bin/sh\necho '{fake_output}'"),
     )?;
 
     #[cfg(unix)]
