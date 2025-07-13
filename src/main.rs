@@ -52,8 +52,12 @@ enum Commands {
         )]
         run_order: benchmark::RunOrder,
 
-        #[arg(long, help = "Generate per-tick charts from verbose benchmark output")]
-        verbose_charts: bool,
+        #[arg(
+            long,
+            value_delimiter = ',',
+            help = "Generate per-tick charts for specified Factorio benchmark metrics (e.g., 'wholeUpdate,gameUpdate'). 'all' to chart all metrics."
+        )]
+        verbose_metrics: Vec<String>,
     },
 }
 
@@ -91,7 +95,7 @@ async fn main() -> Result<()> {
             template_path,
             mods_dir,
             run_order,
-            verbose_charts,
+            verbose_metrics,
         } => {
             let benchmark_config = benchmark::BenchmarkConfig {
                 saves_dir,
@@ -102,7 +106,7 @@ async fn main() -> Result<()> {
                 template_path,
                 mods_dir,
                 run_order,
-                verbose_charts,
+                verbose_metrics,
             };
 
             benchmark::run(global_config, benchmark_config).await
