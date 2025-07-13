@@ -11,7 +11,9 @@ use std::{collections::HashMap, path::Path};
 use charming::{
     Chart, ImageRenderer,
     component::{Axis, Grid, Title},
-    element::{AxisLabel, AxisType, ItemStyle, Label, LabelPosition, SplitArea, SplitLine},
+    element::{
+        AxisLabel, AxisType, ItemStyle, JsFunction, Label, LabelPosition, SplitArea, SplitLine,
+    },
     series::{Bar, Boxplot, Line, Scatter},
 };
 
@@ -248,6 +250,19 @@ fn generate_single_metric_chart(
 ) -> Result<Chart> {
     let tick_labels: Vec<String> = ticks.iter().map(|t| t.to_string()).collect();
 
+    let min_val = metric_values_ms
+        .iter()
+        .cloned()
+        .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+        .unwrap_or(0.0);
+    let max_val = metric_values_ms
+        .iter()
+        .cloned()
+        .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+        .unwrap_or(0.0);
+
+    let buffer = (max_val - min_val) * 0.1;
+
     let chart = Chart::new()
         .title(Title::new().text(chart_title).left("center"))
         .x_axis(
@@ -256,7 +271,17 @@ fn generate_single_metric_chart(
                 .data(tick_labels)
                 .split_line(SplitLine::new().show(false)),
         )
-        .y_axis(Axis::new().type_(AxisType::Value).name(y_axis_name))
+        .y_axis(
+            Axis::new()
+                .type_(AxisType::Value)
+                .name(y_axis_name)
+                .min((min_val - buffer).max(0.0)) // To ensure it doesn't go below 0
+                .max(max_val + buffer)
+                .axis_label(AxisLabel::new().formatter(JsFunction::new_with_args(
+                    "value",
+                    "return value.toFixed(3);",
+                ))),
+        )
         .series(Line::new().data(metric_values_ms).show_symbol(false));
 
     Ok(chart)
