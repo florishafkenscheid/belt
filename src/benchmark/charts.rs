@@ -451,13 +451,20 @@ mod tests {
 t0,140,11080261,0,7623950,7070,522710,276560,140340,125110,0,130850,6408320,0,0,1990,1540,0,0,0,0,0,0,0,0,0,86650,890,0,0,0,1370,1570,9750,0,106700,0,2800,0,3173091,15050,272070,
 t1,11086741,3044471,0,2682401,5060,267110,113670,84680,77910,0,39790,2041151,0,0,2030,1220,0,0,0,0,0,0,0,0,0,88040,830,0,0,0,1450,1490,6490,0,31860,0,3140,0,330670,9480,28920,
 t2,14133402,2424960,0,2099110,3820,194460,90000,83820,76800,0,33390,1513910,0,0,1480,880,0,0,0,0,0,0,0,0,0,147930,780,0,0,0,1270,1250,4330,0,25400,0,2390,0,294020,9520,30040,"#;
-        let chart = super::create_verbose_charts_for_metrics(
+        let charts_with_names = super::create_verbose_charts_for_metrics(
             VERBOSE_DATA,
             "Test Save",
             0,
             &["wholeUpdate".to_string()],
         )
         .unwrap();
+
+        assert_eq!(
+            charts_with_names.len(),
+            1,
+            "Expected one chart to be created"
+        );
+        let (chart, _metric_name) = &charts_with_names[0];
 
         let chart_json: Value = serde_json::to_value(&chart).expect("Chart should be serializable");
 
