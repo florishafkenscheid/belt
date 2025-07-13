@@ -6,7 +6,7 @@ use crate::{
     benchmark::parser::BenchmarkResult,
     core::{BenchmarkError, Result},
 };
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use charming::{
     Chart, ImageRenderer,
@@ -152,36 +152,112 @@ fn generate_ups_charts(results: &[BenchmarkResult]) -> Result<Vec<Chart>> {
     Ok(charts)
 }
 
-/// Generate a line chart from verbose per-tick benchmark data
-pub fn generate_verbose_chart(verbose_csv_data: &str, title: &str) -> Result<Chart> {
+pub fn create_verbose_charts_for_metrics(
+    verbose_csv_data: &str,
+    save_name: &str,
+    run_index: usize,
+    metrics_to_chart: &[String],
+) -> Result<Vec<(Chart, String)>> {
     let mut reader = csv::Reader::from_reader(verbose_csv_data.as_bytes());
 
-    let mut ticks: Vec<u64> = Vec::new();
-    let mut whole_updates_ms: Vec<f64> = Vec::new();
+    let headers: Vec<String> = reader.headers()?.iter().map(|s| s.to_string()).collect();
+    let header_map: HashMap<String, usize> = headers
+        .clone()
+        .into_iter()
+        .enumerate()
+        .map(|(i, h)| (h, i))
+        .collect();
 
-    for result in reader.records() {
-        let record = result?;
-        if let (Some(tick_str), Some(update_ns_str)) = (record.get(0), record.get(2)) {
-            if let Ok(tick) = tick_str.trim_start_matches('t').parse::<u64>() {
-                if let Ok(update_ns) = update_ns_str.parse::<f64>() {
-                    ticks.push(tick);
-                    whole_updates_ms.push(update_ns / 1_000_000.0); // Convert to milliseconds for readability
+    let mut all_charts: Vec<(Chart, String)> = Vec::new();
+    let actual_metrics_to_chart: Vec<String> = if metrics_to_chart.contains(&"all".to_string()) {
+        headers
+            .into_iter()
+            .filter(|h| h != "tick" && h != "timestamp") // All headers except tick and timestamp, as they are not information to be charted
+            .collect()
+    } else {
+        metrics_to_chart.to_vec()
+    };
+
+    for metric_name in actual_metrics_to_chart {
+        if let Some(&column_index) = header_map.get(&metric_name) {
+            let mut inner_reader = csv::Reader::from_reader(verbose_csv_data.as_bytes());
+
+            let mut ticks: Vec<u64> = Vec::new();
+            let mut metric_values_ns: Vec<f64> = Vec::new();
+
+            for record_result in inner_reader.records() {
+                let record = record_result?;
+
+                if let (Some(tick_str), Some(value_ns_str)) =
+                    (record.get(0), record.get(column_index))
+                {
+                    if let Ok(tick) = tick_str.trim_start_matches('t').parse::<u64>() {
+                        if let Ok(value_ns) = value_ns_str.parse::<f64>() {
+                            ticks.push(tick);
+                            metric_values_ns.push(value_ns);
+                        }
+                    }
                 }
             }
+
+            if ticks.is_empty() {
+                tracing::warn!(
+                    "No data found for metric '{}' in save {} run {}",
+                    metric_name,
+                    save_name,
+                    run_index + 1
+                );
+                continue;
+            }
+
+            let metric_values_ms: Vec<f64> = metric_values_ns
+                .into_iter()
+                .map(|ns| ns / 1_000_000.0)
+                .collect();
+
+            let chart_title = format!(
+                "{} per Tick for {} (Run {})",
+                metric_name,
+                save_name,
+                run_index + 1
+            );
+            let y_axis_name = format!("{metric_name} Time (ms)");
+
+            let chart =
+                generate_single_metric_chart(ticks, metric_values_ms, &chart_title, &y_axis_name)?;
+            all_charts.push((chart, metric_name));
+        } else {
+            tracing::warn!(
+                "Request metric '{}' not found in Factorio verbose output for save {} run {}",
+                metric_name,
+                save_name,
+                run_index + 1
+            );
         }
     }
+
+    Ok(all_charts)
+}
+
+/// Generate a line chart from verbose per-tick benchmark data
+fn generate_single_metric_chart(
+    ticks: Vec<u64>,
+    metric_values_ms: Vec<f64>,
+    chart_title: &str,
+    y_axis_name: &str,
+) -> Result<Chart> {
     let tick_labels: Vec<String> = ticks.iter().map(|t| t.to_string()).collect();
 
     let chart = Chart::new()
-        .title(Title::new().text(title).left("center"))
+        .title(Title::new().text(chart_title).left("center"))
         .x_axis(
             Axis::new()
                 .type_(AxisType::Category)
                 .data(tick_labels)
                 .split_line(SplitLine::new().show(false)),
         )
-        .y_axis(Axis::new().type_(AxisType::Value).name("Update Time (ms)"))
-        .series(Line::new().data(whole_updates_ms).show_symbol(false));
+        .y_axis(Axis::new().type_(AxisType::Value).name(y_axis_name))
+        .series(Line::new().data(metric_values_ms).show_symbol(false));
 
     Ok(chart)
 }

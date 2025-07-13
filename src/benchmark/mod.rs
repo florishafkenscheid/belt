@@ -48,7 +48,7 @@ pub struct BenchmarkConfig {
     pub template_path: Option<PathBuf>,
     pub mods_dir: Option<PathBuf>,
     pub run_order: RunOrder,
-    pub verbose_charts: bool,
+    pub verbose_metrics: Vec<String>,
 }
 
 // Run all of the benchmarks, capture the logs and write the results to files.
@@ -87,30 +87,47 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
 
     let mut renderer = ImageRenderer::new(1000, 1000).theme(Theme::Walden);
 
-    if !verbose_data.is_empty() {
-        tracing::info!("Generating verbose charts...");
+    if !benchmark_config.verbose_metrics.is_empty() && !verbose_data.is_empty() {
+        tracing::info!("Generating per-tick charts for requested metrics...");
 
         for data in &verbose_data {
-            let title = format!(
-                "wholeUpdate per Tick for {} - Run {}",
-                data.save_name,
-                data.run_index + 1
-            );
-
-            match charts::generate_verbose_chart(&data.csv_data, &title) {
-                Ok(chart) => {
-                    let chart_path = output_dir.join(format!(
-                        "{}_run{}_verbose.svg",
-                        data.save_name,
-                        data.run_index + 1
-                    ));
-                    if let Err(e) = renderer.save(&chart, &chart_path) {
-                        tracing::error!("Failed to save verbose chart for {}: {e}", data.save_name);
+            match charts::create_verbose_charts_for_metrics(
+                &data.csv_data,
+                &data.save_name,
+                data.run_index,
+                &benchmark_config.verbose_metrics,
+            ) {
+                Ok(charts_with_names) => {
+                    for (chart, metric_name) in charts_with_names {
+                        let chart_path = output_dir.join(format!(
+                            "{}_run{}_{}_verbose.svg",
+                            data.save_name,
+                            data.run_index + 1,
+                            metric_name
+                        ));
+                        if let Err(e) = renderer.save(&chart, &chart_path) {
+                            tracing::error!(
+                                "Failed to save verbose chart for {} (metric: {}): {}",
+                                data.save_name,
+                                metric_name,
+                                e
+                            );
+                        } else {
+                            tracing::info!(
+                                "Verbose chart for {} (metric: {}) saved to {}",
+                                data.save_name,
+                                metric_name,
+                                chart_path.display()
+                            );
+                        }
                     }
                 }
-                Err(e) => {
-                    tracing::error!("Failed to create verbose chart for {}: {e}", data.save_name)
-                }
+                Err(e) => tracing::error!(
+                    "Failed to create verbose charts for {} (run {}): {}",
+                    data.save_name,
+                    data.run_index + 1,
+                    e
+                ),
             }
         }
     }

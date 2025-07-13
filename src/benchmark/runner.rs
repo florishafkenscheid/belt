@@ -193,7 +193,7 @@ impl BenchmarkRunner {
             .execute_single_factorio_benchmark(&job.save_file)
             .await?;
 
-        let verbose_data_for_return = if self.config.verbose_charts {
+        let verbose_data_for_return = if !self.config.verbose_metrics.is_empty() {
             factorio_output.verbose_data.map(|csv_data| VerboseData {
                 save_name: job
                     .save_file
@@ -287,7 +287,7 @@ impl BenchmarkRunner {
             "--disable-audio",
         ]);
 
-        if self.config.verbose_charts {
+        if !self.config.verbose_metrics.is_empty() {
             cmd.arg("--benchmark-verbose");
             cmd.arg("all");
         }
