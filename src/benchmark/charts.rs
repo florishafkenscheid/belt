@@ -466,7 +466,7 @@ t2,14133402,2424960,0,2099110,3820,194460,90000,83820,76800,0,33390,1513910,0,0,
         );
         let (chart, _metric_name) = &charts_with_names[0];
 
-        let chart_json: Value = serde_json::to_value(&chart).expect("Chart should be serializable");
+        let chart_json: Value = serde_json::to_value(chart).expect("Chart should be serializable");
 
         let series_array = chart_json["series"][0]["data"]
             .as_array()
