@@ -5,7 +5,7 @@
 use charming::ImageRenderer;
 use handlebars::Handlebars;
 use serde_json::json;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::{
     benchmark::{charts, parser::BenchmarkResult},
@@ -24,7 +24,7 @@ pub async fn write_results(
         .await
         .is_ok()
     {
-        write_markdown(results, output_dir, template_path)?;
+        write_template(results, output_dir, template_path)?;
     }
 
     Ok(())
@@ -74,12 +74,20 @@ fn write_csv(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
 }
 
 /// Write the results to a Markdown file
-fn write_markdown(
+fn write_template(
     results: &[BenchmarkResult],
     output_dir: &Path,
     template_path: &Path,
 ) -> Result<()> {
-    let md_path = output_dir.join("results.md");
+    let file_name = if template_path.extension().and_then(|s| s.to_str()) == Some("hbs") {
+        template_path
+            .file_stem()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("results.md"))
+    } else {
+        PathBuf::from("results.md")
+    };
+    let results_path = output_dir.join(file_name);
 
     let mut handlebars = Handlebars::new();
     handlebars
@@ -131,6 +139,12 @@ fn write_markdown(
         }));
     }
 
+    let bolding_tags = match results_path.extension().and_then(|s| s.to_str()) {
+        Some("html") => ("<strong>", "</strong>"),
+        Some("md") => ("**", "**"),
+        _ => ("**", "**"),
+    };
+
     // Find the highest avg_effective_ups across all benchmarks for highlighting
     if !table_results.is_empty() {
         let max_avg_ups = table_results
@@ -150,7 +164,8 @@ fn write_markdown(
             let ups_str = result["avg_effective_ups"].as_str().unwrap_or("0");
             let ups = ups_str.parse::<u64>().unwrap_or(0);
             if ups == max_avg_ups {
-                result["avg_effective_ups"] = json!(format!("**{}**", ups));
+                result["avg_effective_ups"] =
+                    json!(format!("{}{}{}", bolding_tags.0, ups, bolding_tags.1));
             }
         }
     }
@@ -165,8 +180,8 @@ fn write_markdown(
         .render("benchmark", &data)
         .map_err(BenchmarkError::TemplateError)?;
 
-    std::fs::write(&md_path, rendered).map_err(BenchmarkError::IoError)?;
+    std::fs::write(&results_path, rendered).map_err(BenchmarkError::IoError)?;
 
-    tracing::info!("Markdown report written to {}", md_path.display());
+    tracing::info!("Report written to {}", results_path.display());
     Ok(())
 }
