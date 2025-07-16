@@ -74,7 +74,12 @@ fn write_markdown(
     output_dir: &Path,
     template_path: &Path,
 ) -> Result<()> {
-    let md_path = output_dir.join("results.md");
+    let results_path = output_dir.join(template_path.file_name().unwrap_or("results.md".as_ref()));
+    let results_path = if results_path.extension().and_then(|s| s.to_str()) == Some("hbs") {
+        &results_path.with_extension("")
+    } else {
+        &results_path
+    };
 
     let mut handlebars = Handlebars::new();
     handlebars
@@ -126,6 +131,12 @@ fn write_markdown(
         }));
     }
 
+    let bolding_tags = match results_path.extension().and_then(|s| s.to_str()) {
+        Some("html") => ("<strong>", "</strong>"),
+        Some("md") => ("**", "**"),
+        _ => ("**", "**"),
+    };
+
     // Find the highest avg_effective_ups across all benchmarks for highlighting
     if !table_results.is_empty() {
         let max_avg_ups = table_results
@@ -145,7 +156,8 @@ fn write_markdown(
             let ups_str = result["avg_effective_ups"].as_str().unwrap_or("0");
             let ups = ups_str.parse::<u64>().unwrap_or(0);
             if ups == max_avg_ups {
-                result["avg_effective_ups"] = json!(format!("**{}**", ups));
+                result["avg_effective_ups"] =
+                    json!(format!("{}{}{}", bolding_tags.0, ups, bolding_tags.1));
             }
         }
     }
@@ -160,8 +172,8 @@ fn write_markdown(
         .render("benchmark", &data)
         .map_err(BenchmarkError::TemplateError)?;
 
-    std::fs::write(&md_path, rendered).map_err(BenchmarkError::IoError)?;
+    std::fs::write(&results_path, rendered).map_err(BenchmarkError::IoError)?;
 
-    tracing::info!("Markdown report written to {}", md_path.display());
+    tracing::info!("Report written to {}", results_path.display());
     Ok(())
 }
