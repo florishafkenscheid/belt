@@ -5,7 +5,7 @@
 use charming::ImageRenderer;
 use handlebars::Handlebars;
 use serde_json::json;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::{
     benchmark::{charts, parser::BenchmarkResult},
@@ -24,7 +24,7 @@ pub async fn write_results(
         .await
         .is_ok()
     {
-        write_markdown(results, output_dir, template_path)?;
+        write_template(results, output_dir, template_path)?;
     }
 
     Ok(())
@@ -74,17 +74,20 @@ fn write_csv(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
 }
 
 /// Write the results to a Markdown file
-fn write_markdown(
+fn write_template(
     results: &[BenchmarkResult],
     output_dir: &Path,
     template_path: &Path,
 ) -> Result<()> {
-    let results_path = output_dir.join(template_path.file_name().unwrap_or("results.md".as_ref()));
-    let results_path = if results_path.extension().and_then(|s| s.to_str()) == Some("hbs") {
-        &results_path.with_extension("")
+    let file_name = if template_path.extension().and_then(|s| s.to_str()) == Some("hbs") {
+        template_path
+            .file_stem()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("results.md"))
     } else {
-        &results_path
+        PathBuf::from("results.md")
     };
+    let results_path = output_dir.join(file_name);
 
     let mut handlebars = Handlebars::new();
     handlebars
