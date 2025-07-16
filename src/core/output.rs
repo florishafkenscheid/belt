@@ -172,7 +172,7 @@ fn write_markdown(
         .render("benchmark", &data)
         .map_err(BenchmarkError::TemplateError)?;
 
-    std::fs::write(&results_path, rendered).map_err(BenchmarkError::IoError)?;
+    std::fs::write(results_path, rendered).map_err(BenchmarkError::IoError)?;
 
     tracing::info!("Report written to {}", results_path.display());
     Ok(())
