@@ -136,7 +136,7 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
     let template_path = benchmark_config
         .template_path
         .as_deref()
-        .unwrap_or_else(|| Path::new("templates/benchmark.md.hbs"));
+        .unwrap_or_else(|| Path::new("templates/results.md.hbs"));
 
     // Write the results to the csv and md files
     output::write_results(&results, output_dir, template_path, &mut renderer).await?;
