@@ -6,7 +6,7 @@ use charming::ImageRenderer;
 use handlebars::Handlebars;
 use serde_json::json;
 use std::path::{Path, PathBuf};
-
+use chrono::Local;
 use crate::{
     benchmark::{charts, parser::BenchmarkResult},
     core::{BenchmarkError, Result},
@@ -174,6 +174,9 @@ fn write_template(
         "platform": results.first().map(|r| &r.platform).unwrap_or(&"unknown".to_string()).to_string(),
         "factorio_version": results.first().map(|r| &r.factorio_version).unwrap_or(&"unknown".to_string()).to_string(),
         "results": table_results,
+        "ticks": results.first().map(|r| r.ticks).unwrap_or(0),
+        "runs": results.first().map(|r| r.runs.len()).unwrap_or(0),
+        "date": Local::now().date_naive().to_string(),
     });
 
     let rendered = handlebars
