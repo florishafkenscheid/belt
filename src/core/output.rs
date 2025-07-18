@@ -3,6 +3,7 @@
 //! Handles writing benchmark results to CSV and Markdown files, and manages report formatting.
 
 use charming::ImageRenderer;
+use chrono::Local;
 use handlebars::Handlebars;
 use serde_json::json;
 use std::path::{Path, PathBuf};
@@ -174,6 +175,9 @@ fn write_template(
         "platform": results.first().map(|r| &r.platform).unwrap_or(&"unknown".to_string()).to_string(),
         "factorio_version": results.first().map(|r| &r.factorio_version).unwrap_or(&"unknown".to_string()).to_string(),
         "results": table_results,
+        "ticks": results.first().map(|r| r.ticks).unwrap_or(0),
+        "runs": results.first().map(|r| r.runs.len()).unwrap_or(0),
+        "date": Local::now().date_naive().to_string(),
     });
 
     let rendered = handlebars

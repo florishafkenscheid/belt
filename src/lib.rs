@@ -5,7 +5,7 @@
 pub mod benchmark;
 pub mod core;
 
-/// Re-export commonly uised types for convenience.
+/// Re-export commonly used types for convenience.
 pub use benchmark::BenchmarkConfig;
 pub use core::GlobalConfig;
 pub use core::error::{BenchmarkError, Result};
