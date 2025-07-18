@@ -1,4 +1,5 @@
 # BELT: Benchmark for Engine Limits & Throughput
+![Crates.io Version](https://img.shields.io/crates/v/factorio-belt?color=rgb(215%2C127%2C0))
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/florishafkenscheid/belt/ci.yml?label=master)
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/florishafkenscheid/belt/release.yml?label=release)
 
