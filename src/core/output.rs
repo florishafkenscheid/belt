@@ -3,10 +3,11 @@
 //! Handles writing benchmark results to CSV and Markdown files, and manages report formatting.
 
 use charming::ImageRenderer;
+use chrono::Local;
 use handlebars::Handlebars;
 use serde_json::json;
 use std::path::{Path, PathBuf};
-use chrono::Local;
+
 use crate::{
     benchmark::{charts, parser::BenchmarkResult},
     core::{BenchmarkError, Result},
