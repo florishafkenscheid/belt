@@ -36,6 +36,14 @@ pub fn parse_benchmark_log(
     // Get save name from file
     let save_name = save_file.file_stem().unwrap().to_string_lossy().to_string();
 
+    let save_name = match benchmark_config.strip_prefix.as_deref() {
+        Some(prefix) => save_name
+            .strip_prefix(prefix)
+            .unwrap_or(&save_name)
+            .to_string(),
+        None => save_name,
+    };
+
     // Get the Factorio version from the line containing "Factorio" and "(build"
     let version = log
         .lines()

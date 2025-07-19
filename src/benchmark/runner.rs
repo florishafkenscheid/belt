@@ -75,6 +75,14 @@ impl BenchmarkRunner {
                 .to_string_lossy()
                 .to_string();
 
+            let save_name = match self.config.strip_prefix.as_deref() {
+                Some(prefix) => save_name
+                    .strip_prefix(prefix)
+                    .unwrap_or(&save_name)
+                    .to_string(),
+                None => save_name,
+            };
+
             progress.set_position(job_index as u64);
 
             let eta_message = if job_index > 0 {
