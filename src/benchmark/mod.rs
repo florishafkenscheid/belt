@@ -49,6 +49,7 @@ pub struct BenchmarkConfig {
     pub mods_dir: Option<PathBuf>,
     pub run_order: RunOrder,
     pub verbose_metrics: Vec<String>,
+    pub strip_prefix: Option<String>,
 }
 
 // Run all of the benchmarks, capture the logs and write the results to files.
