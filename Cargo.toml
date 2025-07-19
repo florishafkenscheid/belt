@@ -1,6 +1,6 @@
 [package]
 name = "factorio-belt"
-version = "1.9.0"
+version = "1.9.1"
 edition = "2024"
 description = "A fast, cross-platform Factorio benchmarking tool"
 license = "MIT"
