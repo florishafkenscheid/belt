@@ -7,11 +7,17 @@ pub mod discovery;
 pub mod parser;
 pub mod runner;
 
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use charming::{ImageRenderer, theme::Theme};
 
-use crate::core::{BenchmarkError, FactorioExecutor, GlobalConfig, Result, output};
+use crate::{
+    benchmark::runner::VerboseData,
+    core::{BenchmarkError, FactorioExecutor, GlobalConfig, Result, output},
+};
 
 #[derive(Debug, Clone, Default)]
 pub enum RunOrder {
@@ -82,41 +88,45 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
 
     // Run the benchmarks
     let runner = runner::BenchmarkRunner::new(benchmark_config.clone(), factorio);
-    let (mut results, verbose_data) = runner.run_all(save_files).await?;
+    let (mut results, all_runs_verbose_data) = runner.run_all(save_files).await?;
     // Calculate the percentage difference from the worst performer
     parser::calculate_base_differences(&mut results);
 
     let mut renderer = ImageRenderer::new(1000, 1000).theme(Theme::Walden);
 
-    if !benchmark_config.verbose_metrics.is_empty() && !verbose_data.is_empty() {
+    // Group verbose data by save
+    let mut verbose_data_by_save: HashMap<String, Vec<VerboseData>> = HashMap::new();
+    for data in all_runs_verbose_data {
+        verbose_data_by_save
+            .entry(data.save_name.clone())
+            .or_default()
+            .push(data);
+    }
+
+    if !benchmark_config.verbose_metrics.is_empty() && !verbose_data_by_save.is_empty() {
         tracing::info!("Generating per-tick charts for requested metrics...");
 
-        for data in &verbose_data {
-            match charts::create_verbose_charts_for_metrics(
-                &data.csv_data,
-                &data.save_name,
-                data.run_index,
+        for (save_name, save_verbose_data) in verbose_data_by_save {
+            match charts::create_all_verbose_charts_for_save(
+                &save_name,
+                &save_verbose_data,
                 &benchmark_config.verbose_metrics,
             ) {
                 Ok(charts_with_names) => {
                     for (chart, metric_name) in charts_with_names {
-                        let chart_path = output_dir.join(format!(
-                            "{}_run{}_{}_verbose.svg",
-                            data.save_name,
-                            data.run_index + 1,
-                            metric_name
-                        ));
+                        let chart_path =
+                            output_dir.join(format!("{}_{}_per_tick.svg", save_name, metric_name));
                         if let Err(e) = renderer.save(&chart, &chart_path) {
                             tracing::error!(
-                                "Failed to save verbose chart for {} (metric: {}): {}",
-                                data.save_name,
+                                "Failed to save per-tick chart for {} (metric: {}): {}",
+                                save_name,
                                 metric_name,
                                 e
                             );
                         } else {
                             tracing::info!(
-                                "Verbose chart for {} (metric: {}) saved to {}",
-                                data.save_name,
+                                "Per-tick chart for {} (metric: {}) saved to {}",
+                                save_name,
                                 metric_name,
                                 chart_path.display()
                             );
@@ -124,9 +134,8 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
                     }
                 }
                 Err(e) => tracing::error!(
-                    "Failed to create verbose charts for {} (run {}): {}",
-                    data.save_name,
-                    data.run_index + 1,
+                    "Failed to create per-tick charts for save {}: {}",
+                    save_name,
                     e
                 ),
             }
