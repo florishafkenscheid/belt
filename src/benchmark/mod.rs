@@ -56,6 +56,7 @@ pub struct BenchmarkConfig {
     pub run_order: RunOrder,
     pub verbose_metrics: Vec<String>,
     pub strip_prefix: Option<String>,
+    pub smooth_window: u32,
 }
 
 // Run all of the benchmarks, capture the logs and write the results to files.
@@ -112,11 +113,12 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
                 &save_name,
                 &save_verbose_data,
                 &benchmark_config.verbose_metrics,
+                benchmark_config.smooth_window,
             ) {
                 Ok(charts_with_names) => {
                     for (chart, metric_name) in charts_with_names {
                         let chart_path =
-                            output_dir.join(format!("{}_{}_per_tick.svg", save_name, metric_name));
+                            output_dir.join(format!("{save_name}_{metric_name}_per_tick.svg"));
                         if let Err(e) = wide_renderer.save(&chart, &chart_path) {
                             tracing::error!(
                                 "Failed to save per-tick chart for {} (metric: {}): {}",

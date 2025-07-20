@@ -158,6 +158,7 @@ pub fn create_all_verbose_charts_for_save(
     save_name: &String,
     save_verbose_data: &[VerboseData],
     metrics_to_chart: &[String],
+    smooth_window: u32,
 ) -> Result<Vec<(Chart, String)>> {
     if save_verbose_data.is_empty() {
         return Ok(Vec::new());
@@ -209,7 +210,6 @@ pub fn create_all_verbose_charts_for_save(
                             if let Ok(value_ns) = value_ns_str.parse::<f64>() {
                                 current_run_ticks.push(tick);
                                 current_run_metric_values_ns.push(value_ns);
-                                all_data_points_for_metric_ns.push(value_ns);
 
                                 global_min_for_metric = global_min_for_metric.min(value_ns);
                                 global_max_for_metric = global_max_for_metric.max(value_ns);
@@ -228,7 +228,12 @@ pub fn create_all_verbose_charts_for_save(
                     continue;
                 }
 
-                let metric_values_ms: Vec<f64> = current_run_metric_values_ns
+                let smoothed_run_values_ns =
+                    calculate_sma(&current_run_metric_values_ns, smooth_window);
+
+                all_data_points_for_metric_ns.extend(&smoothed_run_values_ns);
+
+                let metric_values_ms: Vec<f64> = smoothed_run_values_ns
                     .into_iter()
                     .map(|ns| ns / 1_000_000.0)
                     .collect();
@@ -239,25 +244,28 @@ pub fn create_all_verbose_charts_for_save(
                     first_run_ticks = current_run_ticks;
                 }
             }
-
-            // Calculate mean and standard deviation
-            let num_data_points = all_data_points_for_metric_ns.len() as f64;
-            if num_data_points == 0.0 {
-                // If for some reason empty, skip
+            if all_runs_metric_values_ms.is_empty() {
                 continue;
             }
 
-            let sum: f64 = all_data_points_for_metric_ns.iter().sum();
-            let mean_ns = sum / num_data_points;
+            // Calculate mean and standard deviation
+            let num_data_points_smoothed = all_data_points_for_metric_ns.len() as f64;
+            if num_data_points_smoothed == 0.0 {
+                continue;
+            }
 
-            let sum_of_squared_diffs: f64 = all_data_points_for_metric_ns
+            let sum_smoothed: f64 = all_data_points_for_metric_ns.iter().sum();
+            let mean_ns_smoothed = sum_smoothed / num_data_points_smoothed;
+
+            let sum_of_squared_diffs_smoothed: f64 = all_data_points_for_metric_ns
                 .iter()
-                .map(|&x| (x - mean_ns).powi(2))
+                .map(|&x| (x - mean_ns_smoothed).powi(2))
                 .sum();
-            let std_dev_ns = (sum_of_squared_diffs / num_data_points).sqrt();
+            let std_dev_ns_smoothed =
+                (sum_of_squared_diffs_smoothed / num_data_points_smoothed).sqrt();
 
-            let clamped_min_ns = (mean_ns - 3.0 * std_dev_ns).max(0.0);
-            let clamped_max_ns = mean_ns + 3.0 * std_dev_ns;
+            let clamped_min_ns = (mean_ns_smoothed - 2.0 * std_dev_ns_smoothed).max(0.0);
+            let clamped_max_ns = mean_ns_smoothed + 2.0 * std_dev_ns_smoothed;
 
             let min_buffered_ms = clamped_min_ns / 1_000_000.0;
             let max_buffered_ms = clamped_max_ns / 1_000_000.0;
@@ -393,6 +401,37 @@ struct BoxplotData {
     max_value: f64,
 }
 
+/// Calculate simple moving average
+fn calculate_sma(data: &[f64], window_size: u32) -> Vec<f64> {
+    if window_size == 0 || data.is_empty() {
+        return data.to_vec(); // No smoothing or no data
+    }
+
+    let window_size = window_size as usize;
+    let mut smoothed_data = Vec::with_capacity(data.len());
+    let mut current_sum: f64 = 0.0;
+    let mut window_count: usize = 0;
+
+    for i in 0..data.len() {
+        current_sum += data[i];
+        window_count += 1;
+
+        if i >= window_size {
+            // Remove the oldest element that's falling out of the window
+            current_sum -= data[i - window_size];
+            window_count -= 1;
+        }
+
+        let avg = if window_count > 0 {
+            current_sum / window_count as f64
+        } else {
+            0.0
+        };
+        smoothed_data.push(avg);
+    }
+    smoothed_data
+}
+
 /// Manually calculate the boxplot data given the benchmark results
 fn calculate_boxplot_data(results: &[BenchmarkResult]) -> BoxplotData {
     // Collect save names
@@ -502,6 +541,7 @@ t2,14133402,2424960,0,2099110,3820,194460,90000,83820,76800,0,33390,1513910,0,0,
             &"Test Save".to_string(),
             &[verbose_data],
             &["wholeUpdate".to_string()],
+            0,
         )
         .unwrap();
 

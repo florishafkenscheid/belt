@@ -61,6 +61,13 @@ enum Commands {
 
         #[arg(long)]
         strip_prefix: Option<String>,
+
+        #[arg(
+            long,
+            default_value = "0",
+            help = "Apply a simple moving average to per-tick data with the given window size. Set to 0 for no smoothing."
+        )]
+        smooth_window: u32,
     },
 }
 
@@ -100,6 +107,7 @@ async fn main() -> Result<()> {
             run_order,
             verbose_metrics,
             strip_prefix,
+            smooth_window,
         } => {
             let benchmark_config = benchmark::BenchmarkConfig {
                 saves_dir,
@@ -112,6 +120,7 @@ async fn main() -> Result<()> {
                 run_order,
                 verbose_metrics,
                 strip_prefix,
+                smooth_window,
             };
 
             benchmark::run(global_config, benchmark_config).await
