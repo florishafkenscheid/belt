@@ -189,6 +189,8 @@ pub fn create_all_verbose_charts_for_save(
             let mut all_runs_metric_values_ms: Vec<Vec<f64>> = Vec::new();
             let mut first_run_ticks: Vec<u64> = Vec::new();
 
+            let mut all_data_points_for_metric_ns: Vec<f64> = Vec::new();
+
             let mut global_min_for_metric = f64::MAX;
             let mut global_max_for_metric = f64::MIN;
 
@@ -207,6 +209,7 @@ pub fn create_all_verbose_charts_for_save(
                             if let Ok(value_ns) = value_ns_str.parse::<f64>() {
                                 current_run_ticks.push(tick);
                                 current_run_metric_values_ns.push(value_ns);
+                                all_data_points_for_metric_ns.push(value_ns);
 
                                 global_min_for_metric = global_min_for_metric.min(value_ns);
                                 global_max_for_metric = global_max_for_metric.max(value_ns);
@@ -237,12 +240,27 @@ pub fn create_all_verbose_charts_for_save(
                 }
             }
 
-            let min_val_ms = global_min_for_metric / 1_000_000.0;
-            let max_val_ms = global_max_for_metric / 1_000_000.0;
-            let range_ms = max_val_ms - min_val_ms;
-            let buffer_ms = range_ms * 0.1; // 10% buffer
-            let min_buffered_ms = (min_val_ms - buffer_ms).max(0.0);
-            let max_buffered_ms = max_val_ms + buffer_ms;
+            // Calculate mean and standard deviation
+            let num_data_points = all_data_points_for_metric_ns.len() as f64;
+            if num_data_points == 0.0 {
+                // If for some reason empty, skip
+                continue;
+            }
+
+            let sum: f64 = all_data_points_for_metric_ns.iter().sum();
+            let mean_ns = sum / num_data_points;
+
+            let sum_of_squared_diffs: f64 = all_data_points_for_metric_ns
+                .iter()
+                .map(|&x| (x - mean_ns).powi(2))
+                .sum();
+            let std_dev_ns = (sum_of_squared_diffs / num_data_points).sqrt();
+
+            let clamped_min_ns = (mean_ns - 2.0 * std_dev_ns).max(0.0);
+            let clamped_max_ns = mean_ns + 2.0 * std_dev_ns;
+
+            let min_buffered_ms = clamped_min_ns / 1_000_000.0;
+            let max_buffered_ms = clamped_max_ns / 1_000_000.0;
 
             let chart_title = format!("{metric_name} per Tick for {save_name}");
             let y_axis_name = format!("{metric_name} Time (ms)");

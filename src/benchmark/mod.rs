@@ -105,6 +105,7 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
 
     if !benchmark_config.verbose_metrics.is_empty() && !verbose_data_by_save.is_empty() {
         tracing::info!("Generating per-tick charts for requested metrics...");
+        let mut wide_renderer = ImageRenderer::new(2000, 1000).theme(Theme::Walden);
 
         for (save_name, save_verbose_data) in verbose_data_by_save {
             match charts::create_all_verbose_charts_for_save(
@@ -116,7 +117,7 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
                     for (chart, metric_name) in charts_with_names {
                         let chart_path =
                             output_dir.join(format!("{}_{}_per_tick.svg", save_name, metric_name));
-                        if let Err(e) = renderer.save(&chart, &chart_path) {
+                        if let Err(e) = wide_renderer.save(&chart, &chart_path) {
                             tracing::error!(
                                 "Failed to save per-tick chart for {} (metric: {}): {}",
                                 save_name,
