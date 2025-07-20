@@ -3,7 +3,7 @@
 //! Uses the `charming` crate to render SVG charts for UPS and improvement metrics.
 
 use crate::{
-    benchmark::parser::BenchmarkResult,
+    benchmark::{parser::BenchmarkResult, runner::VerboseData},
     core::{BenchmarkError, Result},
 };
 use std::{collections::HashMap, path::Path};
@@ -154,14 +154,18 @@ fn generate_ups_charts(results: &[BenchmarkResult]) -> Result<Vec<Chart>> {
     Ok(charts)
 }
 
-pub fn create_verbose_charts_for_metrics(
-    verbose_csv_data: &str,
-    save_name: &str,
-    run_index: usize,
+pub fn create_all_verbose_charts_for_save(
+    save_name: &String,
+    save_verbose_data: &[VerboseData],
     metrics_to_chart: &[String],
+    smooth_window: u32,
 ) -> Result<Vec<(Chart, String)>> {
-    let mut reader = csv::Reader::from_reader(verbose_csv_data.as_bytes());
+    if save_verbose_data.is_empty() {
+        return Ok(Vec::new());
+    }
 
+    let first_run_csv_data = &save_verbose_data[0].csv_data;
+    let mut reader = csv::Reader::from_reader(first_run_csv_data.as_bytes());
     let headers: Vec<String> = reader.headers()?.iter().map(|s| s.to_string()).collect();
     let header_map: HashMap<String, usize> = headers
         .clone()
@@ -170,7 +174,8 @@ pub fn create_verbose_charts_for_metrics(
         .map(|(i, h)| (h, i))
         .collect();
 
-    let mut all_charts: Vec<(Chart, String)> = Vec::new();
+    let mut charts_to_return: Vec<(Chart, String)> = Vec::new();
+
     let actual_metrics_to_chart: Vec<String> = if metrics_to_chart.contains(&"all".to_string()) {
         headers
             .into_iter()
@@ -182,88 +187,125 @@ pub fn create_verbose_charts_for_metrics(
 
     for metric_name in actual_metrics_to_chart {
         if let Some(&column_index) = header_map.get(&metric_name) {
-            let mut inner_reader = csv::Reader::from_reader(verbose_csv_data.as_bytes());
+            let mut all_runs_metric_values_ms: Vec<Vec<f64>> = Vec::new();
+            let mut first_run_ticks: Vec<u64> = Vec::new();
 
-            let mut ticks: Vec<u64> = Vec::new();
-            let mut metric_values_ns: Vec<f64> = Vec::new();
+            let mut all_data_points_for_metric_ns: Vec<f64> = Vec::new();
 
-            for record_result in inner_reader.records() {
-                let record = record_result?;
+            let mut global_min_for_metric = f64::MAX;
+            let mut global_max_for_metric = f64::MIN;
 
-                if let (Some(tick_str), Some(value_ns_str)) =
-                    (record.get(0), record.get(column_index))
-                {
-                    if let Ok(tick) = tick_str.trim_start_matches('t').parse::<u64>() {
-                        if let Ok(value_ns) = value_ns_str.parse::<f64>() {
-                            ticks.push(tick);
-                            metric_values_ns.push(value_ns);
+            for run_data in save_verbose_data {
+                let mut inner_reader = csv::Reader::from_reader(run_data.csv_data.as_bytes());
+                let mut current_run_metric_values_ns: Vec<f64> = Vec::new();
+                let mut current_run_ticks: Vec<u64> = Vec::new();
+
+                for record_result in inner_reader.records() {
+                    let record = record_result?;
+
+                    if let (Some(tick_str), Some(value_ns_str)) =
+                        (record.get(0), record.get(column_index))
+                    {
+                        if let Ok(tick) = tick_str.trim_start_matches('t').parse::<u64>() {
+                            if let Ok(value_ns) = value_ns_str.parse::<f64>() {
+                                current_run_ticks.push(tick);
+                                current_run_metric_values_ns.push(value_ns);
+
+                                global_min_for_metric = global_min_for_metric.min(value_ns);
+                                global_max_for_metric = global_max_for_metric.max(value_ns);
+                            }
                         }
                     }
                 }
-            }
 
-            if ticks.is_empty() {
-                tracing::warn!(
-                    "No data found for metric '{}' in save {} run {}",
-                    metric_name,
-                    save_name,
-                    run_index + 1
-                );
+                if current_run_metric_values_ns.is_empty() {
+                    tracing::warn!(
+                        "No data found for metric '{}' in save {} run {}",
+                        metric_name,
+                        run_data.save_name,
+                        run_data.run_index + 1
+                    );
+                    continue;
+                }
+
+                let smoothed_run_values_ns =
+                    calculate_sma(&current_run_metric_values_ns, smooth_window);
+
+                all_data_points_for_metric_ns.extend(&smoothed_run_values_ns);
+
+                let metric_values_ms: Vec<f64> = smoothed_run_values_ns
+                    .into_iter()
+                    .map(|ns| ns / 1_000_000.0)
+                    .collect();
+
+                all_runs_metric_values_ms.push(metric_values_ms);
+
+                if first_run_ticks.is_empty() {
+                    first_run_ticks = current_run_ticks;
+                }
+            }
+            if all_runs_metric_values_ms.is_empty() {
                 continue;
             }
 
-            let metric_values_ms: Vec<f64> = metric_values_ns
-                .into_iter()
-                .map(|ns| ns / 1_000_000.0)
-                .collect();
+            // Calculate mean and standard deviation
+            let num_data_points_smoothed = all_data_points_for_metric_ns.len() as f64;
+            if num_data_points_smoothed == 0.0 {
+                continue;
+            }
 
-            let chart_title = format!(
-                "{} per Tick for {} (Run {})",
-                metric_name,
-                save_name,
-                run_index + 1
-            );
+            let sum_smoothed: f64 = all_data_points_for_metric_ns.iter().sum();
+            let mean_ns_smoothed = sum_smoothed / num_data_points_smoothed;
+
+            let sum_of_squared_diffs_smoothed: f64 = all_data_points_for_metric_ns
+                .iter()
+                .map(|&x| (x - mean_ns_smoothed).powi(2))
+                .sum();
+            let std_dev_ns_smoothed =
+                (sum_of_squared_diffs_smoothed / num_data_points_smoothed).sqrt();
+
+            let clamped_min_ns = (mean_ns_smoothed - 2.0 * std_dev_ns_smoothed).max(0.0);
+            let clamped_max_ns = mean_ns_smoothed + 2.0 * std_dev_ns_smoothed;
+
+            let min_buffered_ms = clamped_min_ns / 1_000_000.0;
+            let max_buffered_ms = clamped_max_ns / 1_000_000.0;
+
+            let chart_title = format!("{metric_name} per Tick for {save_name}");
             let y_axis_name = format!("{metric_name} Time (ms)");
 
-            let chart =
-                generate_single_metric_chart(ticks, metric_values_ms, &chart_title, &y_axis_name)?;
-            all_charts.push((chart, metric_name));
+            let chart = generate_single_metric_chart(
+                first_run_ticks.clone(),
+                all_runs_metric_values_ms,
+                &chart_title,
+                &y_axis_name,
+                min_buffered_ms,
+                max_buffered_ms,
+            )?;
+            charts_to_return.push((chart, metric_name));
         } else {
             tracing::warn!(
-                "Request metric '{}' not found in Factorio verbose output for save {} run {}",
+                "Requested metric '{}' not found in Factorio verbose output for save {}",
                 metric_name,
                 save_name,
-                run_index + 1
             );
         }
     }
 
-    Ok(all_charts)
+    Ok(charts_to_return)
 }
 
 /// Generate a line chart from verbose per-tick benchmark data
 fn generate_single_metric_chart(
     ticks: Vec<u64>,
-    metric_values_ms: Vec<f64>,
+    all_runs_metric_values_ms: Vec<Vec<f64>>,
     chart_title: &str,
     y_axis_name: &str,
+    min_buffered_ms: f64,
+    max_buffered_ms: f64,
 ) -> Result<Chart> {
     let tick_labels: Vec<String> = ticks.iter().map(|t| t.to_string()).collect();
 
-    let min_val = metric_values_ms
-        .iter()
-        .cloned()
-        .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-        .unwrap_or(0.0);
-    let max_val = metric_values_ms
-        .iter()
-        .cloned()
-        .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-        .unwrap_or(0.0);
-
-    let buffer = (max_val - min_val) * 0.1;
-
-    let chart = Chart::new()
+    let mut chart = Chart::new()
         .title(Title::new().text(chart_title).left("center"))
         .x_axis(
             Axis::new()
@@ -275,14 +317,23 @@ fn generate_single_metric_chart(
             Axis::new()
                 .type_(AxisType::Value)
                 .name(y_axis_name)
-                .min((min_val - buffer).max(0.0)) // To ensure it doesn't go below 0
-                .max(max_val + buffer)
+                .min(min_buffered_ms)
+                .max(max_buffered_ms)
                 .axis_label(AxisLabel::new().formatter(JsFunction::new_with_args(
                     "value",
                     "return value.toFixed(3);",
                 ))),
-        )
-        .series(Line::new().data(metric_values_ms).show_symbol(false));
+        );
+
+    for (run_idx, run_values) in all_runs_metric_values_ms.into_iter().enumerate() {
+        let series_name = format!("Run {}", run_idx + 1);
+        chart = chart.series(
+            Line::new()
+                .name(series_name)
+                .data(run_values)
+                .show_symbol(false),
+        );
+    }
 
     Ok(chart)
 }
@@ -348,6 +399,37 @@ struct BoxplotData {
     category_names: Vec<String>,
     min_value: f64,
     max_value: f64,
+}
+
+/// Calculate simple moving average
+fn calculate_sma(data: &[f64], window_size: u32) -> Vec<f64> {
+    if window_size == 0 || data.is_empty() {
+        return data.to_vec(); // No smoothing or no data
+    }
+
+    let window_size = window_size as usize;
+    let mut smoothed_data = Vec::with_capacity(data.len());
+    let mut current_sum: f64 = 0.0;
+    let mut window_count: usize = 0;
+
+    for i in 0..data.len() {
+        current_sum += data[i];
+        window_count += 1;
+
+        if i >= window_size {
+            // Remove the oldest element that's falling out of the window
+            current_sum -= data[i - window_size];
+            window_count -= 1;
+        }
+
+        let avg = if window_count > 0 {
+            current_sum / window_count as f64
+        } else {
+            0.0
+        };
+        smoothed_data.push(avg);
+    }
+    smoothed_data
 }
 
 /// Manually calculate the boxplot data given the benchmark results
@@ -445,17 +527,21 @@ fn calculate_boxplot_data(results: &[BenchmarkResult]) -> BoxplotData {
 mod tests {
     use serde_json::Value;
 
+    use crate::benchmark::runner::VerboseData;
+
     #[test]
     fn test_generate_verbose_chart() {
-        const VERBOSE_DATA: &str = r#"tick,timestamp,wholeUpdate,latencyUpdate,gameUpdate,planetsUpdate,controlBehaviorUpdate,transportLinesUpdate,electricHeatFluidCircuitUpdate,electricNetworkUpdate,heatNetworkUpdate,fluidFlowUpdate,entityUpdate,lightningUpdate,tileHeatingUpdate,particleUpdate,mapGenerator,mapGeneratorBasicTilesSupportCompute,mapGeneratorBasicTilesSupportApply,mapGeneratorCorrectedTilesPrepare,mapGeneratorCorrectedTilesCompute,mapGeneratorCorrectedTilesApply,mapGeneratorVariations,mapGeneratorEntitiesPrepare,mapGeneratorEntitiesCompute,mapGeneratorEntitiesApply,spacePlatforms,collectorNavMesh,collectorNavMeshPathfinding,collectorNavMeshRaycast,crcComputation,consistencyScraper,logisticManagerUpdate,constructionManagerUpdate,pathFinder,trains,trainPathFinder,commander,chartRefresh,luaGarbageIncremental,chartUpdate,scriptUpdate,
+        let verbose_data: VerboseData = VerboseData { save_name: "Test Save".to_string(), run_index: 0, csv_data: r#"tick,timestamp,wholeUpdate,latencyUpdate,gameUpdate,planetsUpdate,controlBehaviorUpdate,transportLinesUpdate,electricHeatFluidCircuitUpdate,electricNetworkUpdate,heatNetworkUpdate,fluidFlowUpdate,entityUpdate,lightningUpdate,tileHeatingUpdate,particleUpdate,mapGenerator,mapGeneratorBasicTilesSupportCompute,mapGeneratorBasicTilesSupportApply,mapGeneratorCorrectedTilesPrepare,mapGeneratorCorrectedTilesCompute,mapGeneratorCorrectedTilesApply,mapGeneratorVariations,mapGeneratorEntitiesPrepare,mapGeneratorEntitiesCompute,mapGeneratorEntitiesApply,spacePlatforms,collectorNavMesh,collectorNavMeshPathfinding,collectorNavMeshRaycast,crcComputation,consistencyScraper,logisticManagerUpdate,constructionManagerUpdate,pathFinder,trains,trainPathFinder,commander,chartRefresh,luaGarbageIncremental,chartUpdate,scriptUpdate,
 t0,140,11080261,0,7623950,7070,522710,276560,140340,125110,0,130850,6408320,0,0,1990,1540,0,0,0,0,0,0,0,0,0,86650,890,0,0,0,1370,1570,9750,0,106700,0,2800,0,3173091,15050,272070,
 t1,11086741,3044471,0,2682401,5060,267110,113670,84680,77910,0,39790,2041151,0,0,2030,1220,0,0,0,0,0,0,0,0,0,88040,830,0,0,0,1450,1490,6490,0,31860,0,3140,0,330670,9480,28920,
-t2,14133402,2424960,0,2099110,3820,194460,90000,83820,76800,0,33390,1513910,0,0,1480,880,0,0,0,0,0,0,0,0,0,147930,780,0,0,0,1270,1250,4330,0,25400,0,2390,0,294020,9520,30040,"#;
-        let charts_with_names = super::create_verbose_charts_for_metrics(
-            VERBOSE_DATA,
-            "Test Save",
-            0,
+t2,14133402,2424960,0,2099110,3820,194460,90000,83820,76800,0,33390,1513910,0,0,1480,880,0,0,0,0,0,0,0,0,0,147930,780,0,0,0,1270,1250,4330,0,25400,0,2390,0,294020,9520,30040,"#.to_string()
+        };
+
+        let charts_with_names = super::create_all_verbose_charts_for_save(
+            &"Test Save".to_string(),
+            &[verbose_data],
             &["wholeUpdate".to_string()],
+            0,
         )
         .unwrap();
 
