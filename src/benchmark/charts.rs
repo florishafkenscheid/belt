@@ -256,8 +256,8 @@ pub fn create_all_verbose_charts_for_save(
                 .sum();
             let std_dev_ns = (sum_of_squared_diffs / num_data_points).sqrt();
 
-            let clamped_min_ns = (mean_ns - 2.0 * std_dev_ns).max(0.0);
-            let clamped_max_ns = mean_ns + 2.0 * std_dev_ns;
+            let clamped_min_ns = (mean_ns - 3.0 * std_dev_ns).max(0.0);
+            let clamped_max_ns = mean_ns + 3.0 * std_dev_ns;
 
             let min_buffered_ms = clamped_min_ns / 1_000_000.0;
             let max_buffered_ms = clamped_max_ns / 1_000_000.0;
