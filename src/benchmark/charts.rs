@@ -187,17 +187,14 @@ pub fn create_all_verbose_charts_for_save(
 
     for metric_name in actual_metrics_to_chart {
         if let Some(&column_index) = header_map.get(&metric_name) {
-            let mut all_runs_metric_values_ms: Vec<Vec<f64>> = Vec::new();
-            let mut first_run_ticks: Vec<u64> = Vec::new();
-
-            let mut all_data_points_for_metric_ns: Vec<f64> = Vec::new();
-
-            let mut global_min_for_metric = f64::MAX;
-            let mut global_max_for_metric = f64::MIN;
+            let mut all_runs_raw_values_ns: Vec<Vec<f64>> = Vec::new();
+            let mut all_runs_smoothed_values_ms: Vec<Vec<f64>> = Vec::new();
+            let mut all_smoothed_data_points_for_stats_ns: Vec<f64> = Vec::new();
+            let mut x_axis_ticks_from_first_run: Vec<u64> = Vec::new();
 
             for run_data in save_verbose_data {
                 let mut inner_reader = csv::Reader::from_reader(run_data.csv_data.as_bytes());
-                let mut current_run_metric_values_ns: Vec<f64> = Vec::new();
+                let mut current_run_raw_values_ns: Vec<f64> = Vec::new();
                 let mut current_run_ticks: Vec<u64> = Vec::new();
 
                 for record_result in inner_reader.records() {
@@ -209,16 +206,13 @@ pub fn create_all_verbose_charts_for_save(
                         if let Ok(tick) = tick_str.trim_start_matches('t').parse::<u64>() {
                             if let Ok(value_ns) = value_ns_str.parse::<f64>() {
                                 current_run_ticks.push(tick);
-                                current_run_metric_values_ns.push(value_ns);
-
-                                global_min_for_metric = global_min_for_metric.min(value_ns);
-                                global_max_for_metric = global_max_for_metric.max(value_ns);
+                                current_run_raw_values_ns.push(value_ns);
                             }
                         }
                     }
                 }
 
-                if current_run_metric_values_ns.is_empty() {
+                if current_run_raw_values_ns.is_empty() {
                     tracing::warn!(
                         "No data found for metric '{}' in save {} run {}",
                         metric_name,
@@ -228,60 +222,100 @@ pub fn create_all_verbose_charts_for_save(
                     continue;
                 }
 
+                all_runs_raw_values_ns.push(current_run_raw_values_ns.clone());
+
                 let smoothed_run_values_ns =
-                    calculate_sma(&current_run_metric_values_ns, smooth_window);
+                    calculate_sma(&current_run_raw_values_ns, smooth_window);
+                all_smoothed_data_points_for_stats_ns.extend(&smoothed_run_values_ns);
 
-                all_data_points_for_metric_ns.extend(&smoothed_run_values_ns);
-
-                let metric_values_ms: Vec<f64> = smoothed_run_values_ns
+                let smoothed_values_ms_for_chart: Vec<f64> = smoothed_run_values_ns
                     .into_iter()
                     .map(|ns| ns / 1_000_000.0)
                     .collect();
+                all_runs_smoothed_values_ms.push(smoothed_values_ms_for_chart);
 
-                all_runs_metric_values_ms.push(metric_values_ms);
-
-                if first_run_ticks.is_empty() {
-                    first_run_ticks = current_run_ticks;
+                if x_axis_ticks_from_first_run.is_empty() {
+                    x_axis_ticks_from_first_run = current_run_ticks;
                 }
             }
-            if all_runs_metric_values_ms.is_empty() {
+            if all_runs_smoothed_values_ms.is_empty() {
                 continue;
             }
 
             // Calculate mean and standard deviation
-            let num_data_points_smoothed = all_data_points_for_metric_ns.len() as f64;
-            if num_data_points_smoothed == 0.0 {
-                continue;
-            }
+            let num_smoothed_data_points = all_smoothed_data_points_for_stats_ns.len() as f64;
+            let (mean_ns_smoothed, std_dev_ns_smoothed) = if num_smoothed_data_points > 0.0 {
+                let sum: f64 = all_smoothed_data_points_for_stats_ns.iter().sum();
+                let mean = sum / num_smoothed_data_points;
+                let sum_of_squared_diffs: f64 = all_smoothed_data_points_for_stats_ns
+                    .iter()
+                    .map(|&x| (x - mean).powi(2))
+                    .sum();
+                let std_dev = (sum_of_squared_diffs / num_smoothed_data_points).sqrt();
+                (mean, std_dev)
+            } else {
+                (0.0, 0.0) // No data, default to 0 for mean/std_dev
+            };
 
-            let sum_smoothed: f64 = all_data_points_for_metric_ns.iter().sum();
-            let mean_ns_smoothed = sum_smoothed / num_data_points_smoothed;
+            // Calculate clamped min/max bounds based on mean and std dev (from smoothed data)
+            let min_buffered_ns = (mean_ns_smoothed - 2.0 * std_dev_ns_smoothed).max(0.0); // Ensure non-negative
+            let max_buffered_ns = mean_ns_smoothed + 2.0 * std_dev_ns_smoothed;
 
-            let sum_of_squared_diffs_smoothed: f64 = all_data_points_for_metric_ns
-                .iter()
-                .map(|&x| (x - mean_ns_smoothed).powi(2))
-                .sum();
-            let std_dev_ns_smoothed =
-                (sum_of_squared_diffs_smoothed / num_data_points_smoothed).sqrt();
+            let min_buffered_ms = min_buffered_ns / 1_000_000.0;
+            let max_buffered_ms = max_buffered_ns / 1_000_000.0;
+            // Ensure min/max are not identical if data is flat
+            let (min_buffered_ms, max_buffered_ms) = if min_buffered_ms == max_buffered_ms {
+                let new_min = (min_buffered_ms * 0.9).max(0.0);
+                let new_max = (max_buffered_ms * 1.1).max(0.1);
 
-            let clamped_min_ns = (mean_ns_smoothed - 2.0 * std_dev_ns_smoothed).max(0.0);
-            let clamped_max_ns = mean_ns_smoothed + 2.0 * std_dev_ns_smoothed;
-
-            let min_buffered_ms = clamped_min_ns / 1_000_000.0;
-            let max_buffered_ms = clamped_max_ns / 1_000_000.0;
+                (new_min, new_max)
+            } else {
+                (min_buffered_ms, max_buffered_ms)
+            };
 
             let chart_title = format!("{metric_name} per Tick for {save_name}");
             let y_axis_name = format!("{metric_name} Time (ms)");
 
             let chart = generate_single_metric_chart(
-                first_run_ticks.clone(),
-                all_runs_metric_values_ms,
+                x_axis_ticks_from_first_run.clone(),
+                all_runs_smoothed_values_ms,
                 &chart_title,
                 &y_axis_name,
                 min_buffered_ms,
                 max_buffered_ms,
             )?;
-            charts_to_return.push((chart, metric_name));
+            charts_to_return.push((chart, metric_name.clone()));
+
+            // Min tick chart
+            let num_ticks = x_axis_ticks_from_first_run.len();
+            let mut min_values_ns: Vec<f64> = vec![f64::MAX; num_ticks];
+
+            for run_raw_data in &all_runs_raw_values_ns {
+                for (tick_idx, &value) in run_raw_data.iter().enumerate() {
+                    if tick_idx < num_ticks {
+                        min_values_ns[tick_idx] = min_values_ns[tick_idx].min(value);
+                    }
+                }
+            }
+
+            let min_values_ms: Vec<f64> = min_values_ns
+                .into_iter()
+                .map(|ns| ns / 1_000_000.0)
+                .collect();
+
+            let min_chart_title = format!("Min {metric_name} per Tick for {save_name}");
+            let min_y_axis_name = format!("Min {metric_name} Time (ms)");
+            let smoothed_min_values_ms = calculate_sma(&min_values_ms, smooth_window);
+
+            let min_chart = generate_single_metric_chart(
+                x_axis_ticks_from_first_run,
+                vec![smoothed_min_values_ms],
+                &min_chart_title,
+                &min_y_axis_name,
+                min_buffered_ms,
+                max_buffered_ms,
+            )?;
+            charts_to_return.push((min_chart, format!("{metric_name}_min")));
         } else {
             tracing::warn!(
                 "Requested metric '{}' not found in Factorio verbose output for save {}",
@@ -393,14 +427,6 @@ fn generate_base_chart(results: &[BenchmarkResult]) -> Result<Chart> {
     Ok(chart)
 }
 
-struct BoxplotData {
-    boxplot_values: Vec<Vec<f64>>,
-    outlier_values: Vec<Vec<f64>>,
-    category_names: Vec<String>,
-    min_value: f64,
-    max_value: f64,
-}
-
 /// Calculate simple moving average
 fn calculate_sma(data: &[f64], window_size: u32) -> Vec<f64> {
     if window_size == 0 || data.is_empty() {
@@ -430,6 +456,14 @@ fn calculate_sma(data: &[f64], window_size: u32) -> Vec<f64> {
         smoothed_data.push(avg);
     }
     smoothed_data
+}
+
+struct BoxplotData {
+    boxplot_values: Vec<Vec<f64>>,
+    outlier_values: Vec<Vec<f64>>,
+    category_names: Vec<String>,
+    min_value: f64,
+    max_value: f64,
 }
 
 /// Manually calculate the boxplot data given the benchmark results
