@@ -104,9 +104,20 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
             .push(data);
     }
 
+    let all_verbose_data: Vec<VerboseData> = verbose_data_by_save
+        .values()
+        .flat_map(|v| v.iter().cloned())
+        .collect();
+
     if !benchmark_config.verbose_metrics.is_empty() && !verbose_data_by_save.is_empty() {
         tracing::info!("Generating per-tick charts for requested metrics...");
         let mut wide_renderer = ImageRenderer::new(2000, 1000).theme(Theme::Walden);
+
+        let global_metric_bounds = charts::compute_global_metric_bounds(
+            &all_verbose_data,
+            &benchmark_config.verbose_metrics,
+            benchmark_config.smooth_window,
+        );
 
         for (save_name, save_verbose_data) in verbose_data_by_save {
             match charts::create_all_verbose_charts_for_save(
@@ -114,6 +125,7 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
                 &save_verbose_data,
                 &benchmark_config.verbose_metrics,
                 benchmark_config.smooth_window,
+                &global_metric_bounds,
             ) {
                 Ok(charts_with_names) => {
                     for (chart, metric_name) in charts_with_names {

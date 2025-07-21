@@ -159,6 +159,7 @@ pub fn create_all_verbose_charts_for_save(
     save_verbose_data: &[VerboseData],
     metrics_to_chart: &[String],
     smooth_window: u32,
+    global_metric_bounds: &HashMap<String, (f64, f64)>,
 ) -> Result<Vec<(Chart, String)>> {
     if save_verbose_data.is_empty() {
         return Ok(Vec::new());
@@ -179,7 +180,7 @@ pub fn create_all_verbose_charts_for_save(
     let actual_metrics_to_chart: Vec<String> = if metrics_to_chart.contains(&"all".to_string()) {
         headers
             .into_iter()
-            .filter(|h| h != "tick" && h != "timestamp") // All headers except tick and timestamp, as they are not information to be charted
+            .filter(|h| h != "tick" && h != "timestamp")
             .collect()
     } else {
         metrics_to_chart.to_vec()
@@ -242,36 +243,8 @@ pub fn create_all_verbose_charts_for_save(
                 continue;
             }
 
-            // Calculate mean and standard deviation
-            let num_smoothed_data_points = all_smoothed_data_points_for_stats_ns.len() as f64;
-            let (mean_ns_smoothed, std_dev_ns_smoothed) = if num_smoothed_data_points > 0.0 {
-                let sum: f64 = all_smoothed_data_points_for_stats_ns.iter().sum();
-                let mean = sum / num_smoothed_data_points;
-                let sum_of_squared_diffs: f64 = all_smoothed_data_points_for_stats_ns
-                    .iter()
-                    .map(|&x| (x - mean).powi(2))
-                    .sum();
-                let std_dev = (sum_of_squared_diffs / num_smoothed_data_points).sqrt();
-                (mean, std_dev)
-            } else {
-                (0.0, 0.0) // No data, default to 0 for mean/std_dev
-            };
-
-            // Calculate clamped min/max bounds based on mean and std dev (from smoothed data)
-            let min_buffered_ns = (mean_ns_smoothed - 2.0 * std_dev_ns_smoothed).max(0.0); // Ensure non-negative
-            let max_buffered_ns = mean_ns_smoothed + 2.0 * std_dev_ns_smoothed;
-
-            let min_buffered_ms = min_buffered_ns / 1_000_000.0;
-            let max_buffered_ms = max_buffered_ns / 1_000_000.0;
-            // Ensure min/max are not identical if data is flat
-            let (min_buffered_ms, max_buffered_ms) = if min_buffered_ms == max_buffered_ms {
-                let new_min = (min_buffered_ms * 0.9).max(0.0);
-                let new_max = (max_buffered_ms * 1.1).max(0.1);
-
-                (new_min, new_max)
-            } else {
-                (min_buffered_ms, max_buffered_ms)
-            };
+            // Use global bounds if provided, otherwise fallback to local calculation
+            let (min_buffered_ms, max_buffered_ms) = global_metric_bounds.get(&metric_name).cloned().unwrap_or((0.0, 0.0));
 
             let chart_title = format!("{metric_name} per Tick for {save_name}");
             let y_axis_name = format!("{metric_name} Time (ms)");
@@ -557,6 +530,76 @@ fn calculate_boxplot_data(results: &[BenchmarkResult]) -> BoxplotData {
     }
 }
 
+/// Compute global min/max for each metric across all saves and runs
+pub fn compute_global_metric_bounds(
+    all_verbose_data: &[VerboseData],
+    metrics_to_chart: &[String],
+    smooth_window: u32,
+) -> HashMap<String, (f64, f64)> {
+    let mut bounds: HashMap<String, (f64, f64)> = HashMap::new();
+
+    if all_verbose_data.is_empty() {
+        return bounds;
+    }
+
+    let mut reader = csv::Reader::from_reader(all_verbose_data[0].csv_data.as_bytes());
+    let headers: Vec<String> = reader.headers().unwrap().iter().map(|s| s.to_string()).collect();
+    let header_map: HashMap<String, usize> = headers
+        .clone()
+        .into_iter()
+        .enumerate()
+        .map(|(i, h)| (h, i))
+        .collect();
+
+    for metric_name in metrics_to_chart {
+        let mut all_smoothed_ns: Vec<f64> = Vec::new();
+
+        if let Some(&column_index) = header_map.get(metric_name) {
+            for run_data in all_verbose_data {
+                let mut inner_reader = csv::Reader::from_reader(run_data.csv_data.as_bytes());
+                let mut current_run_raw_values_ns: Vec<f64> = Vec::new();
+
+                for record_result in inner_reader.records() {
+                    let record = record_result.unwrap();
+                    if let (Some(_tick_str), Some(value_ns_str)) =
+                        (record.get(0), record.get(column_index))
+                    {
+                        if let Ok(value_ns) = value_ns_str.parse::<f64>() {
+                            current_run_raw_values_ns.push(value_ns);
+                        }
+                    }
+                }
+                let smoothed_run_values_ns = calculate_sma(&current_run_raw_values_ns, smooth_window);
+                all_smoothed_ns.extend(smoothed_run_values_ns);
+            }
+        }
+
+        if !all_smoothed_ns.is_empty() {
+            let n = all_smoothed_ns.len() as f64;
+            let mean = all_smoothed_ns.iter().sum::<f64>() / n;
+            let stddev = (all_smoothed_ns.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / n).sqrt();
+
+            let min_ns = (mean - 2.0 * stddev).max(0.0);
+            let max_ns = mean + 2.0 * stddev;
+
+            let min_ms = min_ns / 1_000_000.0;
+            let max_ms = max_ns / 1_000_000.0;
+
+            let (min_ms, max_ms) = if min_ms == max_ms {
+                let new_min = (min_ms * 0.9).max(0.0);
+                let new_max = (max_ms * 1.1).max(0.1);
+                (new_min, new_max)
+            } else {
+                (min_ms, max_ms)
+            };
+
+            bounds.insert(metric_name.clone(), (min_ms, max_ms));
+        }
+    }
+
+    bounds
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::Value;
@@ -571,11 +614,19 @@ t1,11086741,3044471,0,2682401,5060,267110,113670,84680,77910,0,39790,2041151,0,0
 t2,14133402,2424960,0,2099110,3820,194460,90000,83820,76800,0,33390,1513910,0,0,1480,880,0,0,0,0,0,0,0,0,0,147930,780,0,0,0,1270,1250,4330,0,25400,0,2390,0,294020,9520,30040,"#.to_string()
         };
 
+        let smooth_window = 0;
+        let save_name = "Test Save".to_string();
+        let all_saves_verbose_data = [verbose_data];
+        let metrics_to_chart = ["wholeUpdate".to_string()];
+
+        let global_metric_bounds = super::compute_global_metric_bounds(&all_saves_verbose_data, &metrics_to_chart, smooth_window);
+
         let charts_with_names = super::create_all_verbose_charts_for_save(
-            &"Test Save".to_string(),
-            &[verbose_data],
-            &["wholeUpdate".to_string()],
-            0,
+            &save_name,
+            &all_saves_verbose_data,
+            &metrics_to_chart,
+            smooth_window,
+            &global_metric_bounds
         )
         .unwrap();
 
