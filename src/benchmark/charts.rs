@@ -180,7 +180,7 @@ pub fn create_all_verbose_charts_for_save(
     let actual_metrics_to_chart: Vec<String> = if metrics_to_chart.contains(&"all".to_string()) {
         headers
             .into_iter()
-            .filter(|h| h != "tick" && h != "timestamp")
+            .filter(|h| h != "tick" && h != "timestamp") // All headers except tick and timestamp, as they are not information to be charted
             .collect()
     } else {
         metrics_to_chart.to_vec()
