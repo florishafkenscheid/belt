@@ -581,8 +581,8 @@ t2,14133402,2424960,0,2099110,3820,194460,90000,83820,76800,0,33390,1513910,0,0,
 
         assert_eq!(
             charts_with_names.len(),
-            1,
-            "Expected one chart to be created"
+            2,
+            "Expected two charts to be created (avg & min)"
         );
         let (chart, _metric_name) = &charts_with_names[0];
 
