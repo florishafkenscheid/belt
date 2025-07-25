@@ -120,6 +120,13 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
         );
 
         for (save_name, save_verbose_data) in verbose_data_by_save {
+            output::write_verbose_metrics_csv(
+                &save_name,
+                &save_verbose_data,
+                &benchmark_config.verbose_metrics,
+                output_dir,
+            )?;
+
             match charts::create_all_verbose_charts_for_save(
                 &save_name,
                 &save_verbose_data,
