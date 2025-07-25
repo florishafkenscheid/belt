@@ -244,7 +244,10 @@ pub fn create_all_verbose_charts_for_save(
             }
 
             // Use global bounds if provided, otherwise fallback to local calculation
-            let (min_buffered_ms, max_buffered_ms) = global_metric_bounds.get(&metric_name).cloned().unwrap_or((0.0, 0.0));
+            let (min_buffered_ms, max_buffered_ms) = global_metric_bounds
+                .get(&metric_name)
+                .cloned()
+                .unwrap_or((0.0, 0.0));
 
             let chart_title = format!("{metric_name} per Tick for {save_name}");
             let y_axis_name = format!("{metric_name} Time (ms)");
@@ -543,7 +546,12 @@ pub fn compute_global_metric_bounds(
     }
 
     let mut reader = csv::Reader::from_reader(all_verbose_data[0].csv_data.as_bytes());
-    let headers: Vec<String> = reader.headers().unwrap().iter().map(|s| s.to_string()).collect();
+    let headers: Vec<String> = reader
+        .headers()
+        .unwrap()
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
     let header_map: HashMap<String, usize> = headers
         .clone()
         .into_iter()
@@ -569,7 +577,8 @@ pub fn compute_global_metric_bounds(
                         }
                     }
                 }
-                let smoothed_run_values_ns = calculate_sma(&current_run_raw_values_ns, smooth_window);
+                let smoothed_run_values_ns =
+                    calculate_sma(&current_run_raw_values_ns, smooth_window);
                 all_smoothed_ns.extend(smoothed_run_values_ns);
             }
         }
@@ -577,7 +586,12 @@ pub fn compute_global_metric_bounds(
         if !all_smoothed_ns.is_empty() {
             let n = all_smoothed_ns.len() as f64;
             let mean = all_smoothed_ns.iter().sum::<f64>() / n;
-            let stddev = (all_smoothed_ns.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / n).sqrt();
+            let stddev = (all_smoothed_ns
+                .iter()
+                .map(|x| (x - mean).powi(2))
+                .sum::<f64>()
+                / n)
+                .sqrt();
 
             let min_ns = (mean - 2.0 * stddev).max(0.0);
             let max_ns = mean + 2.0 * stddev;
@@ -619,14 +633,18 @@ t2,14133402,2424960,0,2099110,3820,194460,90000,83820,76800,0,33390,1513910,0,0,
         let all_saves_verbose_data = [verbose_data];
         let metrics_to_chart = ["wholeUpdate".to_string()];
 
-        let global_metric_bounds = super::compute_global_metric_bounds(&all_saves_verbose_data, &metrics_to_chart, smooth_window);
+        let global_metric_bounds = super::compute_global_metric_bounds(
+            &all_saves_verbose_data,
+            &metrics_to_chart,
+            smooth_window,
+        );
 
         let charts_with_names = super::create_all_verbose_charts_for_save(
             &save_name,
             &all_saves_verbose_data,
             &metrics_to_chart,
             smooth_window,
-            &global_metric_bounds
+            &global_metric_bounds,
         )
         .unwrap();
 

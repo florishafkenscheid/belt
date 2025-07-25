@@ -6,10 +6,13 @@ use charming::ImageRenderer;
 use chrono::Local;
 use handlebars::Handlebars;
 use serde_json::json;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use crate::{
-    benchmark::{charts, parser::BenchmarkResult},
+    benchmark::{charts, parser::BenchmarkResult, runner::VerboseData},
     core::{BenchmarkError, Result},
 };
 
@@ -187,5 +190,75 @@ fn write_template(
     std::fs::write(&results_path, rendered).map_err(BenchmarkError::IoError)?;
 
     tracing::info!("Report written to {}", results_path.display());
+    Ok(())
+}
+
+pub fn write_verbose_metrics_csv(
+    save_name: &str,
+    save_verbose_data: &[VerboseData],
+    metrics_to_export: &[String],
+    output_dir: &Path,
+) -> Result<()> {
+    if save_verbose_data.is_empty() {
+        return Ok(());
+    }
+
+    let csv_path = output_dir.join(format!("{save_name}_verbose_metrics.csv"));
+    let mut writer = csv::Writer::from_path(&csv_path).map_err(BenchmarkError::CsvError)?;
+
+    let first_run_csv_data = &save_verbose_data[0].csv_data;
+    let mut reader = csv::Reader::from_reader(first_run_csv_data.as_bytes());
+    let headers_from_factorio: Vec<String> =
+        reader.headers()?.iter().map(|s| s.to_string()).collect();
+    let header_map: HashMap<String, usize> = headers_from_factorio
+        .clone()
+        .into_iter()
+        .enumerate()
+        .map(|(i, h)| (h, i))
+        .collect();
+
+    let actual_metrics_to_export: Vec<String> = if metrics_to_export.contains(&"all".to_string()) {
+        headers_from_factorio
+            .into_iter()
+            .filter(|h| h != "tick" && h != "timestamp")
+            .collect()
+    } else {
+        metrics_to_export.to_vec()
+    };
+
+    let mut header_row = vec!["tick".to_string(), "run".to_string()];
+    header_row.extend(actual_metrics_to_export.iter().cloned());
+    writer.write_record(header_row)?;
+
+    for (run_idx, run_data) in save_verbose_data.iter().enumerate() {
+        let mut inner_reader = csv::Reader::from_reader(run_data.csv_data.as_bytes());
+        // Skip headers
+        let _ = inner_reader.headers()?;
+
+        for record_result in inner_reader.records() {
+            let record = record_result?;
+
+            let tick_str = record.get(0).unwrap_or("t0");
+            let tick_value = tick_str.trim_start_matches('t');
+
+            let mut data_row = vec![tick_value.to_string(), run_idx.to_string()];
+
+            for metric_name in &actual_metrics_to_export {
+                if let Some(&colum_index) = header_map.get(metric_name) {
+                    let value = record.get(colum_index).unwrap_or("0");
+                    data_row.push(value.to_string());
+                } else {
+                    data_row.push("N/A".to_string());
+                }
+            }
+            writer.write_record(data_row)?;
+        }
+    }
+    writer.flush().map_err(BenchmarkError::IoError)?;
+    tracing::info!(
+        "Verbose metrics for {} exported to {}",
+        save_name,
+        csv_path.display()
+    );
     Ok(())
 }
