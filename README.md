@@ -1,5 +1,5 @@
 # BELT: Benchmark for Engine Limits & Throughput
-![Crates.io Version](https://img.shields.io/crates/v/factorio-belt?color=rgb(215%2C127%2C0))
+![Crates.io Version](https://img.shields.io/crates/v/belt?color=rgb(215%2C127%2C0))
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/florishafkenscheid/belt/ci.yml?label=master)
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/florishafkenscheid/belt/release.yml?label=release)
 
@@ -19,7 +19,7 @@ BELT is a wrapper for the `factorio --benchmark` command, to make it more user f
 ## Quick Start
 ```bash
 # Install BELT
-cargo install factorio-belt
+cargo install belt
 
 # Run benchmarks on all saves in a directory
 belt benchmark ./saves --ticks 6000 --runs 5
@@ -37,7 +37,7 @@ belt benchmark ./saves --pattern "inserter*" --output ./benchmark-results
 
 ### From Crates.io
 ```bash
-cargo install factorio-belt
+cargo install belt
 ```
 
 ### From GitHub Releases
@@ -62,8 +62,8 @@ belt benchmark /path/to/saves
 # Customize benchmark parameters
 belt benchmark /path/to/saves --ticks 12000 --runs 10
 
-# Filter saves and specify output location
-belt benchmark /path/to/saves --pattern "benchmark" --output /path/to/output/dir
+# Filter saves and pecify output location
+belt benchmark /path/to/saves --pattern "benchmark*" --output /path/to/output/dir
 ```
 
 ### Command Reference
@@ -80,7 +80,9 @@ belt benchmark /path/to/saves --pattern "benchmark" --output /path/to/output/dir
 | `--output <OUTPUT_DIR>` | A directory to output the .csv and .md files to | `.` |
 | `--mods-dir <MODS_DIR>` | A directory containing mods to be used for the benchmark | `--sync-mods` on each save file |
 | `--run-order <RUN_ORDER>` | In which order to run the benchmarks. Available: `sequential`, `random`, `grouped` | `grouped` |
-| `--verbose-charts` | Generates more charts based on the `--benchmark-verbose` factorio argument | `false` |
+| `--verbose-metrics` | Generates more charts based on the `--benchmark-verbose` factorio argument | `none` |
+| `--strip-prefix` | Strip a given prefix off of the save names | `none` |
+| `--smooth-window` | Add a smoothing effect to generated charts | `0` |
 
 ### Global Options
 | Option | Description | Default |
@@ -114,7 +116,12 @@ belt --factorio-path /path/to/factorio --mods-dir /path/to/mods benchmark ./my-s
 ```
 
 ### Advanced Usage
+#### Best Practices
 While `belt benchmark` offers sensible default, optimizing `--ticks` and `--runs` can refine your results. `--ticks` sets the simulation duration per run, while `--runs` determines the number of repetitions. Through testing, I've found that **fewer runs with more tickS** generally offers the most consistent UPS results for the shortest overall benchmark time, by reducing overhead from repeated Factorio launches. Experiment with these values for your specific saevs to find the optimal balance for accuracy and speed.
+
+#### Verbose Metrics
+Here are all the verbose-metrics that are available:
+`wholeUpdate,latencyUpdate,gameUpdate,planetsUpdate,controlBehaviorUpdate,transportLinesUpdate,electricHeatFluidCircuitUpdate,electricNetworkUpdate,heatNetworkUpdate,fluidFlowUpdate,entityUpdate,lightningUpdate,tileHeatingUpdate,particleUpdate,mapGenerator,mapGeneratorBasicTilesSupportCompute,mapGeneratorBasicTilesSupportApply,mapGeneratorCorrectedTilesPrepare,mapGeneratorCorrectedTilesCompute,mapGeneratorCorrectedTilesApply,mapGeneratorVariations,mapGeneratorEntitiesPrepare,mapGeneratorEntitiesCompute,mapGeneratorEntitiesApply,spacePlatforms,collectorNavMesh,collectorNavMeshPathfinding,collectorNavMeshRaycast,crcComputation,consistencyScraper,logisticManagerUpdate,constructionManagerUpdate,pathFinder,trains,trainPathFinder,commander,chartRefresh,luaGarbageIncremental,chartUpdate,scriptUpdate`
 
 ## Contributing
 Any help is welcome. Whether you have never written a line of code, or simply don't know Rust. This is what the CI/CD pipeline is for!
