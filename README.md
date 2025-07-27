@@ -7,7 +7,7 @@
 > This was heavily inspired by abucnasty's work.
 > I wanted to make a more universal, cross-platform version of the existing ps1 script.
 
-BELT is a wrapper for the `factorio --benchmark` command, to make it more user friendly, more efficient to use, and to generate templated markdown files with the gotten data.
+BELT is a wrapper for the `factorio --benchmark` command, to make it more user friendly, more efficient to use, and to generate templated handlebars files with the gotten data.
 
 ## Features
 - [ ] **Benchmarking** - Benchmark a single save or a whole directory
@@ -62,7 +62,7 @@ belt benchmark /path/to/saves
 # Customize benchmark parameters
 belt benchmark /path/to/saves --ticks 12000 --runs 10
 
-# Filter saves and pecify output location
+# Filter saves and specify output location
 belt benchmark /path/to/saves --pattern "benchmark*" --output /path/to/output/dir
 ```
 
