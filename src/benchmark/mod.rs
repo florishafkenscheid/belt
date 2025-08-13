@@ -104,12 +104,12 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
                 .or_default()
                 .push(data);
         }
-    
+
         let all_verbose_data: Vec<VerboseData> = verbose_data_by_save
             .values()
             .flat_map(|v| v.iter().cloned())
             .collect();
-        
+
         tracing::info!("Generating per-tick charts for requested metrics...");
         let mut wide_renderer = ImageRenderer::new(2000, 1000).theme(Theme::Walden);
 
@@ -122,8 +122,8 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
         // First, write all CSV files to ensure they're created before potentially memory-intensive chart operations
         for (save_name, save_verbose_data) in &verbose_data_by_save {
             output::write_verbose_metrics_csv(
-                &save_name,
-                &save_verbose_data,
+                save_name,
+                save_verbose_data,
                 &benchmark_config.verbose_metrics,
                 output_dir,
             )?;
