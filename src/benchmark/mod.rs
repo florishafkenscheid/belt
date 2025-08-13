@@ -95,21 +95,21 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
 
     let mut renderer = ImageRenderer::new(1000, 1000).theme(Theme::Walden);
 
-    // Group verbose data by save
-    let mut verbose_data_by_save: HashMap<String, Vec<VerboseData>> = HashMap::new();
-    for data in all_runs_verbose_data {
-        verbose_data_by_save
-            .entry(data.save_name.clone())
-            .or_default()
-            .push(data);
-    }
-
-    let all_verbose_data: Vec<VerboseData> = verbose_data_by_save
-        .values()
-        .flat_map(|v| v.iter().cloned())
-        .collect();
-
-    if !benchmark_config.verbose_metrics.is_empty() && !verbose_data_by_save.is_empty() {
+    if !benchmark_config.verbose_metrics.is_empty() && !all_runs_verbose_data.is_empty() {
+        // Group verbose data by save
+        let mut verbose_data_by_save: HashMap<String, Vec<VerboseData>> = HashMap::new();
+        for data in all_runs_verbose_data {
+            verbose_data_by_save
+                .entry(data.save_name.clone())
+                .or_default()
+                .push(data);
+        }
+    
+        let all_verbose_data: Vec<VerboseData> = verbose_data_by_save
+            .values()
+            .flat_map(|v| v.iter().cloned())
+            .collect();
+        
         tracing::info!("Generating per-tick charts for requested metrics...");
         let mut wide_renderer = ImageRenderer::new(2000, 1000).theme(Theme::Walden);
 
@@ -119,14 +119,18 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
             benchmark_config.smooth_window,
         );
 
-        for (save_name, save_verbose_data) in verbose_data_by_save {
+        // First, write all CSV files to ensure they're created before potentially memory-intensive chart operations
+        for (save_name, save_verbose_data) in &verbose_data_by_save {
             output::write_verbose_metrics_csv(
                 &save_name,
                 &save_verbose_data,
                 &benchmark_config.verbose_metrics,
                 output_dir,
             )?;
+        }
 
+        // Then create charts, which could potentially cause OOM errors in echarts
+        for (save_name, save_verbose_data) in verbose_data_by_save {
             match charts::create_all_verbose_charts_for_save(
                 &save_name,
                 &save_verbose_data,
