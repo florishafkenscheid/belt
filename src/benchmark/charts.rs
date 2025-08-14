@@ -203,13 +203,11 @@ pub fn create_all_verbose_charts_for_save(
 
                     if let (Some(tick_str), Some(value_ns_str)) =
                         (record.get(0), record.get(column_index))
+                        && let Ok(tick) = tick_str.trim_start_matches('t').parse::<u64>()
+                        && let Ok(value_ns) = value_ns_str.parse::<f64>()
                     {
-                        if let Ok(tick) = tick_str.trim_start_matches('t').parse::<u64>() {
-                            if let Ok(value_ns) = value_ns_str.parse::<f64>() {
-                                current_run_ticks.push(tick);
-                                current_run_raw_values_ns.push(value_ns);
-                            }
-                        }
+                        current_run_ticks.push(tick);
+                        current_run_raw_values_ns.push(value_ns);
                     }
                 }
 
@@ -569,12 +567,10 @@ pub fn compute_global_metric_bounds(
 
                 for record_result in inner_reader.records() {
                     let record = record_result.unwrap();
-                    if let (Some(_tick_str), Some(value_ns_str)) =
-                        (record.get(0), record.get(column_index))
+                    if let Some(value_ns_str) = record.get(column_index)
+                        && let Ok(value_ns) = value_ns_str.parse::<f64>()
                     {
-                        if let Ok(value_ns) = value_ns_str.parse::<f64>() {
-                            current_run_raw_values_ns.push(value_ns);
-                        }
+                        current_run_raw_values_ns.push(value_ns);
                     }
                 }
                 let smoothed_run_values_ns =

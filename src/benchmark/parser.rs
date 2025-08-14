@@ -60,62 +60,64 @@ pub fn parse_benchmark_log(
 
     // Iterate over every line, checking for keywords that indicate resulting data
     while i < lines.len() {
-        if let Some(line) = lines.get(i) {
-            if line.contains("Performed") && line.contains("updates in") && line.contains("ms") {
-                // e.g.: Performed 6000 updates in 2233.749 ms
-                let parts: Vec<&str> = line.split_whitespace().collect();
+        if let Some(line) = lines.get(i)
+            && line.contains("Performed")
+            && line.contains("updates in")
+            && line.contains("ms")
+        {
+            // e.g.: Performed 6000 updates in 2233.749 ms
+            let parts: Vec<&str> = line.split_whitespace().collect();
 
-                let execution_time_ms = parts
-                    .get(4)
+            let execution_time_ms = parts
+                .get(4)
+                .and_then(|s| s.parse::<f64>().ok())
+                .unwrap_or(0.0);
+
+            if let Some(perf_line) = lines.get(i + 1)
+                && perf_line.contains("avg:")
+                && perf_line.contains("min:")
+                && perf_line.contains("max:")
+            {
+                let parts: Vec<&str> = perf_line.split_whitespace().collect();
+
+                let avg_ms = parts
+                    .iter()
+                    .position(|&x| x == "avg:")
+                    .and_then(|pos| parts.get(pos + 1))
                     .and_then(|s| s.parse::<f64>().ok())
                     .unwrap_or(0.0);
 
-                if let Some(perf_line) = lines.get(i + 1) {
-                    if perf_line.contains("avg:")
-                        && perf_line.contains("min:")
-                        && perf_line.contains("max:")
-                    {
-                        let parts: Vec<&str> = perf_line.split_whitespace().collect();
+                let min_ms = parts
+                    .iter()
+                    .position(|&x| x == "min:")
+                    .and_then(|pos| parts.get(pos + 1))
+                    .and_then(|s| s.parse::<f64>().ok())
+                    .unwrap_or(0.0);
 
-                        let avg_ms = parts
-                            .iter()
-                            .position(|&x| x == "avg:")
-                            .and_then(|pos| parts.get(pos + 1))
-                            .and_then(|s| s.parse::<f64>().ok())
-                            .unwrap_or(0.0);
+                let max_ms = parts
+                    .iter()
+                    .position(|&x| x == "max:")
+                    .and_then(|pos| parts.get(pos + 1))
+                    .and_then(|s| s.parse::<f64>().ok())
+                    .unwrap_or(0.0);
 
-                        let min_ms = parts
-                            .iter()
-                            .position(|&x| x == "min:")
-                            .and_then(|pos| parts.get(pos + 1))
-                            .and_then(|s| s.parse::<f64>().ok())
-                            .unwrap_or(0.0);
+                let effective_ups = if execution_time_ms > 0.0 {
+                    1000.0 * benchmark_config.ticks as f64 / execution_time_ms
+                } else {
+                    0.0
+                };
 
-                        let max_ms = parts
-                            .iter()
-                            .position(|&x| x == "max:")
-                            .and_then(|pos| parts.get(pos + 1))
-                            .and_then(|s| s.parse::<f64>().ok())
-                            .unwrap_or(0.0);
-
-                        let effective_ups = if execution_time_ms > 0.0 {
-                            1000.0 * benchmark_config.ticks as f64 / execution_time_ms
-                        } else {
-                            0.0
-                        };
-
-                        runs.push(BenchmarkRun {
-                            execution_time_ms,
-                            avg_ms,
-                            min_ms,
-                            max_ms,
-                            effective_ups,
-                            base_diff: 0.0, // Will be calculated later
-                        });
-                    }
-                }
+                runs.push(BenchmarkRun {
+                    execution_time_ms,
+                    avg_ms,
+                    min_ms,
+                    max_ms,
+                    effective_ups,
+                    base_diff: 0.0, // Will be calculated later
+                });
             }
         }
+
         i += 1;
     }
 
