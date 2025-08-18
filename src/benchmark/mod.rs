@@ -168,14 +168,14 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
         }
     }
 
-    // Capture specified, or use a default template file
-    let template_path = benchmark_config
-        .template_path
-        .as_deref()
-        .unwrap_or_else(|| Path::new("templates/results.md.hbs"));
-
     // Write the results to the csv and md files
-    output::write_results(&results, output_dir, template_path, &mut renderer).await?;
+    output::write_results(
+        &results,
+        output_dir,
+        benchmark_config.template_path,
+        &mut renderer,
+    )
+    .await?;
 
     tracing::info!("Benchmark complete!");
     tracing::info!(
