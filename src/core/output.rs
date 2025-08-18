@@ -20,7 +20,7 @@ use crate::{
 pub async fn write_results(
     results: &[BenchmarkResult],
     output_dir: &Path,
-    template_path: &Path,
+    template_path: Option<PathBuf>,
     renderer: &mut ImageRenderer,
 ) -> Result<()> {
     write_csv(results, output_dir)?;
@@ -81,22 +81,36 @@ fn write_csv(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
 fn write_template(
     results: &[BenchmarkResult],
     output_dir: &Path,
-    template_path: &Path,
+    template_path: Option<PathBuf>,
 ) -> Result<()> {
-    let file_name = if template_path.extension().and_then(|s| s.to_str()) == Some("hbs") {
-        template_path
-            .file_stem()
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from("results.md"))
-    } else {
-        PathBuf::from("results.md")
-    };
-    let results_path = output_dir.join(file_name);
+    const TPL_STR: &str = "# Factorio Benchmark Results\n\n**Platform:** {{platform}}\n**Factorio Version:** {{factorio_version}}\n**Date:** {{date}}\n\n## Scenario\n* Each save was tested for {{ticks}} tick(s) and {{runs}} run(s)\n\n## Results\n| Metric            | Description                           |\n| ----------------- | ------------------------------------- |\n| **Mean UPS**      | Updates per second – higher is better |\n| **Mean Avg (ms)** | Average frame time – lower is better  |\n| **Mean Min (ms)** | Minimum frame time – lower is better  |\n| **Mean Max (ms)** | Maximum frame time – lower is better  |\n\n| Save | Avg (ms) | Min (ms) | Max (ms) | UPS | Execution Time (ms) | % Difference from base |\n|------|----------|----------|----------|-----|---------------------|------------------------|\n{{#each results}}\n| {{save_name}} | {{avg_ms}} | {{min_ms}} | {{max_ms}} | {{{avg_effective_ups}}} | {{total_execution_time_ms}} | {{percentage_improvement}} |\n{{/each}}\n\n![Chart](result_0_chart.svg)\n![Chart](result_1_chart.svg)\n![Chart](result_2_chart.svg)\n\n## Conclusion";
 
     let mut handlebars = Handlebars::new();
-    handlebars
-        .register_template_file("benchmark", template_path)
-        .map_err(|e| BenchmarkError::TemplateError(e.into()))?;
+    let results_path = if let Some(template_path) = template_path {
+        let file_name = if template_path.extension().and_then(|s| s.to_str()) == Some("hbs") {
+            template_path.file_stem().map(PathBuf::from).unwrap()
+        } else {
+            PathBuf::from("results.md")
+        };
+
+        handlebars
+            .register_template_file("benchmark", template_path)
+            .map_err(|e| BenchmarkError::TemplateError(e.into()))?;
+
+        output_dir.join(file_name)
+    } else {
+        let legacy_path = PathBuf::from("templates/results.md.hbs");
+        if legacy_path.exists() {
+            handlebars
+                .register_template_file("benchmark", legacy_path)
+                .map_err(|e| BenchmarkError::TemplateError(e.into()))?;
+        } else {
+            handlebars
+                .register_template_string("benchmark", TPL_STR)
+                .map_err(|e| BenchmarkError::TemplateError(e.into()))?;
+        }
+        output_dir.join("results.md")
+    };
 
     // Calculate aggregated metrics for each benchmark result
     let mut table_results = Vec::new();
