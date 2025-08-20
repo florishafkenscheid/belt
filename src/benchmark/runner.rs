@@ -11,8 +11,10 @@ use tokio::time::Instant;
 use super::{BenchmarkConfig, RunOrder};
 use crate::benchmark::parser;
 use crate::benchmark::parser::BenchmarkResult;
+use crate::core::BenchmarkError;
 use crate::core::FactorioExecutor;
-use crate::core::{BenchmarkError, Result};
+use crate::core::Result;
+use crate::core::error::BenchmarkErrorKind;
 
 /// A job, indicating a single benchmark run, to be used in queues of a specific order
 #[derive(Debug, Clone)]
@@ -59,8 +61,7 @@ impl BenchmarkRunner {
         progress.set_style(
             ProgressStyle::with_template(
                 "[{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}",
-            )
-            .map_err(|e| BenchmarkError::ProgressBarError(e.to_string()))?
+            )?
             .progress_chars("=="),
         );
         progress.enable_steady_tick(Duration::from_millis(100));
@@ -70,7 +71,7 @@ impl BenchmarkRunner {
             let save_name = job
                 .save_file
                 .file_stem()
-                .ok_or_else(|| BenchmarkError::InvalidSaveFileName {
+                .ok_or_else(|| BenchmarkErrorKind::InvalidSaveFileName {
                     path: job.save_file.clone(),
                 })?
                 .to_string_lossy()
@@ -218,16 +219,14 @@ impl BenchmarkRunner {
         };
 
         let result =
-            parser::parse_benchmark_log(&factorio_output.summary, &job.save_file, &self.config)
-                .map_err(|e| BenchmarkError::ParseError {
-                    reason: format!("Failed to parse benchmark log: {e}"),
-                })?;
+            parser::parse_benchmark_log(&factorio_output.summary, &job.save_file, &self.config)?;
 
         // Extract the single run (since we're only running 1 benchmark at a time)
         if result.runs.len() != 1 {
-            return Err(BenchmarkError::ParseError {
+            return Err(BenchmarkErrorKind::ParseError {
                 reason: format!("Expected 1 run, got {}", result.runs.len()),
-            });
+            }
+            .into());
         }
 
         Ok((result, verbose_data_for_return))
@@ -241,7 +240,7 @@ impl BenchmarkRunner {
             "--sync-mods",
             save_file
                 .to_str()
-                .ok_or_else(|| BenchmarkError::InvalidSaveFileName {
+                .ok_or_else(|| BenchmarkErrorKind::InvalidSaveFileName {
                     path: save_file.to_path_buf(),
                 })?,
         ]);
@@ -268,10 +267,12 @@ impl BenchmarkRunner {
                 None
             };
 
-            return Err(BenchmarkError::FactorioProcessFailed {
-                code: output.status.code().unwrap_or(-1),
-                hint,
-            });
+            return Err(
+                BenchmarkError::from(BenchmarkErrorKind::FactorioProcessFailed {
+                    code: output.status.code().unwrap_or(-1),
+                })
+                .with_hint(hint),
+            );
         }
 
         tracing::debug!("Mod sync completed successfully");
@@ -286,7 +287,7 @@ impl BenchmarkRunner {
             "--benchmark",
             save_file
                 .to_str()
-                .ok_or_else(|| BenchmarkError::InvalidSaveFileName {
+                .ok_or_else(|| BenchmarkErrorKind::InvalidSaveFileName {
                     path: save_file.to_path_buf(),
                 })?,
             "--benchmark-ticks",
@@ -307,7 +308,7 @@ impl BenchmarkRunner {
             cmd.arg(
                 mods_dir
                     .to_str()
-                    .ok_or_else(|| BenchmarkError::InvalidModsFileName {
+                    .ok_or_else(|| BenchmarkErrorKind::InvalidModsFileName {
                         path: mods_dir.clone(),
                     })?,
             );
@@ -332,14 +333,16 @@ impl BenchmarkRunner {
                 None
             };
 
-            return Err(BenchmarkError::FactorioProcessFailed {
-                code: output.status.code().unwrap_or(-1),
-                hint,
-            });
+            return Err(
+                BenchmarkError::from(BenchmarkErrorKind::FactorioProcessFailed {
+                    code: output.status.code().unwrap_or(-1),
+                })
+                .with_hint(hint),
+            );
         }
 
         let stdout =
-            String::from_utf8(output.stdout).map_err(|_| BenchmarkError::InvalidUtf8Output)?;
+            String::from_utf8(output.stdout).map_err(|_| BenchmarkErrorKind::InvalidUtf8Output)?;
         const VERBOSE_HEADER: &str = "tick,timestamp,wholeUpdate";
 
         if let Some(index) = stdout.find(VERBOSE_HEADER) {

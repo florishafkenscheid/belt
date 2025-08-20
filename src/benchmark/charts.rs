@@ -4,7 +4,7 @@
 
 use crate::{
     benchmark::{parser::BenchmarkResult, runner::VerboseData},
-    core::{BenchmarkError, Result},
+    core::{Result, error::BenchmarkErrorKind},
 };
 use std::{collections::HashMap, path::Path};
 
@@ -26,7 +26,7 @@ pub async fn generate_charts(
     renderer: &mut ImageRenderer,
 ) -> Result<()> {
     if results.is_empty() {
-        return Err(BenchmarkError::NoBenchmarkResults);
+        return Err(BenchmarkErrorKind::NoBenchmarkResults.into());
     }
 
     let ups_charts = generate_ups_charts(results)?; // Returns Vec<Chart>

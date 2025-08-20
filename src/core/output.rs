@@ -13,7 +13,7 @@ use std::{
 
 use crate::{
     benchmark::{charts, parser::BenchmarkResult, runner::VerboseData},
-    core::{BenchmarkError, Result},
+    core::Result,
 };
 
 /// Create the specified directory, generate charts, and write the given results
@@ -38,7 +38,7 @@ pub async fn write_results(
 fn write_csv(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
     let csv_path = output_dir.join("results.csv");
 
-    let mut writer = csv::Writer::from_path(&csv_path).map_err(BenchmarkError::CsvError)?;
+    let mut writer = csv::Writer::from_path(&csv_path)?;
 
     writer.write_record([
         "save_name",
@@ -72,7 +72,7 @@ fn write_csv(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
         }
     }
 
-    writer.flush().map_err(BenchmarkError::IoError)?;
+    writer.flush()?;
     tracing::info!("Results written to {}", csv_path.display());
     Ok(())
 }
@@ -93,21 +93,15 @@ fn write_template(
             PathBuf::from("results.md")
         };
 
-        handlebars
-            .register_template_file("benchmark", template_path)
-            .map_err(|e| BenchmarkError::TemplateError(e.into()))?;
+        handlebars.register_template_file("benchmark", template_path)?;
 
         output_dir.join(file_name)
     } else {
         let legacy_path = PathBuf::from("templates/results.md.hbs");
         if legacy_path.exists() {
-            handlebars
-                .register_template_file("benchmark", legacy_path)
-                .map_err(|e| BenchmarkError::TemplateError(e.into()))?;
+            handlebars.register_template_file("benchmark", legacy_path)?;
         } else {
-            handlebars
-                .register_template_string("benchmark", TPL_STR)
-                .map_err(|e| BenchmarkError::TemplateError(e.into()))?;
+            handlebars.register_template_string("benchmark", TPL_STR)?;
         }
         output_dir.join("results.md")
     };
@@ -197,11 +191,9 @@ fn write_template(
         "date": Local::now().date_naive().to_string(),
     });
 
-    let rendered = handlebars
-        .render("benchmark", &data)
-        .map_err(BenchmarkError::TemplateError)?;
+    let rendered = handlebars.render("benchmark", &data)?;
 
-    std::fs::write(&results_path, rendered).map_err(BenchmarkError::IoError)?;
+    std::fs::write(&results_path, rendered)?;
 
     tracing::info!("Report written to {}", results_path.display());
     Ok(())
@@ -218,7 +210,7 @@ pub fn write_verbose_metrics_csv(
     }
 
     let csv_path = output_dir.join(format!("{save_name}_verbose_metrics.csv"));
-    let mut writer = csv::Writer::from_path(&csv_path).map_err(BenchmarkError::CsvError)?;
+    let mut writer = csv::Writer::from_path(&csv_path)?;
 
     let first_run_csv_data = &save_verbose_data[0].csv_data;
     let mut reader = csv::Reader::from_reader(first_run_csv_data.as_bytes());
@@ -268,7 +260,7 @@ pub fn write_verbose_metrics_csv(
             writer.write_record(data_row)?;
         }
     }
-    writer.flush().map_err(BenchmarkError::IoError)?;
+    writer.flush()?;
     tracing::info!(
         "Verbose metrics for {} exported to {}",
         save_name,

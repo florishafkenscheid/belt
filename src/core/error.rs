@@ -1,12 +1,19 @@
 //! Error types for BELT.
 
-use std::path::PathBuf;
+use std::{fmt, path::PathBuf};
 use thiserror::Error;
 
-/// All errors than can occur in BELT.
+/// The wrapper for the error kind, with an optional hint.
+#[derive(Debug)]
+pub struct BenchmarkError {
+    kind: BenchmarkErrorKind,
+    hint: Option<String>,
+}
+
+/// All types of errors than can occur in BELT.
 #[derive(Error, Debug)]
-pub enum BenchmarkError {
-    #[error("Factorio executable not found")]
+pub enum BenchmarkErrorKind {
+    #[error("Factorio executable not found. Please provide it explicitly with --factorio-path")]
     FactorioNotFound,
 
     #[error("Factorio executable not fund at provided path: {path}")]
@@ -31,10 +38,10 @@ pub enum BenchmarkError {
     InvalidUtf8Output,
 
     #[error("Progress bar template error: {0}")]
-    ProgressBarError(String),
+    ProgressBarError(#[from] indicatif::style::TemplateError),
 
     #[error("Factorio process failed with exit code {code}.")]
-    FactorioProcessFailed { code: i32, hint: Option<String> },
+    FactorioProcessFailed { code: i32 },
 
     #[error("No benchmark results found in Factorio output")]
     NoBenchmarkResults,
@@ -42,8 +49,11 @@ pub enum BenchmarkError {
     #[error("Failed to parse benchmark output: {reason}")]
     ParseError { reason: String },
 
+    #[error("Template render error: {0}")]
+    TemplateRenderError(#[from] handlebars::RenderError),
+
     #[error("Template error: {0}")]
-    TemplateError(#[from] handlebars::RenderError),
+    TemplateError(#[from] handlebars::TemplateError),
 
     #[error("CSV error: {0}")]
     CsvError(#[from] csv::Error),
@@ -63,20 +73,52 @@ pub enum BenchmarkError {
     #[error("Chart generation error: {0}")]
     ChartGenerationError(#[from] charming::EchartsError),
 
-    #[error("Failed to create directory: {path}")]
-    DirectoryCreationFailed { path: PathBuf },
-
     #[error("Invalid run order: {input}. Valid options: sequential, random, grouped")]
     InvalidRunOrder { input: String },
 }
 
 /// Get a hint for the FactorioProcessFailed error, if it exists
 impl BenchmarkError {
+    /// Attaches a hint to the error
+    pub fn with_hint(mut self, hint: Option<impl Into<String>>) -> Self {
+        if let Some(hint) = hint {
+            self.hint = Some(hint.into());
+        }
+        self
+    }
+
+    /// Gets the hint, if one exists
     pub fn get_hint(&self) -> Option<&str> {
-        if let BenchmarkError::FactorioProcessFailed { hint, .. } = self {
-            hint.as_deref()
-        } else {
-            None
+        self.hint.as_deref()
+    }
+}
+
+impl fmt::Display for BenchmarkError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.kind)?;
+        if let Some(hint) = &self.hint {
+            write!(f, "\n\nHint: {hint}")?;
+        }
+        Ok(())
+    }
+}
+
+/// Proper error type
+impl std::error::Error for BenchmarkError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.kind)
+    }
+}
+
+/// Convert Error into BenchmarkErrorKind
+impl<E> From<E> for BenchmarkError
+where
+    BenchmarkErrorKind: From<E>,
+{
+    fn from(error: E) -> Self {
+        BenchmarkError {
+            kind: BenchmarkErrorKind::from(error),
+            hint: None,
         }
     }
 }

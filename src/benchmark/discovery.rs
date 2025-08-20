@@ -2,14 +2,15 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::core::error::{BenchmarkError, Result};
+use crate::core::error::{BenchmarkErrorKind, Result};
 
 /// Find save files in a given path
 pub fn find_save_files(saves_dir: &Path, pattern: Option<&str>) -> Result<Vec<PathBuf>> {
     if !saves_dir.exists() {
-        return Err(BenchmarkError::SaveDirectoryNotFound {
+        return Err(BenchmarkErrorKind::SaveDirectoryNotFound {
             path: saves_dir.to_path_buf(),
-        });
+        }
+        .into());
     }
 
     // If the given path is a file, check the extension and return
@@ -17,10 +18,11 @@ pub fn find_save_files(saves_dir: &Path, pattern: Option<&str>) -> Result<Vec<Pa
         if saves_dir.extension().is_some_and(|ext| ext == "zip") {
             return Ok(vec![saves_dir.to_path_buf()]);
         } else {
-            return Err(BenchmarkError::InvalidSaveFile {
+            return Err(BenchmarkErrorKind::InvalidSaveFile {
                 path: saves_dir.to_path_buf(),
                 reason: "Save file is not a .zip".to_string(),
-            });
+            }
+            .into());
         }
     }
 
@@ -35,10 +37,11 @@ pub fn find_save_files(saves_dir: &Path, pattern: Option<&str>) -> Result<Vec<Pa
 
     // If empty, return
     if saves.is_empty() {
-        return Err(BenchmarkError::NoSaveFilesFound {
+        return Err(BenchmarkErrorKind::NoSaveFilesFound {
             pattern: pattern.to_string(),
             directory: saves_dir.to_path_buf(),
-        });
+        }
+        .into());
     }
 
     tracing::info!("Found {} save files", saves.len());
@@ -54,10 +57,11 @@ pub fn validate_save_files(save_files: &[PathBuf]) -> Result<()> {
     for save_file in save_files {
         // Check if file exists
         if !save_file.exists() {
-            return Err(BenchmarkError::InvalidSaveFile {
+            return Err(BenchmarkErrorKind::InvalidSaveFile {
                 path: save_file.clone(),
                 reason: "File does not exist".to_string(),
-            });
+            }
+            .into());
         }
 
         // Check extension
