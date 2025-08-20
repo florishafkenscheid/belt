@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 use crate::benchmark::BenchmarkConfig;
-use crate::core::{BenchmarkError, Result};
+use crate::core::Result;
+use crate::core::error::BenchmarkErrorKind;
 
 /// The result of a benchmark of a single run
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -122,7 +123,7 @@ pub fn parse_benchmark_log(
     }
 
     if runs.is_empty() {
-        return Err(BenchmarkError::NoBenchmarkResults);
+        return Err(BenchmarkErrorKind::NoBenchmarkResults.into());
     }
 
     Ok(BenchmarkResult {

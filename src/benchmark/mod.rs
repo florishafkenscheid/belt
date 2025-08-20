@@ -16,7 +16,7 @@ use charming::{ImageRenderer, theme::Theme};
 
 use crate::{
     benchmark::runner::VerboseData,
-    core::{BenchmarkError, FactorioExecutor, GlobalConfig, Result, output},
+    core::{FactorioExecutor, GlobalConfig, Result, error::BenchmarkErrorKind, output},
 };
 
 #[derive(Debug, Clone, Default)]
@@ -36,7 +36,7 @@ impl std::str::FromStr for RunOrder {
             "sequential" => Ok(RunOrder::Sequential),
             "random" => Ok(RunOrder::Random),
             "grouped" => Ok(RunOrder::Grouped),
-            _ => Err(BenchmarkError::InvalidRunOrder {
+            _ => Err(BenchmarkErrorKind::InvalidRunOrder {
                 input: s.to_string(),
             }
             .to_string()),
@@ -82,9 +82,7 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
         .output
         .as_deref()
         .unwrap_or_else(|| Path::new("."));
-    std::fs::create_dir_all(output_dir).map_err(|_| BenchmarkError::DirectoryCreationFailed {
-        path: output_dir.to_path_buf(),
-    })?;
+    std::fs::create_dir_all(output_dir)?;
     tracing::debug!("Output directory: {}", output_dir.display());
 
     // Run the benchmarks

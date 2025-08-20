@@ -12,12 +12,12 @@ pub fn get_default_factorio_paths() -> Vec<PathBuf> {
         // Check all drives A: through Z: for Steam installation
         for drive_letter in b'A'..=b'Z' {
             let drive = char::from(drive_letter);
-            
+
             // Steam
             paths.push(PathBuf::from(format!(
                 r"{drive}:\Program Files (x86)\Steam\steamapps\common\Factorio\bin\x64\factorio.exe",
             )));
-            
+
             // Standalone
             paths.push(PathBuf::from(format!(
                 r"{drive}:\Program Files\Factorio\bin\x64\factorio.exe",

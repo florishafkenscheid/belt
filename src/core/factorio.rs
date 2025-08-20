@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 use tokio::process::Command;
 
-use crate::core::{BenchmarkError, Result};
+use crate::core::{Result, error::BenchmarkErrorKind};
 
 use super::platform;
 
@@ -25,11 +25,11 @@ impl FactorioExecutor {
     /// Find the binary
     pub fn find_executable(explicit_path: Option<PathBuf>) -> Result<PathBuf> {
         if let Some(path) = explicit_path {
-            if path.exists() {
+            if path.exists() && path.is_file() {
                 tracing::info!("Using explicit Factorio path: {}", path.display());
                 return Ok(path);
             } else {
-                return Err(BenchmarkError::FactorioNotFoundAtPath { path });
+                return Err(BenchmarkErrorKind::FactorioNotFoundAtPath { path }.into());
             }
         }
 
@@ -44,7 +44,7 @@ impl FactorioExecutor {
             }
         }
 
-        Err(BenchmarkError::FactorioNotFound)
+        Err(BenchmarkErrorKind::FactorioNotFound.into())
     }
 
     /// Getter for the executable_path
