@@ -1,11 +1,12 @@
 //! The wrapper for the Factorio binary.
 
-use std::{fs::{self, FileType}, path::{Path, PathBuf}};
+use std::path::{Path, PathBuf};
 use tokio::process::Command;
 
 use crate::core::{
     Result,
     error::{BenchmarkError, BenchmarkErrorKind},
+    is_executable,
 };
 
 use super::platform;
@@ -32,12 +33,12 @@ impl FactorioExecutor {
                 tracing::info!("Using explicit Factorio path: {}", path.display());
                 return Ok(path);
             } else {
-                let hint = if path.metadata()?.file_type() != /* executable binary */ {
+                let hint = if !is_executable(&path) {
                     Some("Make sure this is the path to the executable itself.")
                 } else {
                     None
                 };
-                
+
                 return Err(
                     BenchmarkError::from(BenchmarkErrorKind::FactorioNotFoundAtPath { path })
                         .with_hint(hint),
