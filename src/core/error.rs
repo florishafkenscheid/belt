@@ -1,6 +1,6 @@
 //! Error types for BELT.
 
-use std::{fmt, path::PathBuf};
+use std::{fmt, path::PathBuf, string::FromUtf8Error};
 use thiserror::Error;
 
 /// The wrapper for the error kind, with an optional hint.
@@ -35,7 +35,7 @@ pub enum BenchmarkErrorKind {
     InvalidModsFileName { path: PathBuf },
 
     #[error("Invalid UTF-8 in Factorio output")]
-    InvalidUtf8Output,
+    InvalidUtf8Output(#[from] FromUtf8Error),
 
     #[error("Progress bar template error: {0}")]
     ProgressBarError(#[from] indicatif::style::TemplateError),
@@ -96,9 +96,6 @@ impl BenchmarkError {
 impl fmt::Display for BenchmarkError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.kind)?;
-        if let Some(hint) = &self.hint {
-            write!(f, "\n\nHint: {hint}")?;
-        }
         Ok(())
     }
 }

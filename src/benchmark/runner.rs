@@ -11,10 +11,10 @@ use tokio::time::Instant;
 use super::{BenchmarkConfig, RunOrder};
 use crate::benchmark::parser;
 use crate::benchmark::parser::BenchmarkResult;
-use crate::core::BenchmarkError;
 use crate::core::FactorioExecutor;
 use crate::core::Result;
 use crate::core::error::BenchmarkErrorKind;
+use crate::core::{BenchmarkError, format_duration};
 
 /// A job, indicating a single benchmark run, to be used in queues of a specific order
 #[derive(Debug, Clone)]
@@ -341,8 +341,7 @@ impl BenchmarkRunner {
             );
         }
 
-        let stdout =
-            String::from_utf8(output.stdout).map_err(|_| BenchmarkErrorKind::InvalidUtf8Output)?;
+        let stdout = String::from_utf8(output.stdout)?;
         const VERBOSE_HEADER: &str = "tick,timestamp,wholeUpdate";
 
         if let Some(index) = stdout.find(VERBOSE_HEADER) {
@@ -367,25 +366,10 @@ impl BenchmarkRunner {
     }
 }
 
-/// Helper function to turn a Duration into a nicely formatted string
-fn format_duration(duration: Duration) -> String {
-    let total_secs = duration.as_secs();
-
-    if total_secs < 60 {
-        format!("{total_secs}s")
-    } else if total_secs < 3600 {
-        let mins = total_secs / 60;
-        let secs = total_secs % 60;
-        format!("{mins}m{secs}s")
-    } else {
-        let hours = total_secs / 3600;
-        let mins = (total_secs % 3600) / 60;
-        format!("{hours}h{mins}m")
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use crate::core::format_duration;
+
     use super::*;
 
     #[test]
