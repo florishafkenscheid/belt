@@ -341,8 +341,7 @@ impl BenchmarkRunner {
             );
         }
 
-        let stdout =
-            String::from_utf8(output.stdout).map_err(|_| BenchmarkErrorKind::InvalidUtf8Output)?;
+        let stdout = String::from_utf8(output.stdout)?;
         const VERBOSE_HEADER: &str = "tick,timestamp,wholeUpdate";
 
         if let Some(index) = stdout.find(VERBOSE_HEADER) {
