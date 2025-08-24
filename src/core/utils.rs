@@ -39,7 +39,7 @@ pub fn is_executable(path: &Path) -> bool {
         path.is_file()
             && path
                 .extension()
-                .is_ok_and(|ext| ext.eq_ignore_ascii_case("exe"))
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("exe"))
     }
 
     // Fallback for other operating systems.
