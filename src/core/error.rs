@@ -96,9 +96,6 @@ impl BenchmarkError {
 impl fmt::Display for BenchmarkError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.kind)?;
-        if let Some(hint) = &self.hint {
-            write!(f, "\n\nHint: {hint}")?;
-        }
         Ok(())
     }
 }
