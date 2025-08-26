@@ -135,41 +135,10 @@ pub fn parse_benchmark_log(
     })
 }
 
-/// Calculate the base differences of a list of save's results.
-pub fn calculate_base_differences(results: &mut [BenchmarkResult]) {
-    // Calculate average effective_ups for each save
-    let avg_ups_per_save: Vec<f64> = results
-        .iter()
-        .map(|result| {
-            let total_ups: f64 = result.runs.iter().map(|run| run.effective_ups).sum();
-            total_ups / result.runs.len() as f64
-        })
-        .collect();
-
-    // Find the minimum average effective_ups across all saves
-    let min_avg_ups = avg_ups_per_save
-        .iter()
-        .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-        .copied()
-        .unwrap_or(0.0);
-
-    // Calculate base_diff as percentage improvement for each run relative to the worst-performing save's average
-    for (result_idx, result) in results.iter_mut().enumerate() {
-        let save_avg_ups = avg_ups_per_save[result_idx];
-        let percentage_improvement = if min_avg_ups > 0.0 {
-            ((save_avg_ups - min_avg_ups) / min_avg_ups) * 100.0
-        } else {
-            0.0
-        };
-
-        for run in result.runs.iter_mut() {
-            run.base_diff = percentage_improvement;
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use crate::core::utils;
+
     use super::*;
 
     #[test]
@@ -193,7 +162,7 @@ mod tests {
             },
         ];
 
-        calculate_base_differences(&mut results);
+        utils::calculate_base_differences(&mut results);
 
         assert_eq!(
             results[0].runs[0].base_diff, 0.0,

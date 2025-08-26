@@ -16,7 +16,7 @@ use charming::{ImageRenderer, theme::Theme};
 
 use crate::{
     benchmark::runner::VerboseData,
-    core::{FactorioExecutor, GlobalConfig, Result, error::BenchmarkErrorKind, output},
+    core::{FactorioExecutor, GlobalConfig, Result, error::BenchmarkErrorKind, output, utils},
 };
 
 #[derive(Debug, Clone, Default)]
@@ -89,7 +89,7 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
     let runner = runner::BenchmarkRunner::new(benchmark_config.clone(), factorio);
     let (mut results, all_runs_verbose_data) = runner.run_all(save_files).await?;
     // Calculate the percentage difference from the worst performer
-    parser::calculate_base_differences(&mut results);
+    utils::calculate_base_differences(&mut results);
 
     let mut renderer = ImageRenderer::new(1000, 1000).theme(Theme::Walden);
 
