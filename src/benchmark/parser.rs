@@ -135,6 +135,12 @@ pub fn parse_benchmark_log(
     })
 }
 
+pub fn parse_sanitizer(result: &BenchmarkResult, path: &Path) {
+    tracing::debug!("Found sanitizer for save: {}, at {}. Parsing...", &result.save_name, &path.display())
+    
+    // TODO: Read file (actually parse)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::core::utils;

@@ -75,3 +75,35 @@ pub fn validate_save_files(save_files: &[PathBuf]) -> Result<()> {
 
     Ok(())
 }
+
+/// Check if the belt-sanitizer mod is active
+pub fn check_sanitizer() -> Option<PathBuf> {
+    for path in get_default_user_data_dirs() {
+        if path.join("script-output/belt").exists() {
+            return Some(path.join("script-output/belt"));
+        }
+    }
+    None
+}
+
+/// Tries to find [user data directory](https://wiki.factorio.com/Application_directory#User_data_directory)
+// Looks a lot like core/platform.rs::get_default_factorio_paths()
+fn get_default_user_data_dirs() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    
+    let Some(home) = dirs::home_dir() else {
+        return paths;
+    };
+
+    if cfg!(target_os = "windows") {
+        paths.push(home.join("Factorio"));
+    } else if cfg!(target_os = "linux") {
+        paths.push(home.join(".factorio"));
+        // Flatpak installations
+        paths.push(home.join(".var/app/com.valvesoftware.Steam/.factorio"));
+    } else if cfg!(target_os = "macos") {
+        paths.push(home.join("Library/Application Support/factorio"));
+    }
+    
+    paths
+}
