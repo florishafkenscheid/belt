@@ -109,6 +109,7 @@ impl BenchmarkRunner {
 
             // Delete potential stale belt-sanitizer info
             let sanitizer_path = check_sanitizer();
+            tracing::debug!("Attempting to delete sanitizer path: {:?}", sanitizer_path);
             match &sanitizer_path {
                 Some(path) => fs::remove_dir_all(path)?,
                 None => tracing::debug!("No sanitizer from past run found."),
@@ -117,6 +118,7 @@ impl BenchmarkRunner {
             // Run a single benchmark and get the run data and version
             let (mut result_for_run, verbose_data) = self.run_single_benchmark(job).await?;
 
+            tracing::debug!("Attempting to parse sanitizer path: {:?}", sanitizer_path);
             match &sanitizer_path {
                 Some(path) => parser::parse_sanitizer(&result_for_run, path),
                 None => {
