@@ -203,7 +203,7 @@ fn report_fixes_applied(json: &Value) {
         if actions.is_empty() {
             tracing::debug!("No benchmark-affecting issues found");
         } else {
-            tracing::info!("Benchmark-affecting issues fixed!");
+            tracing::debug!("Benchmark-affecting issues fixed!");
             for action in actions {
                 if let Some(action_str) = action.as_str() {
                     let friendly_name = match action_str {
@@ -212,7 +212,7 @@ fn report_fixes_applied(json: &Value) {
                         "biters_units_killed_spawners_worms_destroyed" => "Removed all enemy units, spawners, and worms",
                         _ => action_str
                     };
-                    tracing::info!("  - {friendly_name}");
+                    tracing::debug!("  - {friendly_name}");
                 }
             }
         }
