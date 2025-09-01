@@ -3,12 +3,14 @@
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 use tokio::time::Instant;
 
 use super::{BenchmarkConfig, RunOrder};
+use crate::benchmark::discovery::check_sanitizer;
 use crate::benchmark::parser;
 use crate::benchmark::parser::BenchmarkResult;
 use crate::core::FactorioExecutor;
@@ -105,8 +107,27 @@ impl BenchmarkRunner {
 
             progress.set_message(eta_message);
 
+            // Delete potential stale belt-sanitizer info
+            let sanitizer_path = check_sanitizer();
+            tracing::debug!("Attempting to delete sanitizer path: {:?}", sanitizer_path);
+            match sanitizer_path {
+                Some(path) => fs::remove_dir_all(path)?,
+                None => tracing::debug!("No sanitizer from past run found."),
+            }
+
             // Run a single benchmark and get the run data and version
             let (mut result_for_run, verbose_data) = self.run_single_benchmark(job).await?;
+
+            let sanitizer_path = check_sanitizer();
+            tracing::debug!("Attempting to parse sanitizer path: {:?}", sanitizer_path);
+            match sanitizer_path {
+                Some(path) => {
+                    parser::parse_sanitizer(&result_for_run, &path)?;
+                },
+                None => {
+                    tracing::debug!("No sanitizer found for save: {}", &result_for_run.save_name);
+                }
+            }
 
             if let Some(existing_result) = results_map.get_mut(&result_for_run.save_name) {
                 existing_result.runs.append(&mut result_for_run.runs);
