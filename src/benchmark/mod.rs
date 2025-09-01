@@ -108,15 +108,6 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
             .flat_map(|v| v.iter().cloned())
             .collect();
 
-        tracing::info!("Generating per-tick charts for requested metrics...");
-        let mut wide_renderer = ImageRenderer::new(2000, 1000).theme(Theme::Walden);
-
-        let global_metric_bounds = charts::compute_global_metric_bounds(
-            &all_verbose_data,
-            &benchmark_config.verbose_metrics,
-            benchmark_config.smooth_window,
-        );
-
         // First, write all CSV files to ensure they're created before potentially memory-intensive chart operations
         for (save_name, save_verbose_data) in &verbose_data_by_save {
             output::write_verbose_metrics_csv(
@@ -127,8 +118,29 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
             )?;
         }
 
+        tracing::info!("Generating per-tick charts for requested metrics...");
+        let mut wide_renderer = ImageRenderer::new(2000, 1000).theme(Theme::Walden);
+
+        const MAX_SAFE_POINTS: u64 = 500_000;
+        let total_points = (benchmark_config.ticks * benchmark_config.runs) as u64;
+
+        if total_points > MAX_SAFE_POINTS {
+            tracing::warn!(
+                "Skipping per-tick charts ({total_points} points exceed safe limit of {MAX_SAFE_POINTS}; consider increasing --smooth-window or reducing ticks/runs)",
+            );
+        }
+
+        let global_metric_bounds = charts::compute_global_metric_bounds(
+            &all_verbose_data,
+            &benchmark_config.verbose_metrics,
+            benchmark_config.smooth_window,
+        );
+
         // Then create charts, which could potentially cause OOM errors in echarts
         for (save_name, save_verbose_data) in verbose_data_by_save {
+            if total_points > MAX_SAFE_POINTS {
+                continue;
+            }
             match charts::create_all_verbose_charts_for_save(
                 &save_name,
                 &save_verbose_data,
