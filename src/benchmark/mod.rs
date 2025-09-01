@@ -122,7 +122,7 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
         let mut wide_renderer = ImageRenderer::new(2000, 1000).theme(Theme::Walden);
 
         const MAX_SAFE_POINTS: u64 = 500_000;
-        let total_points = (&benchmark_config.ticks * &benchmark_config.runs) as u64;
+        let total_points = (benchmark_config.ticks * benchmark_config.runs) as u64;
 
         if total_points > MAX_SAFE_POINTS {
             tracing::warn!(
