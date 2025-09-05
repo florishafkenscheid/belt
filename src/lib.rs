@@ -2,10 +2,10 @@
 //!
 //! Exposes core benchmarking and configuration APIs.
 
+pub mod analyze;
 pub mod benchmark;
 pub mod core;
 
 /// Re-export commonly used types for convenience.
-pub use benchmark::BenchmarkConfig;
-pub use core::GlobalConfig;
-pub use core::error::{BenchmarkError, Result};
+pub use core::config::{BenchmarkConfig, GlobalConfig};
+pub use core::error::{Result, BenchmarkError, BenchmarkErrorKind};

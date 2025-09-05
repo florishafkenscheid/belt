@@ -2,62 +2,20 @@
 //!
 //! Contains logic for running, parsing, and reporting Factorio benchmarks.
 
-pub mod charts;
-pub mod discovery;
 pub mod parser;
 pub mod runner;
 
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 use charming::{ImageRenderer, theme::Theme};
 
 use crate::{
     benchmark::runner::VerboseData,
-    core::{FactorioExecutor, GlobalConfig, Result, error::BenchmarkErrorKind, output, utils},
+    core::{config::BenchmarkConfig, output, utils, FactorioExecutor, GlobalConfig, Result},
 };
-
-#[derive(Debug, Clone, Default)]
-pub enum RunOrder {
-    Sequential,
-    Random,
-    #[default]
-    Grouped,
-}
-
-// Get a RunOrder from a string
-impl std::str::FromStr for RunOrder {
-    type Err = String;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "sequential" => Ok(RunOrder::Sequential),
-            "random" => Ok(RunOrder::Random),
-            "grouped" => Ok(RunOrder::Grouped),
-            _ => Err(BenchmarkErrorKind::InvalidRunOrder {
-                input: s.to_string(),
-            }
-            .to_string()),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct BenchmarkConfig {
-    pub saves_dir: PathBuf,
-    pub ticks: u32,
-    pub runs: u32,
-    pub pattern: Option<String>,
-    pub output: Option<PathBuf>,
-    pub template_path: Option<PathBuf>,
-    pub mods_dir: Option<PathBuf>,
-    pub run_order: RunOrder,
-    pub verbose_metrics: Vec<String>,
-    pub strip_prefix: Option<String>,
-    pub smooth_window: u32,
-}
 
 // Run all of the benchmarks, capture the logs and write the results to files.
 pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig) -> Result<()> {
@@ -71,12 +29,12 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
     );
 
     // Find the specified save files
-    let save_files = discovery::find_save_files(
+    let save_files = utils::find_save_files(
         &benchmark_config.saves_dir,
         benchmark_config.pattern.as_deref(),
     )?;
     // Validate the found save files
-    discovery::validate_save_files(&save_files)?;
+    utils::validate_save_files(&save_files)?;
 
     let output_dir = benchmark_config
         .output
@@ -130,7 +88,7 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
             );
         }
 
-        let global_metric_bounds = charts::compute_global_metric_bounds(
+        let global_metric_bounds = utils::compute_global_metric_bounds(
             &all_verbose_data,
             &benchmark_config.verbose_metrics,
             benchmark_config.smooth_window,

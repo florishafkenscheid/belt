@@ -57,8 +57,3 @@ pub fn get_default_factorio_paths() -> Vec<PathBuf> {
 
     paths
 }
-
-/// Get operating system info
-pub fn get_os_info() -> String {
-    format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH)
-}

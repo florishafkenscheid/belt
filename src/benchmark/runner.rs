@@ -25,7 +25,7 @@ struct ExecutionJob {
     run_index: usize,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct VerboseData {
     pub save_name: String,
     pub run_index: usize,
