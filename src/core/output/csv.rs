@@ -31,7 +31,7 @@ impl ResultWriter for CsvWriter {
 
 /// Write the results to a CSV file
 fn write_benchmark_csv(results: &[BenchmarkResult], path: &Path) -> Result<()> {
-    ensure_output_dir(path);
+    ensure_output_dir(path)?;
 
     let csv_path = path.join("results.csv");
 
@@ -77,7 +77,7 @@ fn write_benchmark_csv(results: &[BenchmarkResult], path: &Path) -> Result<()> {
 
 /// Write factorio's verbose output to a CSV file 
 fn write_verbose_csv(data: &[VerboseData], metrics: &[String], path: &Path) -> Result<()> {
-    ensure_output_dir(path);
+    ensure_output_dir(path)?;
     
     if data.is_empty() {
         return Ok(());

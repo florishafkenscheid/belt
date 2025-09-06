@@ -1,4 +1,4 @@
-//! Global configuration for BELT.
+//! Configuration structs for BELT.
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -12,6 +12,7 @@ pub struct GlobalConfig {
     pub verbose: bool,
 }
 
+/// Benchmarking specific configuration
 #[derive(Debug, Clone, Default)]
 pub struct BenchmarkConfig {
     pub saves_dir: PathBuf,

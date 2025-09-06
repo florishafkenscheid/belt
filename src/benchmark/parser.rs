@@ -1,13 +1,11 @@
 //! Parsing and aggregation of Factorio benchmark logs
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use std::fs;
 use std::path::Path;
 
 use crate::core::config::BenchmarkConfig;
-use crate::core::Result;
 use crate::core::error::BenchmarkErrorKind;
+use crate::core::{Result, get_os_info};
 
 /// The result of a benchmark of a single run
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -133,7 +131,7 @@ pub fn parse_benchmark_log(
         ticks: benchmark_config.ticks,
         runs,
         factorio_version: version,
-        platform: crate::core::platform::get_os_info(),
+        platform: get_os_info(),
     })
 }
 

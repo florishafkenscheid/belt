@@ -5,7 +5,7 @@
 mod benchmark;
 mod core;
 
-use crate::core::Result;
+use crate::core::{config::BenchmarkConfig, Result, RunOrder};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -50,7 +50,7 @@ enum Commands {
         #[arg(
             help = "Execution order: sequential (A,B,A,B), random (A,B,B,A), or grouped (A,A,B,B)"
         )]
-        run_order: benchmark::RunOrder,
+        run_order: RunOrder,
 
         #[arg(
             long,
@@ -109,7 +109,7 @@ async fn main() -> Result<()> {
             strip_prefix,
             smooth_window,
         } => {
-            let benchmark_config = benchmark::BenchmarkConfig {
+            let benchmark_config = BenchmarkConfig {
                 saves_dir,
                 ticks,
                 runs,
