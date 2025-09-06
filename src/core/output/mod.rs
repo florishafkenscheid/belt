@@ -1,6 +1,6 @@
 //! Shared output utilities for writing results (e.g., CSVs, reports).
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::{benchmark::{parser::BenchmarkResult, runner::VerboseData}, Result};
 
@@ -12,9 +12,17 @@ pub use csv::CsvWriter;
 // Simple data holder
 #[derive(Debug)]
 pub enum WriteData {
-    BenchmarkResults(Vec<BenchmarkResult>),
-    VerboseData(Vec<VerboseData>),
-    ReportData() // TODO
+    BenchmarkData(Vec<BenchmarkResult>),
+    
+    VerboseData {
+        data: Vec<VerboseData>,
+        metrics_to_export: Vec<String>,
+    },
+    
+    ReportData {
+        data: Vec<BenchmarkResult>,
+        template_path: Option<PathBuf>,
+    }
 }
 
 pub trait ResultWriter {

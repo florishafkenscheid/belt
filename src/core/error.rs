@@ -75,6 +75,9 @@ pub enum BenchmarkErrorKind {
 
     #[error("Invalid run order: {input}. Valid options: sequential, random, grouped")]
     InvalidRunOrder { input: String },
+    
+    #[error("Invalid WriteData")]
+    InvalidWriteData,
 }
 
 /// Get a hint for the FactorioProcessFailed error, if it exists

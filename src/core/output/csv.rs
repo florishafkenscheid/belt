@@ -1,9 +1,11 @@
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use crate::{
-    BenchmarkErrorKind, Result,
     benchmark::{parser::BenchmarkResult, runner::VerboseData},
-    core::output::{ResultWriter, WriteData},
+    core::{
+        error::{BenchmarkErrorKind, Result},
+        output::{ResultWriter, WriteData, ensure_output_dir},
+    },
 };
 
 pub struct CsvWriter {}
@@ -17,17 +19,126 @@ impl CsvWriter {
 impl ResultWriter for CsvWriter {
     fn write(&self, data: &WriteData, path: &Path) -> Result<()> {
         match data {
-            WriteData::BenchmarkResults(results) => write_benchmark_csv(results, path),
-            WriteData::VerboseData(verbose) => write_verbose_csv(verbose, path),
-            _ => Err(BenchmarkErrorKind::FactorioNotFound.into()), // TODO
+            WriteData::BenchmarkData(data) => write_benchmark_csv(data, path),
+            WriteData::VerboseData {
+                data,
+                metrics_to_export,
+            } => write_verbose_csv(data, metrics_to_export, path),
+            _ => Err(BenchmarkErrorKind::InvalidWriteData.into()),
         }
     }
 }
 
+/// Write the results to a CSV file
 fn write_benchmark_csv(results: &[BenchmarkResult], path: &Path) -> Result<()> {
+    ensure_output_dir(path);
+
+    let csv_path = path.join("results.csv");
+
+    let mut writer = csv::Writer::from_path(&csv_path)?;
+
+    writer.write_record([
+        "save_name",
+        "run_index",
+        "execution_time_ms",
+        "avg_ms",
+        "min_ms",
+        "max_ms",
+        "effective_ups",
+        "percentage_improvement",
+        "ticks",
+        "factorio_version",
+        "platform",
+    ])?;
+
+    for result in results {
+        for (i, run) in result.runs.iter().enumerate() {
+            writer.write_record([
+                &result.save_name,
+                &i.to_string(),
+                &run.execution_time_ms.to_string(),
+                &run.avg_ms.to_string(),
+                &run.min_ms.to_string(),
+                &run.max_ms.to_string(),
+                &run.effective_ups.to_string(),
+                &run.base_diff.to_string(),
+                &result.ticks.to_string(),
+                &result.factorio_version,
+                &result.platform,
+            ])?;
+        }
+    }
+
+    writer.flush()?;
+    tracing::info!("Results written to {}", csv_path.display());
+
     Ok(())
 }
 
-fn write_verbose_csv(verbose: &[VerboseData], path: &Path) -> Result<()> {
+/// Write factorio's verbose output to a CSV file 
+fn write_verbose_csv(data: &[VerboseData], metrics: &[String], path: &Path) -> Result<()> {
+    ensure_output_dir(path);
+    
+    if data.is_empty() {
+        return Ok(());
+    }
+    
+    let csv_path = path.join(format!("{}_verbose_metrics.csv", data[0].save_name));
+    let mut writer = csv::Writer::from_path(&path)?;
+    
+    let first_run_csv_data = &data[0].csv_data;
+    let mut reader = csv::Reader::from_reader(first_run_csv_data.as_bytes());
+    let headers_from_factorio: Vec<String> =
+        reader.headers()?.iter().map(|s| s.to_string()).collect();
+    let header_map: HashMap<String, usize> = headers_from_factorio
+        .clone()
+        .into_iter()
+        .enumerate()
+        .map(|(i, h)| (h, i))
+        .collect();
+    
+    let metrics_to_export: Vec<String> = if metrics.contains(&"all".to_string()) {
+        headers_from_factorio
+            .into_iter()
+            .filter(|h| h != "tick" && h != "timestamp")
+            .collect()
+    } else {
+        metrics.to_vec()
+    };
+    
+    let mut header_row = vec!["tick".to_string(), "run".to_string()];
+    header_row.extend(metrics_to_export.iter().cloned());
+    writer.write_record(header_row)?;
+    
+    for (run_idx, run_data) in data.iter().enumerate() {
+        let mut inner_reader = csv::Reader::from_reader(run_data.csv_data.as_bytes());
+        // Skip headers
+        let _ = inner_reader.headers()?;
+
+        for record_result in inner_reader.records() {
+            let record = record_result?;
+
+            let tick_str = record.get(0).unwrap_or("t0");
+            let tick_value = tick_str.trim_start_matches('t');
+
+            let mut data_row = vec![tick_value.to_string(), run_idx.to_string()];
+
+            for metric_name in &metrics_to_export {
+                if let Some(&colum_index) = header_map.get(metric_name) {
+                    let value = record.get(colum_index).unwrap_or("0");
+                    data_row.push(value.to_string());
+                } else {
+                    data_row.push("N/A".to_string());
+                }
+            }
+            writer.write_record(data_row)?;
+        }
+    }
+    writer.flush()?;
+    tracing::info!(
+        "Verbose metrics for {} exported to {}",
+        data[0].save_name,
+        csv_path.display()
+    );
     Ok(())
 }
