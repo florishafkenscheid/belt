@@ -14,7 +14,7 @@ pub struct GlobalConfig {
 
 /// Analyzation specific configuration
 pub struct AnalyzeConfig {
-    
+    pub data_dir: PathBuf,
 }
 
 /// Benchmarking specific configuration

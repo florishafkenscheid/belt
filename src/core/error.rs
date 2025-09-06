@@ -70,14 +70,23 @@ pub enum BenchmarkErrorKind {
     #[error("JSON Serialization error: {0}")]
     JsonError(#[from] serde_json::Error),
 
-    #[error("Chart generation error: {0}")]
-    ChartGenerationError(#[from] charming::EchartsError),
-
+    // #[error("Chart generation error: {0}")]
+    // ChartGenerationError(#[from] charming::EchartsError),
+    
     #[error("Invalid run order: {input}. Valid options: sequential, random, grouped")]
     InvalidRunOrder { input: String },
 
     #[error("Invalid WriteData")]
     InvalidWriteData,
+
+    #[error("Data directory not found at: {path}")]
+    DataDirectoryNotFound { path: PathBuf },
+    
+    #[error("No data files found at: {path}")]
+    NoDataFilesFound { path: PathBuf },
+    
+    #[error("Expected data file not found at: {path}")]
+    DataFileNotFound { path: PathBuf },
 }
 
 /// Get a hint for the FactorioProcessFailed error, if it exists

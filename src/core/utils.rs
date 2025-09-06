@@ -1,5 +1,6 @@
 //! Utility functions for BELT.
 
+use crate::Result;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::{path::Path, time::Duration};
@@ -121,6 +122,37 @@ pub fn validate_save_files(save_files: &[PathBuf]) -> Result<()> {
     Ok(())
 }
 
+/// Finds files pertaining to benchmark's output
+pub fn find_data_files(data_dir: &Path) -> Result<Vec<PathBuf>> {
+    if !data_dir.is_dir() {
+        return Err(BenchmarkErrorKind::DataDirectoryNotFound {
+            path: data_dir.to_path_buf(),
+        }
+        .into());
+    }
+
+    let search_pattern = data_dir.join("*.csv");
+    // Search using the pattern
+    let files: Vec<PathBuf> = glob::glob(search_pattern.to_string_lossy().as_ref())?
+        .filter_map(std::result::Result::ok)
+        .collect();
+
+    // If empty, return
+    if files.is_empty() {
+        return Err(BenchmarkErrorKind::NoDataFilesFound {
+            path: data_dir.to_path_buf(),
+        }
+        .into());
+    }
+
+    tracing::info!("Found {} data files", files.len());
+    for file in &files {
+        tracing::debug!("  - {}", file.file_name().unwrap().to_string_lossy());
+    }
+
+    Ok(files)
+}
+
 #[cfg(unix)]
 use std::fs;
 #[cfg(unix)]
@@ -129,7 +161,6 @@ use std::os::unix::fs::PermissionsExt;
 use crate::benchmark::parser::BenchmarkResult;
 use crate::benchmark::runner::VerboseData;
 use crate::core::error::BenchmarkErrorKind;
-use crate::Result;
 
 /// Check if a file is an executable.
 pub fn is_executable(path: &Path) -> bool {
@@ -169,7 +200,7 @@ pub fn check_sanitizer() -> Option<PathBuf> {
 /// Tries to find [user data directory](https://wiki.factorio.com/Application_directory#User_data_directory)
 fn get_default_user_data_dirs() -> Vec<PathBuf> {
     let mut paths = Vec::new();
-    
+
     let Some(home) = dirs::home_dir() else {
         return paths;
     };
@@ -183,7 +214,7 @@ fn get_default_user_data_dirs() -> Vec<PathBuf> {
     } else if cfg!(target_os = "macos") {
         paths.push(home.join("Library/Application Support/factorio"));
     }
-    
+
     paths
 }
 

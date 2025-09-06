@@ -30,7 +30,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    Analyze {},
+    Analyze {
+        data_dir: PathBuf,
+    },
     Benchmark {
         saves_dir: PathBuf,
 
@@ -102,8 +104,8 @@ async fn main() -> Result<()> {
 
     // Capture the result of the benchmark
     let result = match cli.command {
-        Commands::Analyze {} => {
-            let analyze_config = AnalyzeConfig {};
+        Commands::Analyze { data_dir } => {
+            let analyze_config = AnalyzeConfig { data_dir };
             analyze::run(global_config, analyze_config).await
         }
 
