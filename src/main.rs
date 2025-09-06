@@ -2,10 +2,15 @@
 //!
 //! Parses CLI arguments, sets up logging, and dispatches to subcommands.
 
+mod analyze;
 mod benchmark;
 mod core;
+mod sanitize;
 
-use crate::core::{config::BenchmarkConfig, Result, RunOrder};
+use crate::core::{
+    Result, RunOrder,
+    config::{AnalyzeConfig, BenchmarkConfig, SanitizeConfig},
+};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -25,6 +30,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    Analyze {},
     Benchmark {
         saves_dir: PathBuf,
 
@@ -69,6 +75,7 @@ enum Commands {
         )]
         smooth_window: u32,
     },
+    Sanitize {},
 }
 
 #[tokio::main]
@@ -94,7 +101,12 @@ async fn main() -> Result<()> {
     };
 
     // Capture the result of the benchmark
-    let benchmark_result = match cli.command {
+    let result = match cli.command {
+        Commands::Analyze {} => {
+            let analyze_config = AnalyzeConfig {};
+            analyze::run(global_config, analyze_config).await
+        }
+
         // Run the benchmark with a newly created benchmark config
         Commands::Benchmark {
             saves_dir,
@@ -125,10 +137,15 @@ async fn main() -> Result<()> {
 
             benchmark::run(global_config, benchmark_config).await
         }
+
+        Commands::Sanitize {} => {
+            let sanitize_config = SanitizeConfig {};
+            sanitize::run(global_config, sanitize_config).await
+        }
     };
 
-    // If benchmark::run results in an error, print and exit
-    if let Err(e) = benchmark_result {
+    // If any command results in an error, print and exit
+    if let Err(e) = result {
         tracing::error!("{e}");
 
         if let Some(hint_text) = e.get_hint() {

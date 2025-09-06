@@ -12,6 +12,11 @@ pub struct GlobalConfig {
     pub verbose: bool,
 }
 
+/// Analyzation specific configuration
+pub struct AnalyzeConfig {
+    
+}
+
 /// Benchmarking specific configuration
 #[derive(Debug, Clone, Default)]
 pub struct BenchmarkConfig {
@@ -26,4 +31,9 @@ pub struct BenchmarkConfig {
     pub verbose_metrics: Vec<String>,
     pub strip_prefix: Option<String>,
     pub smooth_window: u32,
+}
+
+/// Sanitization specific configuration
+pub struct SanitizeConfig {
+    
 }

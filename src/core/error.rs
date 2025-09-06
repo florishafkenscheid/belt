@@ -75,7 +75,7 @@ pub enum BenchmarkErrorKind {
 
     #[error("Invalid run order: {input}. Valid options: sequential, random, grouped")]
     InvalidRunOrder { input: String },
-    
+
     #[error("Invalid WriteData")]
     InvalidWriteData,
 }
