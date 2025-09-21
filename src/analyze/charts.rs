@@ -66,7 +66,7 @@ pub fn generate_charts(analyze_config: &AnalyzeConfig) -> Result<()> {
     Ok(())
 }
 
-fn draw_ups_chart(data: &Vec<BenchmarkResult>) -> Result<(Chart, String)> {
+fn draw_ups_chart(data: &[BenchmarkResult]) -> Result<(Chart, String)> {
     let save_names: Vec<String> = data.iter().map(|result| result.save_name.clone()).collect();
 
     let avg_ups_values: Vec<i64> = data
@@ -115,7 +115,7 @@ fn draw_ups_chart(data: &Vec<BenchmarkResult>) -> Result<(Chart, String)> {
     ))
 }
 
-fn draw_boxplot_chart(data: &Vec<BenchmarkResult>) -> Result<(Chart, String)> {
+fn draw_boxplot_chart(data: &[BenchmarkResult]) -> Result<(Chart, String)> {
     let boxplot_data = utils::calculate_boxplot_data(data);
     let y_min = (boxplot_data.min_value * 0.95).floor();
     let y_max = (boxplot_data.max_value * 1.05).ceil();
@@ -169,7 +169,7 @@ fn draw_boxplot_chart(data: &Vec<BenchmarkResult>) -> Result<(Chart, String)> {
     ))
 }
 
-fn draw_improvement_chart(data: &Vec<BenchmarkResult>) -> Result<(Chart, String)> {
+fn draw_improvement_chart(data: &[BenchmarkResult]) -> Result<(Chart, String)> {
     let save_names: Vec<String> = data.iter().map(|result| result.save_name.clone()).collect();
 
     let base_diffs: Vec<f64> = data
