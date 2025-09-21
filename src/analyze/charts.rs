@@ -286,7 +286,7 @@ fn draw_min_chart(data: &PreppedVerboseData, metric: &String) -> Result<(Chart, 
                     .data(data.min_values_ms.clone())
                     .show_symbol(false),
             ),
-        format!("{metric}_min"),
+        format!("{}_{}_min", data.save_name.clone(), metric),
     ))
 }
 
