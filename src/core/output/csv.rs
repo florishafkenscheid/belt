@@ -75,17 +75,17 @@ fn write_benchmark_csv(results: &[BenchmarkResult], path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Write factorio's verbose output to a CSV file 
+/// Write factorio's verbose output to a CSV file
 fn write_verbose_csv(data: &[VerboseData], metrics: &[String], path: &Path) -> Result<()> {
     ensure_output_dir(path)?;
-    
+
     if data.is_empty() {
         return Ok(());
     }
-    
+
     let csv_path = path.join(format!("{}_verbose_metrics.csv", data[0].save_name));
     let mut writer = csv::Writer::from_path(&path)?;
-    
+
     let first_run_csv_data = &data[0].csv_data;
     let mut reader = csv::Reader::from_reader(first_run_csv_data.as_bytes());
     let headers_from_factorio: Vec<String> =
@@ -96,7 +96,7 @@ fn write_verbose_csv(data: &[VerboseData], metrics: &[String], path: &Path) -> R
         .enumerate()
         .map(|(i, h)| (h, i))
         .collect();
-    
+
     let metrics_to_export: Vec<String> = if metrics.contains(&"all".to_string()) {
         headers_from_factorio
             .into_iter()
@@ -105,11 +105,11 @@ fn write_verbose_csv(data: &[VerboseData], metrics: &[String], path: &Path) -> R
     } else {
         metrics.to_vec()
     };
-    
+
     let mut header_row = vec!["tick".to_string(), "run".to_string()];
     header_row.extend(metrics_to_export.iter().cloned());
     writer.write_record(header_row)?;
-    
+
     for (run_idx, run_data) in data.iter().enumerate() {
         let mut inner_reader = csv::Reader::from_reader(run_data.csv_data.as_bytes());
         // Skip headers

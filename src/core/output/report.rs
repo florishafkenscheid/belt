@@ -62,7 +62,7 @@ fn write_report(
         }
         path.join("results.md")
     };
-    
+
     // Calculate aggregated metrics for each benchmark result
     let mut table_results = Vec::new();
     for result in results {
@@ -107,7 +107,7 @@ fn write_report(
             "total_execution_time_ms": total_execution_time_ms as u64,
         }));
     }
-    
+
     let bolding_tags = match results_path.extension().and_then(|s| s.to_str()) {
         Some("html") => ("<strong>", "</strong>"),
         Some("md") => ("**", "**"),

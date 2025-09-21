@@ -7,8 +7,8 @@ use std::collections::HashMap;
 use charming::{
     Chart,
     component::{Axis, Grid, Title},
-    element::{AxisType, Label, LabelPosition, SplitArea, SplitLine},
-    series::Bar,
+    element::{AxisLabel, AxisType, ItemStyle, Label, LabelPosition, SplitArea, SplitLine},
+    series::{Bar, Boxplot, Scatter},
 };
 
 use crate::{
@@ -105,11 +105,100 @@ fn draw_ups_chart(data: &Vec<BenchmarkResult>) -> Result<Chart> {
 }
 
 fn draw_boxplot_chart(data: &Vec<BenchmarkResult>) -> Result<Chart> {
-    Ok(Chart::new())
+    let boxplot_data = utils::calculate_boxplot_data(data);
+    let y_min = (boxplot_data.min_value * 0.95).floor();
+    let y_max = (boxplot_data.max_value * 1.05).ceil();
+
+    Ok(Chart::new()
+        .title(
+            Title::new()
+                .text("Benchmark Results - Effective UPS Distribution")
+                .left("center"),
+        )
+        .grid(
+            Grid::new()
+                .left("10%")
+                .right("10%")
+                .bottom("7.5%")
+                .contain_label(true),
+        )
+        .x_axis(
+            Axis::new()
+                .type_(AxisType::Category)
+                .data(boxplot_data.category_names)
+                .boundary_gap(true)
+                .axis_label(AxisLabel::new().rotate(45.0).interval(0))
+                .split_area(SplitArea::new().show(false))
+                .split_line(SplitLine::new().show(true)),
+        )
+        .y_axis(
+            Axis::new()
+                .type_(AxisType::Value)
+                .name("UPS")
+                .min(y_min)
+                .max(y_max)
+                .interval((y_max - y_min) / 5.0)
+                .split_area(SplitArea::new().show(false))
+                .split_line(SplitLine::new().show(false)),
+        )
+        .series(
+            Boxplot::new()
+                .name("boxplot")
+                .data(boxplot_data.boxplot_values)
+                .item_style(ItemStyle::new().border_width(1).border_color("#3FB1E3")),
+        )
+        .series(
+            Scatter::new()
+                .name("outlier")
+                .data(boxplot_data.outlier_values)
+                .symbol_size(10),
+        ))
 }
 
 fn draw_improvement_chart(data: &Vec<BenchmarkResult>) -> Result<Chart> {
-    Ok(Chart::new())
+    let save_names: Vec<String> = data.iter().map(|result| result.save_name.clone()).collect();
+
+    let base_diffs: Vec<f64> = data
+        .iter()
+        .map(|result| {
+            let total_base_diffs: f64 = result.runs.iter().map(|run| run.base_diff).sum();
+            let avg = total_base_diffs / result.runs.len() as f64;
+            (avg * 100.0).round() / 100.0
+        })
+        .collect();
+
+    Ok(Chart::new()
+        .title(
+            Title::new()
+                .text("Benchmark Results - Percentage Improvement")
+                .left("center"),
+        )
+        .grid(
+            Grid::new()
+                .left("3%")
+                .right("4%")
+                .bottom("3%")
+                .contain_label(true),
+        )
+        .x_axis(
+            Axis::new()
+                .type_(AxisType::Category)
+                .split_area(SplitArea::new().show(false))
+                .split_line(SplitLine::new().show(false)),
+        )
+        .y_axis(
+            Axis::new()
+                .type_(AxisType::Category)
+                .data(save_names)
+                .split_area(SplitArea::new().show(false))
+                .split_line(SplitLine::new().show(true)),
+        )
+        .series(
+            Bar::new()
+                .name("Percentage Improvement")
+                .data(base_diffs)
+                .label(Label::new().show(true).position(LabelPosition::Inside)),
+        ))
 }
 
 fn draw_metric_chart(data: &PreppedVerboseData) -> Result<Chart> {

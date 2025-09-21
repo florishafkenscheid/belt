@@ -2,7 +2,10 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::{benchmark::{parser::BenchmarkResult, runner::VerboseData}, Result};
+use crate::{
+    Result,
+    benchmark::{parser::BenchmarkResult, runner::VerboseData},
+};
 
 // Re-export submodules
 pub mod csv;
@@ -13,23 +16,23 @@ pub use csv::CsvWriter;
 #[derive(Debug)]
 pub enum WriteData {
     BenchmarkData(Vec<BenchmarkResult>),
-    
+
     VerboseData {
         data: Vec<VerboseData>,
         metrics_to_export: Vec<String>,
     },
-    
+
     ReportData {
         data: Vec<BenchmarkResult>,
         template_path: Option<PathBuf>,
-    }
+    },
 }
 
 pub trait ResultWriter {
     fn write(&self, data: &WriteData, path: &Path) -> Result<()>;
 }
 
-pub fn ensure_output_dir(path: &Path) -> Result<()> { 
+pub fn ensure_output_dir(path: &Path) -> Result<()> {
     std::fs::create_dir_all(path)?;
     Ok(())
 }

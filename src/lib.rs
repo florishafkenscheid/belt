@@ -9,4 +9,4 @@ pub mod sanitize;
 
 /// Re-export commonly used types for convenience.
 pub use core::config::{BenchmarkConfig, GlobalConfig};
-pub use core::error::{Result, BenchmarkError, BenchmarkErrorKind};
+pub use core::error::{BenchmarkError, BenchmarkErrorKind, Result};
