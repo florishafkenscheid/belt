@@ -5,10 +5,13 @@
 use std::collections::HashMap;
 
 use charming::{
-    Chart,
+    Chart, ImageRenderer,
     component::{Axis, Grid, Title},
-    element::{AxisLabel, AxisType, ItemStyle, Label, LabelPosition, SplitArea, SplitLine},
-    series::{Bar, Boxplot, Scatter},
+    element::{
+        AxisLabel, AxisType, ItemStyle, JsFunction, Label, LabelPosition, SplitArea, SplitLine,
+    },
+    series::{Bar, Boxplot, Line, Scatter},
+    theme::Theme,
 };
 
 use crate::{
@@ -39,7 +42,7 @@ pub fn generate_charts(analyze_config: &AnalyzeConfig) -> Result<()> {
     }
 
     // Generate charts
-    let mut charts: Vec<Chart> = Vec::new();
+    let mut charts: Vec<(Chart, String)> = Vec::new();
     // Standard
     charts.push(draw_ups_chart(&results)?);
     charts.push(draw_boxplot_chart(&results)?);
@@ -49,16 +52,21 @@ pub fn generate_charts(analyze_config: &AnalyzeConfig) -> Result<()> {
     for (save_name, data) in &verbose_data_by_save {
         for metric in &analyze_config.verbose_metrics {
             let prepped_data = prepare_metric(&save_name, &data, metric, analyze_config)?;
-            charts.push(draw_metric_chart(&prepped_data)?);
-            charts.push(draw_line_chart(&prepped_data)?);
-            charts.push(draw_min_chart(&prepped_data)?);
+            charts.push(draw_metric_chart(&prepped_data, metric)?);
+            charts.push(draw_min_chart(&prepped_data, metric)?);
         }
+    }
+
+    let mut renderer =
+        ImageRenderer::new(analyze_config.width, analyze_config.height).theme(Theme::Walden);
+    for (chart, title) in charts {
+        renderer.save(&chart, data_dir.join(format!("{title}.svg")))?;
     }
 
     Ok(())
 }
 
-fn draw_ups_chart(data: &Vec<BenchmarkResult>) -> Result<Chart> {
+fn draw_ups_chart(data: &Vec<BenchmarkResult>) -> Result<(Chart, String)> {
     let save_names: Vec<String> = data.iter().map(|result| result.save_name.clone()).collect();
 
     let avg_ups_values: Vec<i64> = data
@@ -69,93 +77,99 @@ fn draw_ups_chart(data: &Vec<BenchmarkResult>) -> Result<Chart> {
         })
         .collect();
 
-    Ok(Chart::new()
-        .title(
-            Title::new()
-                .text("Benchmark Results - Average Effective UPS")
-                .left("center"),
-        )
-        .grid(
-            Grid::new()
-                .left("3%")
-                .right("4%")
-                .bottom("3%")
-                .contain_label(true),
-        )
-        .x_axis(
-            Axis::new()
-                .type_(AxisType::Value)
-                .boundary_gap(("0", "0.01"))
-                .split_area(SplitArea::new().show(false))
-                .split_line(SplitLine::new().show(false)),
-        )
-        .y_axis(
-            Axis::new()
-                .type_(AxisType::Category)
-                .data(save_names.clone())
-                .split_area(SplitArea::new().show(false))
-                .split_line(SplitLine::new().show(true)),
-        )
-        .series(
-            Bar::new()
-                .name("Effective UPS")
-                .data(avg_ups_values)
-                .label(Label::new().show(true).position(LabelPosition::Inside)),
-        ))
+    Ok((
+        Chart::new()
+            .title(
+                Title::new()
+                    .text("Benchmark Results - Average Effective UPS")
+                    .left("center"),
+            )
+            .grid(
+                Grid::new()
+                    .left("3%")
+                    .right("4%")
+                    .bottom("3%")
+                    .contain_label(true),
+            )
+            .x_axis(
+                Axis::new()
+                    .type_(AxisType::Value)
+                    .boundary_gap(("0", "0.01"))
+                    .split_area(SplitArea::new().show(false))
+                    .split_line(SplitLine::new().show(false)),
+            )
+            .y_axis(
+                Axis::new()
+                    .type_(AxisType::Category)
+                    .data(save_names.clone())
+                    .split_area(SplitArea::new().show(false))
+                    .split_line(SplitLine::new().show(true)),
+            )
+            .series(
+                Bar::new()
+                    .name("Effective UPS")
+                    .data(avg_ups_values)
+                    .label(Label::new().show(true).position(LabelPosition::Inside)),
+            ),
+        "average_ups".to_string(),
+    ))
 }
 
-fn draw_boxplot_chart(data: &Vec<BenchmarkResult>) -> Result<Chart> {
+fn draw_boxplot_chart(data: &Vec<BenchmarkResult>) -> Result<(Chart, String)> {
     let boxplot_data = utils::calculate_boxplot_data(data);
     let y_min = (boxplot_data.min_value * 0.95).floor();
     let y_max = (boxplot_data.max_value * 1.05).ceil();
 
-    Ok(Chart::new()
-        .title(
-            Title::new()
-                .text("Benchmark Results - Effective UPS Distribution")
-                .left("center"),
-        )
-        .grid(
-            Grid::new()
-                .left("10%")
-                .right("10%")
-                .bottom("7.5%")
-                .contain_label(true),
-        )
-        .x_axis(
-            Axis::new()
-                .type_(AxisType::Category)
-                .data(boxplot_data.category_names)
-                .boundary_gap(true)
-                .axis_label(AxisLabel::new().rotate(45.0).interval(0))
-                .split_area(SplitArea::new().show(false))
-                .split_line(SplitLine::new().show(true)),
-        )
-        .y_axis(
-            Axis::new()
-                .type_(AxisType::Value)
-                .name("UPS")
-                .min(y_min)
-                .max(y_max)
-                .interval((y_max - y_min) / 5.0)
-                .split_area(SplitArea::new().show(false))
-                .split_line(SplitLine::new().show(false)),
-        )
-        .series(
-            Boxplot::new()
-                .name("boxplot")
-                .data(boxplot_data.boxplot_values)
-                .item_style(ItemStyle::new().border_width(1).border_color("#3FB1E3")),
-        )
-        .series(
-            Scatter::new()
-                .name("outlier")
-                .data(boxplot_data.outlier_values)
-                .symbol_size(10),
-        ))
+    Ok((
+        Chart::new()
+            .title(
+                Title::new()
+                    .text("Benchmark Results - Effective UPS Distribution")
+                    .left("center"),
+            )
+            .grid(
+                Grid::new()
+                    .left("10%")
+                    .right("10%")
+                    .bottom("7.5%")
+                    .contain_label(true),
+            )
+            .x_axis(
+                Axis::new()
+                    .type_(AxisType::Category)
+                    .data(boxplot_data.category_names)
+                    .boundary_gap(true)
+                    .axis_label(AxisLabel::new().rotate(45.0).interval(0))
+                    .split_area(SplitArea::new().show(false))
+                    .split_line(SplitLine::new().show(true)),
+            )
+            .y_axis(
+                Axis::new()
+                    .type_(AxisType::Value)
+                    .name("UPS")
+                    .min(y_min)
+                    .max(y_max)
+                    .interval((y_max - y_min) / 5.0)
+                    .split_area(SplitArea::new().show(false))
+                    .split_line(SplitLine::new().show(false)),
+            )
+            .series(
+                Boxplot::new()
+                    .name("boxplot")
+                    .data(boxplot_data.boxplot_values)
+                    .item_style(ItemStyle::new().border_width(1).border_color("#3FB1E3")),
+            )
+            .series(
+                Scatter::new()
+                    .name("outlier")
+                    .data(boxplot_data.outlier_values)
+                    .symbol_size(10),
+            ),
+        "boxplot".to_string(),
+    ))
 }
 
-fn draw_improvement_chart(data: &Vec<BenchmarkResult>) -> Result<Chart> {
+fn draw_improvement_chart(data: &Vec<BenchmarkResult>) -> Result<(Chart, String)> {
     let save_names: Vec<String> = data.iter().map(|result| result.save_name.clone()).collect();
 
     let base_diffs: Vec<f64> = data
@@ -167,57 +181,120 @@ fn draw_improvement_chart(data: &Vec<BenchmarkResult>) -> Result<Chart> {
         })
         .collect();
 
-    Ok(Chart::new()
-        .title(
-            Title::new()
-                .text("Benchmark Results - Percentage Improvement")
-                .left("center"),
-        )
-        .grid(
-            Grid::new()
-                .left("3%")
-                .right("4%")
-                .bottom("3%")
-                .contain_label(true),
-        )
+    Ok((
+        Chart::new()
+            .title(
+                Title::new()
+                    .text("Benchmark Results - Percentage Improvement")
+                    .left("center"),
+            )
+            .grid(
+                Grid::new()
+                    .left("3%")
+                    .right("4%")
+                    .bottom("3%")
+                    .contain_label(true),
+            )
+            .x_axis(
+                Axis::new()
+                    .type_(AxisType::Category)
+                    .split_area(SplitArea::new().show(false))
+                    .split_line(SplitLine::new().show(false)),
+            )
+            .y_axis(
+                Axis::new()
+                    .type_(AxisType::Category)
+                    .data(save_names)
+                    .split_area(SplitArea::new().show(false))
+                    .split_line(SplitLine::new().show(true)),
+            )
+            .series(
+                Bar::new()
+                    .name("Percentage Improvement")
+                    .data(base_diffs)
+                    .label(Label::new().show(true).position(LabelPosition::Inside)),
+            ),
+        "improvement_percentage".to_string(),
+    ))
+}
+
+fn draw_metric_chart(data: &PreppedVerboseData, metric: &String) -> Result<(Chart, String)> {
+    let title = format!("{} per Tick for {}", metric, data.save_name);
+    let y_axis_name = format!("{metric} Time (ms)");
+    let tick_labels = data.ticks.iter().map(|t| t.to_string()).collect();
+
+    let mut chart = Chart::new()
+        .title(Title::new().text(title).left("center"))
         .x_axis(
             Axis::new()
                 .type_(AxisType::Category)
-                .split_area(SplitArea::new().show(false))
+                .data(tick_labels)
                 .split_line(SplitLine::new().show(false)),
         )
         .y_axis(
             Axis::new()
-                .type_(AxisType::Category)
-                .data(save_names)
-                .split_area(SplitArea::new().show(false))
-                .split_line(SplitLine::new().show(true)),
-        )
-        .series(
-            Bar::new()
-                .name("Percentage Improvement")
-                .data(base_diffs)
-                .label(Label::new().show(true).position(LabelPosition::Inside)),
-        ))
+                .type_(AxisType::Value)
+                .name(y_axis_name)
+                .min(data.y_min)
+                .max(data.y_max)
+                .axis_label(AxisLabel::new().formatter(JsFunction::new_with_args(
+                    "value",
+                    "return value.toFixed(3);",
+                ))),
+        );
+
+    for (run_idx, run_values) in data.all_runs_values_ms.clone().into_iter().enumerate() {
+        let series_name = format!("Run {}", run_idx + 1);
+        chart = chart.series(
+            Line::new()
+                .name(series_name)
+                .data(run_values)
+                .show_symbol(false),
+        );
+    }
+
+    Ok((chart, format!("{}_{}", data.save_name, metric)))
 }
 
-fn draw_metric_chart(data: &PreppedVerboseData) -> Result<Chart> {
-    Ok(Chart::new())
-}
+fn draw_min_chart(data: &PreppedVerboseData, metric: &String) -> Result<(Chart, String)> {
+    let title = format!("Min {} per Tick for {}", metric, data.save_name);
+    let y_axis_name = format!("Min {metric} Time (ms)");
+    let tick_labels = data.ticks.iter().map(|t| t.to_string()).collect();
 
-fn draw_line_chart(data: &HashMap<String, Vec<VerboseData>>) -> Result<Chart> {
-    Ok(Chart::new())
-}
-
-fn draw_min_chart(data: &HashMap<String, Vec<VerboseData>>) -> Result<Chart> {
-    Ok(Chart::new())
+    Ok((
+        Chart::new()
+            .title(Title::new().text(title).left("center"))
+            .x_axis(
+                Axis::new()
+                    .type_(AxisType::Category)
+                    .data(tick_labels)
+                    .split_line(SplitLine::new().show(false)),
+            )
+            .y_axis(
+                Axis::new()
+                    .type_(AxisType::Value)
+                    .name(y_axis_name)
+                    .min(data.y_min)
+                    .max(data.y_max)
+                    .axis_label(AxisLabel::new().formatter(JsFunction::new_with_args(
+                        "value",
+                        "return value.toFixed(3);",
+                    ))),
+            )
+            .series(
+                Line::new()
+                    .data(data.min_values_ms.clone())
+                    .show_symbol(false),
+            ),
+        format!("{metric}_min"),
+    ))
 }
 
 /// Helper struct for neat verbose metric data
 struct PreppedVerboseData {
     save_name: String,
     ticks: Vec<u64>,
-    original_num_ticks: usize,
+    // original_num_ticks: usize,
     all_runs_values_ms: Vec<Vec<f64>>,
     min_values_ms: Vec<f64>,
     y_min: f64,
@@ -344,7 +421,7 @@ fn prepare_metric(
     Ok(PreppedVerboseData {
         save_name: save_name.to_owned(),
         ticks: downsampled_ticks,
-        original_num_ticks,
+        // original_num_ticks,
         all_runs_values_ms,
         min_values_ms,
         y_min,
