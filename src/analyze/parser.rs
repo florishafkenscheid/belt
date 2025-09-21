@@ -88,6 +88,8 @@ fn read_benchmark_results(csv_path: &PathBuf) -> Result<Vec<BenchmarkResult>> {
         result.runs[run_index] = run;
     }
 
+    tracing::debug!("Read results from: {}", csv_path.display());
+
     Ok(results_map.into_values().collect())
 }
 
@@ -121,9 +123,8 @@ fn read_verbose_data(verbose_csv_files: &[PathBuf]) -> Result<HashMap<String, Ve
                 csv_content
             });
 
-            let tick = record.get(0).unwrap_or("t0");
             let data_values: Vec<&str> = record.iter().skip(2).collect();
-            entry.push_str(&format!("{},{}\n", tick, data_values.join(",")));
+            entry.push_str(&format!("{}\n", data_values.join(",")));
         }
 
         let mut verbose_data: Vec<VerboseData> = runs_data
@@ -137,6 +138,11 @@ fn read_verbose_data(verbose_csv_files: &[PathBuf]) -> Result<HashMap<String, Ve
 
         verbose_data.sort_by_key(|vd| vd.run_index);
         verbose_data_by_save.insert(file_stem, verbose_data);
+    }
+
+    tracing::debug!("Read data from:");
+    for file in verbose_csv_files {
+        tracing::debug!("  - {}", file.display())
     }
 
     Ok(verbose_data_by_save)

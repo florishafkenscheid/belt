@@ -1,17 +1,21 @@
-use std::{collections::HashMap, path::PathBuf};
-use plotters::prelude::*;
+use std::collections::HashMap;
 
 use crate::{
     analyze::parser,
     benchmark::{parser::BenchmarkResult, runner::VerboseData},
-    core::error::{BenchmarkErrorKind, Result},
+    core::{
+        config::AnalyzeConfig,
+        error::{BenchmarkErrorKind, Result},
+        utils,
+    },
 };
 
 /// Scan directory for csv files and generate charts
-pub fn generate_charts(data_dir: &PathBuf) -> Result<()> {
+pub fn generate_charts(analyze_config: &AnalyzeConfig) -> Result<()> {
+    let data_dir = &analyze_config.data_dir;
     // Scan directory, look for glob
     let (results, verbose_data_by_save) = if data_dir.is_dir() {
-        parser::read_data(data_dir)?
+        parser::read_data(&data_dir)?
     } else {
         return Err(BenchmarkErrorKind::DataDirectoryNotFound {
             path: data_dir.to_path_buf(),
@@ -30,7 +34,13 @@ pub fn generate_charts(data_dir: &PathBuf) -> Result<()> {
     draw_improvement_chart(&results)?;
 
     // Verbose
-    draw_metric_chart(&verbose_data_by_save)?;
+    for (save_name, data) in &verbose_data_by_save {
+        for metric in &analyze_config.verbose_metrics {
+            let prepped_data = prepare_metric(&save_name, &data, metric, analyze_config)?;
+            draw_metric_chart(&prepped_data)?;
+        }
+    }
+
     draw_line_chart(&verbose_data_by_save)?;
     draw_min_chart(&verbose_data_by_save)?;
 
@@ -49,7 +59,7 @@ fn draw_improvement_chart(data: &Vec<BenchmarkResult>) -> Result<()> {
     Ok(())
 }
 
-fn draw_metric_chart(data: &HashMap<String, Vec<VerboseData>>) -> Result<()> {
+fn draw_metric_chart(data: &PreppedVerboseData) -> Result<()> {
     Ok(())
 }
 
@@ -59,4 +69,164 @@ fn draw_line_chart(data: &HashMap<String, Vec<VerboseData>>) -> Result<()> {
 
 fn draw_min_chart(data: &HashMap<String, Vec<VerboseData>>) -> Result<()> {
     Ok(())
+}
+
+/// Helper struct for neat verbose metric data
+struct PreppedVerboseData {
+    save_name: String,
+    ticks: Vec<u64>,
+    original_num_ticks: usize,
+    all_runs_values_ms: Vec<Vec<f64>>,
+    min_values_ms: Vec<f64>,
+    y_min: f64,
+    y_max: f64,
+}
+
+/// Helper function to prepare verbose metric data
+fn prepare_metric(
+    save_name: &String,
+    data: &Vec<VerboseData>,
+    metric: &String,
+    config: &AnalyzeConfig,
+) -> Result<PreppedVerboseData> {
+    if data.is_empty() {
+        return Err(BenchmarkErrorKind::NoVerboseData.into());
+    }
+
+    let first_csv = &data[0].csv_data;
+    let mut reader = csv::Reader::from_reader(first_csv.as_bytes());
+    let headers: Vec<String> = reader.headers()?.iter().map(|s| s.to_string()).collect();
+    let header_map: HashMap<String, usize> = headers
+        .clone()
+        .into_iter()
+        .enumerate()
+        .map(|(i, h)| (h, i))
+        .collect();
+
+    let column_index = header_map
+        .get(metric)
+        .ok_or(BenchmarkErrorKind::InvalidMetric {
+            metric: metric.to_owned(),
+        })?;
+
+    let mut all_runs_raw_ns: Vec<Vec<f64>> = Vec::new();
+    let mut ticks: Vec<u64> = Vec::new();
+    for run in data {
+        let mut run_raw_ns: Vec<f64> = Vec::new();
+        let mut run_ticks: Vec<u64> = Vec::new();
+
+        let mut reader = csv::Reader::from_reader(run.csv_data.as_bytes());
+        for record in reader.records() {
+            let rec = record?; // <-
+            let tick_str = rec.get(0).ok_or(BenchmarkErrorKind::ParseError {
+                reason: "Couldn't get record[0]".to_string(),
+            })?;
+            let tick = tick_str.parse::<u64>()?;
+            let value_str = rec
+                .get(*column_index)
+                .ok_or(BenchmarkErrorKind::ParseError {
+                    reason: "Couldn't get metric column value".to_string(),
+                })?;
+            let value_ns = value_str.parse::<f64>()?;
+
+            run_ticks.push(tick);
+            run_raw_ns.push(value_ns);
+        }
+
+        all_runs_raw_ns.push(run_raw_ns);
+        if ticks.is_empty() {
+            ticks = run_ticks;
+        } else if ticks.len() != run_ticks.len() {
+            return Err(BenchmarkErrorKind::TickMismatch {
+                ticks: ticks.len(),
+                run_ticks: run_ticks.len(),
+            }
+            .into());
+        }
+    }
+
+    let original_num_ticks = ticks.len();
+    let num_ticks = ticks.len();
+    let mut min_values_ns: Vec<f64> = vec![f64::MAX; num_ticks];
+    for run_values in &all_runs_raw_ns {
+        for (i, &val) in run_values.iter().enumerate() {
+            if i < num_ticks {
+                min_values_ns[i] = min_values_ns[i].min(val);
+            }
+        }
+    }
+
+    // Downsample raw data *before* smoothing and conversion
+    let mut all_runs_raw_ns_downsampled: Vec<Vec<f64>> = Vec::new();
+    for raw_ns in all_runs_raw_ns {
+        let downsampled = if let Some(max_points) = config.max_points
+            && raw_ns.len() > max_points
+        {
+            downsample(&raw_ns, max_points)
+        } else {
+            raw_ns
+        };
+        all_runs_raw_ns_downsampled.push(downsampled);
+    }
+
+    let min_values_ns_downsampled = if let Some(max_points) = config.max_points
+        && min_values_ns.len() > max_points
+    {
+        downsample(&min_values_ns, max_points)
+    } else {
+        min_values_ns
+    };
+
+    let downsampled_length = all_runs_raw_ns_downsampled[0].len();
+    let step = original_num_ticks as f64 / downsampled_length as f64;
+    let downsampled_ticks: Vec<u64> = (0..downsampled_length)
+        .map(|i| ((i as f64 + 0.5) * step) as u64)
+        .collect();
+
+    // Now smooth the downsampled data
+    let mut all_runs_values_ms: Vec<Vec<f64>> = Vec::new();
+    for raw_ns in all_runs_raw_ns_downsampled {
+        let smoothed_ns = utils::calculate_sma(&raw_ns, config.smooth_window);
+        let smoothed_ms = smoothed_ns.iter().map(|&ns| ns / 1_000_000.0).collect();
+        all_runs_values_ms.push(smoothed_ms);
+    }
+    let smoothed_min_ns = utils::calculate_sma(&min_values_ns_downsampled, config.smooth_window);
+    let min_values_ms: Vec<f64> = smoothed_min_ns.iter().map(|&ns| ns / 1_000_000.0).collect();
+
+    let bounds =
+        utils::compute_global_metric_bounds(data, &vec![metric.to_string()], config.smooth_window);
+    let (y_min, y_max) = bounds.get(metric).cloned().unwrap_or((0.0, 0.0));
+
+    tracing::debug!("Prepared verbose data for: {metric}");
+
+    Ok(PreppedVerboseData {
+        save_name: save_name.to_owned(),
+        ticks: downsampled_ticks,
+        original_num_ticks,
+        all_runs_values_ms,
+        min_values_ms,
+        y_min,
+        y_max,
+    })
+}
+
+/// Helper function to downsample data points
+fn downsample(data: &[f64], target_points: usize) -> Vec<f64> {
+    let num_points = data.len();
+
+    let bin_size = ((num_points as f64) / (target_points as f64)).ceil() as usize;
+
+    let mut downsampled = Vec::with_capacity(target_points);
+    for i in 0..(num_points / bin_size) {
+        let start = i * bin_size;
+        let end = (start + bin_size).min(num_points);
+        let slice = &data[start..end];
+        if !slice.is_empty() {
+            let avg = slice.iter().sum::<f64>() / slice.len() as f64;
+            downsampled.push(avg);
+        }
+    }
+
+    tracing::debug!("Downsampled from: {} to: {}", data.len(), downsampled.len());
+    downsampled
 }

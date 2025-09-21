@@ -32,6 +32,32 @@ struct Cli {
 enum Commands {
     Analyze {
         data_dir: PathBuf,
+
+        #[arg(
+            long,
+            default_value = "0",
+            help = "Apply a simple moving average to per-tick data with the given window size. Set to 0 for no smoothing."
+        )]
+        smooth_window: u32,
+
+        #[arg(
+            long,
+            value_delimiter = ',',
+            help = "Generate per-tick charts for specified Factorio benchmark metrics (e.g., 'wholeUpdate,gameUpdate'). 'all' to chart all metrics."
+        )]
+        verbose_metrics: Vec<String>,
+
+        #[arg(long)]
+        height: u32,
+
+        #[arg(long)]
+        width: u32,
+
+        #[arg(
+            long,
+            help = "Max data points that the verbose charts can reach before being downsampled."
+        )]
+        max_points: Option<usize>,
     },
     Benchmark {
         saves_dir: PathBuf,
@@ -69,13 +95,6 @@ enum Commands {
 
         #[arg(long)]
         strip_prefix: Option<String>,
-
-        #[arg(
-            long,
-            default_value = "0",
-            help = "Apply a simple moving average to per-tick data with the given window size. Set to 0 for no smoothing."
-        )]
-        smooth_window: u32,
     },
     Sanitize {},
 }
@@ -104,8 +123,22 @@ async fn main() -> Result<()> {
 
     // Capture the result of the benchmark
     let result = match cli.command {
-        Commands::Analyze { data_dir } => {
-            let analyze_config = AnalyzeConfig { data_dir };
+        Commands::Analyze {
+            data_dir,
+            smooth_window,
+            verbose_metrics,
+            height,
+            width,
+            max_points,
+        } => {
+            let analyze_config = AnalyzeConfig {
+                data_dir,
+                smooth_window,
+                verbose_metrics,
+                height,
+                width,
+                max_points,
+            };
             analyze::run(global_config, analyze_config).await
         }
 
@@ -121,7 +154,6 @@ async fn main() -> Result<()> {
             run_order,
             verbose_metrics,
             strip_prefix,
-            smooth_window,
         } => {
             let benchmark_config = BenchmarkConfig {
                 saves_dir,
@@ -134,7 +166,6 @@ async fn main() -> Result<()> {
                 run_order,
                 verbose_metrics,
                 strip_prefix,
-                smooth_window,
             };
 
             benchmark::run(global_config, benchmark_config).await

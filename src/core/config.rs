@@ -15,6 +15,11 @@ pub struct GlobalConfig {
 /// Analyzation specific configuration
 pub struct AnalyzeConfig {
     pub data_dir: PathBuf,
+    pub smooth_window: u32,
+    pub verbose_metrics: Vec<String>,
+    pub height: u32,
+    pub width: u32,
+    pub max_points: Option<usize>,
 }
 
 /// Benchmarking specific configuration
@@ -30,10 +35,7 @@ pub struct BenchmarkConfig {
     pub run_order: RunOrder,
     pub verbose_metrics: Vec<String>,
     pub strip_prefix: Option<String>,
-    pub smooth_window: u32,
 }
 
 /// Sanitization specific configuration
-pub struct SanitizeConfig {
-    
-}
+pub struct SanitizeConfig {}

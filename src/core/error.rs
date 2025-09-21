@@ -1,6 +1,11 @@
 //! Error types for BELT.
 
-use std::{fmt, path::PathBuf, string::FromUtf8Error};
+use std::{
+    fmt,
+    num::{ParseFloatError, ParseIntError},
+    path::PathBuf,
+    string::FromUtf8Error,
+};
 use thiserror::Error;
 
 /// The wrapper for the error kind, with an optional hint.
@@ -70,9 +75,9 @@ pub enum BenchmarkErrorKind {
     #[error("JSON Serialization error: {0}")]
     JsonError(#[from] serde_json::Error),
 
-    // #[error("Chart generation error: {0}")]
-    // ChartGenerationError(#[from] charming::EchartsError),
-    
+    #[error("Chart generation error: {0}")]
+    ChartGenerationError(#[from] charming::EchartsError),
+
     #[error("Invalid run order: {input}. Valid options: sequential, random, grouped")]
     InvalidRunOrder { input: String },
 
@@ -81,12 +86,27 @@ pub enum BenchmarkErrorKind {
 
     #[error("Data directory not found at: {path}")]
     DataDirectoryNotFound { path: PathBuf },
-    
+
     #[error("No data files found at: {path}")]
     NoDataFilesFound { path: PathBuf },
-    
+
     #[error("Expected data file not found at: {path}")]
     DataFileNotFound { path: PathBuf },
+
+    #[error("Expected verbose data. None found.")]
+    NoVerboseData,
+
+    #[error("Invalid metric: {metric}")]
+    InvalidMetric { metric: String },
+
+    #[error("Couldn't parse into int: {0}")]
+    ParseIntError(#[from] ParseIntError),
+
+    #[error("Couldn't parse into float: {0}")]
+    ParseFloatError(#[from] ParseFloatError),
+
+    #[error("Tick mismatch, expected: {ticks}, got: {run_ticks}")]
+    TickMismatch { ticks: usize, run_ticks: usize },
 }
 
 /// Get a hint for the FactorioProcessFailed error, if it exists
