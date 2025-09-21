@@ -1,4 +1,15 @@
+//! Chart generation for benchmark results.
+//!
+//! Uses the `charming` crate to render SVG charts for UPS and improvement metrics.
+
 use std::collections::HashMap;
+
+use charming::{
+    Chart,
+    component::{Axis, Grid, Title},
+    element::{AxisType, Label, LabelPosition, SplitArea, SplitLine},
+    series::Bar,
+};
 
 use crate::{
     analyze::parser,
@@ -28,47 +39,89 @@ pub fn generate_charts(analyze_config: &AnalyzeConfig) -> Result<()> {
     }
 
     // Generate charts
+    let mut charts: Vec<Chart> = Vec::new();
     // Standard
-    draw_ups_chart(&results)?;
-    draw_boxplot_chart(&results)?;
-    draw_improvement_chart(&results)?;
+    charts.push(draw_ups_chart(&results)?);
+    charts.push(draw_boxplot_chart(&results)?);
+    charts.push(draw_improvement_chart(&results)?);
 
     // Verbose
     for (save_name, data) in &verbose_data_by_save {
         for metric in &analyze_config.verbose_metrics {
             let prepped_data = prepare_metric(&save_name, &data, metric, analyze_config)?;
-            draw_metric_chart(&prepped_data)?;
+            charts.push(draw_metric_chart(&prepped_data)?);
+            charts.push(draw_line_chart(&prepped_data)?);
+            charts.push(draw_min_chart(&prepped_data)?);
         }
     }
 
-    draw_line_chart(&verbose_data_by_save)?;
-    draw_min_chart(&verbose_data_by_save)?;
-
     Ok(())
 }
 
-fn draw_ups_chart(data: &Vec<BenchmarkResult>) -> Result<()> {
-    Ok(())
+fn draw_ups_chart(data: &Vec<BenchmarkResult>) -> Result<Chart> {
+    let save_names: Vec<String> = data.iter().map(|result| result.save_name.clone()).collect();
+
+    let avg_ups_values: Vec<i64> = data
+        .iter()
+        .map(|result| {
+            let total_ups: f64 = result.runs.iter().map(|run| run.effective_ups).sum();
+            (total_ups / result.runs.len() as f64).round() as i64
+        })
+        .collect();
+
+    Ok(Chart::new()
+        .title(
+            Title::new()
+                .text("Benchmark Results - Average Effective UPS")
+                .left("center"),
+        )
+        .grid(
+            Grid::new()
+                .left("3%")
+                .right("4%")
+                .bottom("3%")
+                .contain_label(true),
+        )
+        .x_axis(
+            Axis::new()
+                .type_(AxisType::Value)
+                .boundary_gap(("0", "0.01"))
+                .split_area(SplitArea::new().show(false))
+                .split_line(SplitLine::new().show(false)),
+        )
+        .y_axis(
+            Axis::new()
+                .type_(AxisType::Category)
+                .data(save_names.clone())
+                .split_area(SplitArea::new().show(false))
+                .split_line(SplitLine::new().show(true)),
+        )
+        .series(
+            Bar::new()
+                .name("Effective UPS")
+                .data(avg_ups_values)
+                .label(Label::new().show(true).position(LabelPosition::Inside)),
+        ))
 }
 
-fn draw_boxplot_chart(data: &Vec<BenchmarkResult>) -> Result<()> {
-    Ok(())
+fn draw_boxplot_chart(data: &Vec<BenchmarkResult>) -> Result<Chart> {
+    Ok(Chart::new())
 }
 
-fn draw_improvement_chart(data: &Vec<BenchmarkResult>) -> Result<()> {
-    Ok(())
+fn draw_improvement_chart(data: &Vec<BenchmarkResult>) -> Result<Chart> {
+    Ok(Chart::new())
 }
 
-fn draw_metric_chart(data: &PreppedVerboseData) -> Result<()> {
-    Ok(())
+fn draw_metric_chart(data: &PreppedVerboseData) -> Result<Chart> {
+    Ok(Chart::new())
 }
 
-fn draw_line_chart(data: &HashMap<String, Vec<VerboseData>>) -> Result<()> {
-    Ok(())
+fn draw_line_chart(data: &HashMap<String, Vec<VerboseData>>) -> Result<Chart> {
+    Ok(Chart::new())
 }
 
-fn draw_min_chart(data: &HashMap<String, Vec<VerboseData>>) -> Result<()> {
-    Ok(())
+fn draw_min_chart(data: &HashMap<String, Vec<VerboseData>>) -> Result<Chart> {
+    Ok(Chart::new())
 }
 
 /// Helper struct for neat verbose metric data

@@ -283,12 +283,12 @@ pub fn calculate_sma(data: &[f64], window_size: u32) -> Vec<f64> {
     smoothed_data
 }
 
-struct BoxplotData {
-    boxplot_values: Vec<Vec<f64>>,
-    outlier_values: Vec<Vec<f64>>,
-    category_names: Vec<String>,
-    min_value: f64,
-    max_value: f64,
+pub struct BoxplotData {
+    pub boxplot_values: Vec<Vec<f64>>,
+    pub outlier_values: Vec<Vec<f64>>,
+    pub category_names: Vec<String>,
+    pub min_value: f64,
+    pub max_value: f64,
 }
 
 /// Manually calculate the boxplot data given the benchmark results
