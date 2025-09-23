@@ -206,7 +206,7 @@ fn get_default_user_data_dirs() -> Vec<PathBuf> {
     };
 
     if cfg!(target_os = "windows") {
-        paths.push(home.join("Factorio"));
+        paths.push(home.join("AppData/Roaming/Factorio"));
     } else if cfg!(target_os = "linux") {
         paths.push(home.join(".factorio"));
         // Flatpak installations
