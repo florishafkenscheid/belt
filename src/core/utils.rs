@@ -14,7 +14,7 @@ pub enum RunOrder {
     Grouped,
 }
 
-// Get a RunOrder from a string
+/// Get a RunOrder from a string
 impl std::str::FromStr for RunOrder {
     type Err = String;
 

@@ -1,39 +1,51 @@
-pub fn parse_sanitizer(result: &BenchmarkResult, path: &Path) -> Result<()> {
-    tracing::debug!(
-        "Found sanitizer for save: {}, at {}. Parsing...",
-        &result.save_name,
-        &path.display()
-    );
+//! Parser for belt-sanitizer mod integration
 
-    let contents = fs::read_to_string(path.join("sanitizer.json"))?;
-    let json: Value = serde_json::from_str(&contents)?;
+use std::{fs, path::Path};
 
-    let mode = json["mode"].as_str().unwrap_or("unknown");
+use serde_json::Value;
 
-    match mode {
-        "detect" => report_detection_warnings(&json),
-        "fix" => report_fixes_applied(&json),
-        _ => println!("Unknown sanitizer mode: {mode}"),
+use crate::{
+    Result,
+    core::{error::BenchmarkErrorKind, utils},
+};
+
+pub fn report() -> Result<()> {
+    if let Some(path) = utils::check_sanitizer() {
+        parse_sanitizer(&path)?;
+    } else {
+        return Err(BenchmarkErrorKind::SanitizerNotFound.into());
     }
 
     Ok(())
 }
 
+fn parse_sanitizer(path: &Path) -> Result<()> {
+    tracing::debug!("Found sanitizer at {}. Parsing...", &path.display());
+
+    let contents = fs::read_to_string(path.join("sanitizer.json"))?;
+    let json: Value = serde_json::from_str(&contents)?;
+
+    report_detection_warnings(&json);
+    //report_production_statistics(&json);
+
+    fs::remove_dir_all(path)?;
+    Ok(())
+}
+
 fn report_detection_warnings(json: &Value) {
-    let pre = &json["pre"];
     let mut warnings = Vec::new();
 
-    if pre["pollution_enabled"].as_bool().unwrap_or(false)
-        || pre["total_pollution"].as_u64().unwrap_or(0) > 0
+    if json["pollution_enabled"].as_bool().unwrap_or(false)
+        || json["total_pollution"].as_u64().unwrap_or(0) > 0
     {
         warnings.push("Pollution is enabled/present".to_string());
     }
 
-    if pre["enemy_expansion_enabled"].as_bool().unwrap_or(false) {
+    if json["enemy_expansion_enabled"].as_bool().unwrap_or(false) {
         warnings.push("Enemy expansion is enabled".to_string());
     }
 
-    if let Some(surfaces) = pre["surfaces"].as_array() {
+    if let Some(surfaces) = json["surfaces"].as_array() {
         for surface in surfaces {
             let enemies = surface["enemy_units"].as_u64().unwrap_or(0)
                 + surface["enemy_spawners"].as_u64().unwrap_or(0)
@@ -55,27 +67,6 @@ fn report_detection_warnings(json: &Value) {
         tracing::warn!("Benchmark-affecting issues found!");
         for warning in warnings {
             tracing::warn!("  - {warning}");
-        }
-    }
-}
-
-fn report_fixes_applied(json: &Value) {
-    if let Some(actions) = json["applied_actions"].as_array() {
-        if actions.is_empty() {
-            tracing::debug!("No benchmark-affecting issues found");
-        } else {
-            tracing::debug!("Benchmark-affecting issues fixed!");
-            for action in actions {
-                if let Some(action_str) = action.as_str() {
-                    let friendly_name = match action_str {
-                        "pollution_disabled_and_cleared" => "Disabled pollution and cleared existing pollution",
-                        "enemy_expansion_disabled_evolution_zeroed" => "Disabled enemy expansion and reset evolution",
-                        "biters_units_killed_spawners_worms_destroyed" => "Removed all enemy units, spawners, and worms",
-                        _ => action_str
-                    };
-                    tracing::debug!("  - {friendly_name}");
-                }
-            }
         }
     }
 }

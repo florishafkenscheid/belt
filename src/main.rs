@@ -8,7 +8,7 @@ mod core;
 mod sanitize;
 
 use crate::core::{
-    Result, RunOrder,
+    GlobalConfig, Result, RunOrder,
     config::{AnalyzeConfig, BenchmarkConfig, SanitizeConfig},
 };
 use clap::{Parser, Subcommand};
@@ -96,7 +96,18 @@ enum Commands {
         #[arg(long)]
         strip_prefix: Option<String>,
     },
-    Sanitize {},
+    Sanitize {
+        saves_dir: PathBuf,
+
+        #[arg(long)]
+        pattern: Option<String>,
+
+        #[arg(long, default_value = "3600")]
+        ticks: u32,
+
+        #[arg(long)]
+        mods_dir: Option<PathBuf>,
+    },
 }
 
 #[tokio::main]
@@ -115,8 +126,7 @@ async fn main() -> Result<()> {
             .init();
     }
 
-    // Create a global config for all subcommands
-    let global_config = core::GlobalConfig {
+    let global_config = GlobalConfig {
         factorio_path: cli.factorio_path,
         verbose: cli.verbose,
     };
@@ -171,8 +181,18 @@ async fn main() -> Result<()> {
             benchmark::run(global_config, benchmark_config).await
         }
 
-        Commands::Sanitize {} => {
-            let sanitize_config = SanitizeConfig {};
+        Commands::Sanitize {
+            saves_dir,
+            pattern,
+            ticks,
+            mods_dir,
+        } => {
+            let sanitize_config = SanitizeConfig {
+                saves_dir,
+                pattern,
+                ticks,
+                mods_dir,
+            };
             sanitize::run(global_config, sanitize_config).await
         }
     };
@@ -180,10 +200,6 @@ async fn main() -> Result<()> {
     // If any command results in an error, print and exit
     if let Err(e) = result {
         tracing::error!("{e}");
-
-        if let Some(hint_text) = e.get_hint() {
-            tracing::error!("{hint_text}");
-        }
 
         std::process::exit(1);
     }

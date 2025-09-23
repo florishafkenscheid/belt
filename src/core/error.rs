@@ -84,6 +84,9 @@ pub enum BenchmarkErrorKind {
     #[error("Invalid WriteData")]
     InvalidWriteData,
 
+    #[error("Belt-Sanitizer directory not found")]
+    SanitizerNotFound,
+
     #[error("Data directory not found at: {path}")]
     DataDirectoryNotFound { path: PathBuf },
 
@@ -118,16 +121,15 @@ impl BenchmarkError {
         }
         self
     }
-
-    /// Gets the hint, if one exists
-    pub fn get_hint(&self) -> Option<&str> {
-        self.hint.as_deref()
-    }
 }
 
 impl fmt::Display for BenchmarkError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.kind)?;
+        if let Some(hint_text) = &self.hint {
+            write!(f, " ({hint_text})")?;
+        }
+
         Ok(())
     }
 }

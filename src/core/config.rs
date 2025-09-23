@@ -13,6 +13,7 @@ pub struct GlobalConfig {
 }
 
 /// Analyzation specific configuration
+#[derive(Debug, Clone, Default)]
 pub struct AnalyzeConfig {
     pub data_dir: PathBuf,
     pub smooth_window: u32,
@@ -38,4 +39,17 @@ pub struct BenchmarkConfig {
 }
 
 /// Sanitization specific configuration
-pub struct SanitizeConfig {}
+#[derive(Debug, Clone)]
+pub struct SanitizeConfig {
+    pub saves_dir: PathBuf,
+    pub pattern: Option<String>,
+    pub ticks: u32,
+    // pub statistic: OutputStatistic,
+    pub mods_dir: Option<PathBuf>,
+}
+
+// #[derive(Debug, Clone)]
+// pub enum OutputStatistic {
+//     Item,
+//     Fluid,
+// }

@@ -1,8 +1,34 @@
+pub mod parser;
+pub mod runner;
+
 use crate::{
     Result,
-    core::config::{GlobalConfig, SanitizeConfig},
+    core::{
+        FactorioExecutor,
+        config::{GlobalConfig, SanitizeConfig},
+        utils,
+    },
 };
 
 pub async fn run(global_config: GlobalConfig, sanitize_config: SanitizeConfig) -> Result<()> {
+    // Find the Factorio binary
+    let factorio = FactorioExecutor::discover(global_config.factorio_path)?;
+    tracing::info!(
+        "Using Factorio at: {}",
+        factorio.executable_path().display()
+    );
+
+    // Find the specified save files
+    let save_files = utils::find_save_files(
+        &sanitize_config.saves_dir,
+        sanitize_config.pattern.as_deref(),
+    )?;
+    // Validate the found save files
+    utils::validate_save_files(&save_files)?;
+
+    // Report
+    let runner = runner::SanitizeRunner::new(sanitize_config.clone(), factorio);
+    runner.run_all(save_files).await?;
+
     Ok(())
 }

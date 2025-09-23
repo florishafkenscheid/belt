@@ -17,7 +17,7 @@ use crate::{
     },
 };
 
-// Run all of the benchmarks, capture the logs and write the results to files.
+/// Run all of the benchmarks, capture the logs and write the results to files.
 pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig) -> Result<()> {
     tracing::info!("Starting benchmark with config: {:?}", benchmark_config);
 

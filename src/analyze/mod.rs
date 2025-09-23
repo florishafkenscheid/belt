@@ -6,7 +6,7 @@ use crate::{
     core::config::{AnalyzeConfig, GlobalConfig},
 };
 
-pub async fn run(global_config: GlobalConfig, analyze_config: AnalyzeConfig) -> Result<()> {
+pub async fn run(_global_config: GlobalConfig, analyze_config: AnalyzeConfig) -> Result<()> {
     charts::generate_charts(&analyze_config)?;
     Ok(())
 }

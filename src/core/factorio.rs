@@ -1,18 +1,31 @@
 //! The wrapper for the Factorio binary.
 
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    process::Stdio,
+};
 use tokio::process::Command;
 
-use crate::core::{
-    Result,
-    error::{BenchmarkError, BenchmarkErrorKind},
-    is_executable,
+use crate::{
+    benchmark::runner::FactorioOutput,
+    core::{
+        Result,
+        error::{BenchmarkError, BenchmarkErrorKind},
+        is_executable,
+    },
 };
 
 use super::platform;
 
 pub struct FactorioExecutor {
     executable_path: PathBuf,
+}
+
+pub struct FactorioRunSpec<'a> {
+    pub save_file: &'a Path,
+    pub ticks: u32,
+    pub mods_dir: Option<&'a Path>,
+    pub verbose_all_metrics: bool,
 }
 
 impl FactorioExecutor {
@@ -68,5 +81,137 @@ impl FactorioExecutor {
     /// Public API for creating a command
     pub fn create_command(&self) -> Command {
         Command::new(&self.executable_path)
+    }
+
+    /// Sync Factorio's mods to the given save
+    pub async fn sync_mods_for_save(&self, save_file: &Path) -> Result<()> {
+        let mut cmd = self.create_command();
+
+        cmd.args([
+            "--sync-mods",
+            save_file
+                .to_str()
+                .ok_or_else(|| BenchmarkErrorKind::InvalidSaveFileName {
+                    path: save_file.to_path_buf(),
+                })?,
+        ]);
+
+        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+        tracing::debug!("Syncing mods to: {}", save_file.display());
+
+        let child = cmd.spawn()?;
+        let output = child.wait_with_output().await?;
+
+        if !output.status.success() {
+            let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr_str = String::from_utf8_lossy(&output.stderr).to_string();
+
+            let hint = if stdout_str.contains("already running")
+                || stderr_str.contains("already running")
+            {
+                Some(
+                    "Factorio might already be running. Please close any open Factorio instances."
+                        .to_string(),
+                )
+            } else {
+                None
+            };
+
+            return Err(
+                BenchmarkError::from(BenchmarkErrorKind::FactorioProcessFailed {
+                    code: output.status.code().unwrap_or(-1),
+                })
+                .with_hint(hint),
+            );
+        }
+
+        tracing::debug!("Mod sync completed successfully");
+        Ok(())
+    }
+
+    pub async fn run_for_ticks(&self, spec: FactorioRunSpec<'_>) -> Result<FactorioOutput> {
+        let mut cmd = self.create_command();
+
+        cmd.args([
+            "--benchmark",
+            spec.save_file
+                .to_str()
+                .ok_or_else(|| BenchmarkErrorKind::InvalidSaveFileName {
+                    path: spec.save_file.to_path_buf(),
+                })?,
+            "--benchmark-ticks",
+            &spec.ticks.to_string(),
+            "--benchmark-runs",
+            "1", // Always run single benchmark
+            "--disable-audio",
+        ]);
+
+        if spec.verbose_all_metrics {
+            cmd.arg("--benchmark-verbose");
+            cmd.arg("all");
+        }
+
+        // Run with the argument --mod-directory if a mod-directory was given
+        if let Some(mods_dir) = spec.mods_dir {
+            cmd.arg("--mod-directory");
+            cmd.arg(
+                mods_dir
+                    .to_str()
+                    .ok_or_else(|| BenchmarkErrorKind::InvalidModsFileName {
+                        path: mods_dir.to_path_buf(),
+                    })?,
+            );
+        }
+
+        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+        let output = cmd.spawn()?.wait_with_output().await?;
+
+        if !output.status.success() {
+            let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr_str = String::from_utf8_lossy(&output.stderr).to_string();
+
+            let hint = if stdout_str.contains("already running")
+                || stderr_str.contains("already running")
+            {
+                Some(
+                    "Factorio might already be running. Please close any open Factorio instances."
+                        .to_string(),
+                )
+            } else {
+                None
+            };
+
+            return Err(
+                BenchmarkError::from(BenchmarkErrorKind::FactorioProcessFailed {
+                    code: output.status.code().unwrap_or(-1),
+                })
+                .with_hint(hint),
+            );
+        }
+
+        let stdout = String::from_utf8(output.stdout)?;
+        const VERBOSE_HEADER: &str = "tick,timestamp,wholeUpdate";
+
+        if let Some(index) = stdout.find(VERBOSE_HEADER) {
+            let (summary, verbose_part) = stdout.split_at(index);
+
+            let cleaned_verbose_data: String = verbose_part
+                .lines()
+                .filter(|line| line.starts_with("tick,") || line.starts_with('t'))
+                .collect::<Vec<&str>>()
+                .join("\n");
+
+            Ok(FactorioOutput {
+                summary: summary.to_string(),
+                verbose_data: Some(cleaned_verbose_data),
+            })
+        } else {
+            Ok(FactorioOutput {
+                summary: stdout,
+                verbose_data: None,
+            })
+        }
     }
 }
