@@ -90,7 +90,7 @@ fn write_verbose_csv(data: &[VerboseData], metrics: &[String], path: &Path) -> R
     }
 
     let csv_path = path.join(format!("{}_verbose_metrics.csv", data[0].save_name));
-    let mut writer = csv::Writer::from_path(path)?;
+    let mut writer = csv::Writer::from_path(&csv_path)?;
 
     let first_run_csv_data = &data[0].csv_data;
     let mut reader = csv::Reader::from_reader(first_run_csv_data.as_bytes());

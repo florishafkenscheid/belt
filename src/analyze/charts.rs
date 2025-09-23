@@ -197,7 +197,7 @@ fn draw_improvement_chart(data: &[BenchmarkResult]) -> Result<(Chart, String)> {
             )
             .x_axis(
                 Axis::new()
-                    .type_(AxisType::Category)
+                    .type_(AxisType::Value)
                     .split_area(SplitArea::new().show(false))
                     .split_line(SplitLine::new().show(false)),
             )

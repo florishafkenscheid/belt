@@ -92,9 +92,23 @@ fn read_benchmark_results(csv_path: &PathBuf) -> Result<Vec<BenchmarkResult>> {
         result.runs[run_index] = run;
     }
 
+    let mut all_results: Vec<BenchmarkResult> = results_map.into_values().collect();
+
+    // Sort by performance
+    all_results.sort_by(|a, b| {
+        let avg_a: f64 =
+            a.runs.iter().map(|run| run.effective_ups).sum::<f64>() / a.runs.len() as f64;
+        let avg_b: f64 =
+            b.runs.iter().map(|run| run.effective_ups).sum::<f64>() / b.runs.len() as f64;
+
+        avg_a
+            .partial_cmp(&avg_b)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
     tracing::debug!("Read results from: {}", csv_path.display());
 
-    Ok(results_map.into_values().collect())
+    Ok(all_results)
 }
 
 /// Read *_verbose_metrics.csv files and reconstruct VerboseData
