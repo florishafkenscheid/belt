@@ -6,15 +6,17 @@ use serde_json::Value;
 
 use crate::{
     Result,
-    core::{error::BenchmarkErrorKind, utils},
+    core::{config::SanitizeConfig, error::BenchmarkErrorKind, utils},
 };
 
-pub fn report() -> Result<()> {
-    if let Some(path) = utils::check_sanitizer() {
-        parse_sanitizer(&path)?;
-    } else {
-        return Err(BenchmarkErrorKind::SanitizerNotFound.into());
-    }
+pub fn report(config: &SanitizeConfig) -> Result<()> {
+    let path = config
+        .data_dir
+        .clone()
+        .or_else(utils::check_sanitizer)
+        .ok_or(BenchmarkErrorKind::SanitizerNotFound)?;
+
+    parse_sanitizer(&path)?;
 
     Ok(())
 }

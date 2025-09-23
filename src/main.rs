@@ -107,6 +107,9 @@ enum Commands {
 
         #[arg(long)]
         mods_dir: Option<PathBuf>,
+
+        #[arg(long)]
+        data_dir: Option<PathBuf>,
     },
 }
 
@@ -186,12 +189,14 @@ async fn main() -> Result<()> {
             pattern,
             ticks,
             mods_dir,
+            data_dir,
         } => {
             let sanitize_config = SanitizeConfig {
                 saves_dir,
                 pattern,
                 ticks,
                 mods_dir,
+                data_dir,
             };
             sanitize::run(global_config, sanitize_config).await
         }

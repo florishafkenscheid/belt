@@ -46,6 +46,7 @@ pub struct SanitizeConfig {
     pub ticks: u32,
     // pub statistic: OutputStatistic,
     pub mods_dir: Option<PathBuf>,
+    pub data_dir: Option<PathBuf>,
 }
 
 // #[derive(Debug, Clone)]
