@@ -141,7 +141,7 @@ fn write_verbose_csv(data: &[VerboseData], metrics: &[String], path: &Path) -> R
         }
     }
     writer.flush()?;
-    tracing::info!(
+    tracing::debug!(
         "Verbose metrics for {} exported to {}",
         data[0].save_name,
         csv_path.display()
