@@ -70,7 +70,6 @@ impl SanitizeRunner {
                 .await?;
 
             parser::report()?;
-
         }
 
         progress.finish_with_message("Sanitization complete!");
