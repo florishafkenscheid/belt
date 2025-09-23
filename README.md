@@ -10,11 +10,14 @@
 BELT is a wrapper for the `factorio --benchmark` command, to make it more user friendly, more efficient to use, and to generate templated handlebars files with the gotten data.
 
 ## Features
-- [ ] **Benchmarking** - Benchmark a single save or a whole directory
-- [ ] **Cross-platform** - Works on Windows, macOS, and Linux
-- [ ] **Multiple output formats** - CSV and Markdown reports
-- [ ] **Pattern matching** - Filter save files by name patterns
-- [ ] **Async execution** - Fast parallel processing
+- [x] **Benchmarking** - Benchmark a single save or a whole directory
+- [x] **Cross-platform** - Works on Windows, macOS, and Linux
+- [x] **Multiple output formats** - CSV, Markdown reports, and SVG charts
+- [x] **Pattern matching** - Filter save files by name patterns
+- [x] **Async execution** - Fast parallel processing
+- [x] **Verbose metrics support** - Per-tick charts and CSV exports for detailed Factorio metrics
+- [x] **Sanitizer** - Automatically parses and reports on belt-sanitizer mod output
+- [x] **Smoothing and downsampling** - Configurable smoothing for charts to handle large datasets
 
 ## Quick Start
 ```bash
@@ -67,6 +70,19 @@ belt benchmark /path/to/saves --pattern "benchmark*" --output /path/to/output/di
 ```
 
 ### Command Reference
+#### `belt analyze`
+**Arguments:*
+- `<DATA_DIR>` - The location of the csv(s) to generate charts based off of.
+- `<HEIGHT>` - The height of the generated charts in pixels.
+- `<WIDTH>` - The width of the generated charts in pixels.
+
+**Options:**
+| Option | Description | Default |
+| ------ | ----------- | ------- |
+| `--smooth-window` | Add a smoothing effect to generated charts | `0` |
+| `--verbose-metrics` | Generates more charts based on the `--benchmark-verbose` factorio argument | `none` |
+| `--max-points` | Max data points that the verbose charts can reach before being downsampled | `0` |
+
 #### `belt benchmark`
 **Arguments:**
 - `<SAVES_DIR>` - The location of the save(s) to be benchmarked.
@@ -78,11 +94,22 @@ belt benchmark /path/to/saves --pattern "benchmark*" --output /path/to/output/di
 | `--runs <RUNS>` | How many runs per save file | `5` |
 | `--pattern <PATTERN>` | A pattern to match against when searching for save files in `<SAVES_DIR>` | `*` |
 | `--output <OUTPUT_DIR>` | A directory to output the .csv and .md files to | `.` |
-| `--mods-dir <MODS_DIR>` | A directory containing mods to be used for the benchmark | `--sync-mods` on each save file |
+| `--mods-dir <MODS_DIR>` | A directory containing mods to be used for the benchmark| `--sync-mods` on each save file |
 | `--run-order <RUN_ORDER>` | In which order to run the benchmarks. Available: `sequential`, `random`, `grouped` | `grouped` |
 | `--verbose-metrics` | Generates more charts based on the `--benchmark-verbose` factorio argument | `none` |
 | `--strip-prefix` | Strip a given prefix off of the save names | `none` |
-| `--smooth-window` | Add a smoothing effect to generated charts | `0` |
+
+#### `belt sanitize`
+**Arguments:**
+- `<SAVES_DIR>` - The location of the save(s) to be sanitized.
+
+**Options:**
+| Option | Description | Default |
+| ------ | ----------- | ------- |
+| `--pattern <PATTERN>` | A pattern to match against when searching for save files in `<SAVES_DIR>` | `*` |
+| `--ticks <TICKS>` | How many ticks to run the sanitization for | `3600` |
+| `--mods-dir <MODS_DIR>` | A directory containing mods to be used for the benchmark| `--sync-mods` on each save file |
+| `--data-dir <DATA_DIR>` | If B.E.L.T. can't find your user data directory, pass it explicitely here. | `none` |
 
 ### Global Options
 | Option | Description | Default |
