@@ -1,4 +1,7 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use csv::Reader;
 
@@ -14,8 +17,9 @@ use crate::{
 };
 
 /// Read both results.csv and *_verbose_metrics.csv and reconstruct the data therein
+#[allow(clippy::complexity)]
 pub fn read_data(
-    data_dir: &PathBuf,
+    data_dir: &Path,
 ) -> Result<(Vec<BenchmarkResult>, HashMap<String, Vec<VerboseData>>)> {
     let files = utils::find_data_files(data_dir)?;
 

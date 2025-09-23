@@ -62,7 +62,7 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
         // First, write all CSV files to ensure they're created before potentially memory-intensive chart operations
         let csv_writer = CsvWriter::new();
         for (save_name, save_verbose_data) in &verbose_data_by_save {
-            let data = WriteData::VerboseData {
+            let data = WriteData::Verbose {
                 data: save_verbose_data.to_vec(),
                 metrics_to_export: benchmark_config.verbose_metrics.clone(),
             };
@@ -73,12 +73,12 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
 
     // Write the csv's
     let csv_writer = CsvWriter::new();
-    let data = WriteData::BenchmarkData(results.clone());
+    let data = WriteData::Benchmark(results.clone());
     csv_writer.write(&data, output_dir)?;
 
     // Write the report
     let report_writer = ReportWriter::new();
-    let data = WriteData::ReportData {
+    let data = WriteData::Report {
         data: results.clone(),
         template_path: benchmark_config.template_path,
     };

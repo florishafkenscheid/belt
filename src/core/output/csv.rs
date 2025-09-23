@@ -10,6 +10,12 @@ use crate::{
 
 pub struct CsvWriter {}
 
+impl Default for CsvWriter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CsvWriter {
     pub fn new() -> Self {
         Self {}
@@ -19,8 +25,8 @@ impl CsvWriter {
 impl ResultWriter for CsvWriter {
     fn write(&self, data: &WriteData, path: &Path) -> Result<()> {
         match data {
-            WriteData::BenchmarkData(data) => write_benchmark_csv(data, path),
-            WriteData::VerboseData {
+            WriteData::Benchmark(data) => write_benchmark_csv(data, path),
+            WriteData::Verbose {
                 data,
                 metrics_to_export,
             } => write_verbose_csv(data, metrics_to_export, path),
@@ -84,7 +90,7 @@ fn write_verbose_csv(data: &[VerboseData], metrics: &[String], path: &Path) -> R
     }
 
     let csv_path = path.join(format!("{}_verbose_metrics.csv", data[0].save_name));
-    let mut writer = csv::Writer::from_path(&path)?;
+    let mut writer = csv::Writer::from_path(path)?;
 
     let first_run_csv_data = &data[0].csv_data;
     let mut reader = csv::Reader::from_reader(first_run_csv_data.as_bytes());

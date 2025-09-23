@@ -15,14 +15,14 @@ pub use csv::CsvWriter;
 // Simple data holder
 #[derive(Debug)]
 pub enum WriteData {
-    BenchmarkData(Vec<BenchmarkResult>),
+    Benchmark(Vec<BenchmarkResult>),
 
-    VerboseData {
+    Verbose {
         data: Vec<VerboseData>,
         metrics_to_export: Vec<String>,
     },
 
-    ReportData {
+    Report {
         data: Vec<BenchmarkResult>,
         template_path: Option<PathBuf>,
     },

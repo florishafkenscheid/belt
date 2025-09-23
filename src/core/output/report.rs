@@ -14,6 +14,12 @@ use crate::{
 
 pub struct ReportWriter {}
 
+impl Default for ReportWriter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ReportWriter {
     pub fn new() -> Self {
         Self {}
@@ -23,7 +29,7 @@ impl ReportWriter {
 impl ResultWriter for ReportWriter {
     fn write(&self, data: &WriteData, path: &Path) -> Result<()> {
         match data {
-            WriteData::ReportData {
+            WriteData::Report {
                 data,
                 template_path,
             } => write_report(data, template_path, path),

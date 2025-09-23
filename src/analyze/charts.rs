@@ -29,7 +29,7 @@ pub fn generate_charts(analyze_config: &AnalyzeConfig) -> Result<()> {
     let data_dir = &analyze_config.data_dir;
     // Scan directory, look for glob
     let (results, verbose_data_by_save) = if data_dir.is_dir() {
-        parser::read_data(&data_dir)?
+        parser::read_data(data_dir)?
     } else {
         return Err(BenchmarkErrorKind::DataDirectoryNotFound {
             path: data_dir.to_path_buf(),
@@ -51,7 +51,7 @@ pub fn generate_charts(analyze_config: &AnalyzeConfig) -> Result<()> {
     // Verbose
     for (save_name, data) in &verbose_data_by_save {
         for metric in &analyze_config.verbose_metrics {
-            let prepped_data = prepare_metric(&save_name, &data, metric, analyze_config)?;
+            let prepped_data = prepare_metric(save_name, data, metric, analyze_config)?;
             charts.push(draw_metric_chart(&prepped_data, metric)?);
             charts.push(draw_min_chart(&prepped_data, metric)?);
         }
@@ -413,7 +413,7 @@ fn prepare_metric(
     let min_values_ms: Vec<f64> = smoothed_min_ns.iter().map(|&ns| ns / 1_000_000.0).collect();
 
     let bounds =
-        utils::compute_global_metric_bounds(data, &vec![metric.to_string()], config.smooth_window);
+        utils::compute_global_metric_bounds(data, &[metric.to_string()], config.smooth_window);
     let (y_min, y_max) = bounds.get(metric).cloned().unwrap_or((0.0, 0.0));
 
     tracing::debug!("Prepared verbose data for: {metric}");
