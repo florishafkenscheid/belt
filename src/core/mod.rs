@@ -10,6 +10,6 @@ pub mod platform;
 pub mod utils;
 
 pub use config::GlobalConfig;
-pub use error::{BenchmarkError, Result};
+pub use error::Result;
 pub use factorio::FactorioExecutor;
 pub use utils::*;

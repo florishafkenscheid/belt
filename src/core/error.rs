@@ -1,6 +1,11 @@
 //! Error types for BELT.
 
-use std::{fmt, path::PathBuf, string::FromUtf8Error};
+use std::{
+    fmt,
+    num::{ParseFloatError, ParseIntError},
+    path::PathBuf,
+    string::FromUtf8Error,
+};
 use thiserror::Error;
 
 /// The wrapper for the error kind, with an optional hint.
@@ -75,6 +80,45 @@ pub enum BenchmarkErrorKind {
 
     #[error("Invalid run order: {input}. Valid options: sequential, random, grouped")]
     InvalidRunOrder { input: String },
+
+    #[error("Invalid WriteData")]
+    InvalidWriteData,
+
+    #[error("Belt-Sanitizer directory not found")]
+    SanitizerNotFound,
+
+    #[error("Data directory not found at: {path}")]
+    DataDirectoryNotFound { path: PathBuf },
+
+    #[error("No data files found at: {path}")]
+    NoDataFilesFound { path: PathBuf },
+
+    #[error("Expected data file not found at: {path}")]
+    DataFileNotFound { path: PathBuf },
+
+    #[error("Expected verbose data. None found.")]
+    NoVerboseData,
+
+    #[error("Invalid metric: {metric}")]
+    InvalidMetric { metric: String },
+
+    #[error("Couldn't parse into int: {0}")]
+    ParseIntError(#[from] ParseIntError),
+
+    #[error("Couldn't parse into float: {0}")]
+    ParseFloatError(#[from] ParseFloatError),
+
+    #[error("Tick mismatch, expected: {ticks}, got: {run_ticks}")]
+    TickMismatch { ticks: usize, run_ticks: usize },
+
+    #[error("No production statistics found")]
+    NoProductionStatistics,
+
+    #[error("No input statistics in production statistics found")]
+    NoInputStatistics,
+
+    #[error("No output statistics in production statistics found")]
+    NoOutputStatistics,
 }
 
 /// Get a hint for the FactorioProcessFailed error, if it exists
@@ -86,16 +130,15 @@ impl BenchmarkError {
         }
         self
     }
-
-    /// Gets the hint, if one exists
-    pub fn get_hint(&self) -> Option<&str> {
-        self.hint.as_deref()
-    }
 }
 
 impl fmt::Display for BenchmarkError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.kind)?;
+        if let Some(hint_text) = &self.hint {
+            write!(f, " ({hint_text})")?;
+        }
+
         Ok(())
     }
 }

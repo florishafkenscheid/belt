@@ -2,10 +2,15 @@
 //!
 //! Parses CLI arguments, sets up logging, and dispatches to subcommands.
 
+mod analyze;
 mod benchmark;
 mod core;
+mod sanitize;
 
-use crate::core::Result;
+use crate::core::{
+    GlobalConfig, Result, RunOrder,
+    config::{AnalyzeConfig, BenchmarkConfig, SanitizeConfig},
+};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -25,6 +30,35 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    Analyze {
+        data_dir: PathBuf,
+
+        #[arg(
+            long,
+            default_value = "0",
+            help = "Apply a simple moving average to per-tick data with the given window size. Set to 0 for no smoothing."
+        )]
+        smooth_window: u32,
+
+        #[arg(
+            long,
+            value_delimiter = ',',
+            help = "Generate per-tick charts for specified Factorio benchmark metrics (e.g., 'wholeUpdate,gameUpdate'). 'all' to chart all metrics."
+        )]
+        verbose_metrics: Vec<String>,
+
+        #[arg(long)]
+        height: u32,
+
+        #[arg(long)]
+        width: u32,
+
+        #[arg(
+            long,
+            help = "Max data points that the verbose charts can reach before being downsampled."
+        )]
+        max_points: Option<usize>,
+    },
     Benchmark {
         saves_dir: PathBuf,
 
@@ -50,7 +84,7 @@ enum Commands {
         #[arg(
             help = "Execution order: sequential (A,B,A,B), random (A,B,B,A), or grouped (A,A,B,B)"
         )]
-        run_order: benchmark::RunOrder,
+        run_order: RunOrder,
 
         #[arg(
             long,
@@ -61,13 +95,21 @@ enum Commands {
 
         #[arg(long)]
         strip_prefix: Option<String>,
+    },
+    Sanitize {
+        saves_dir: PathBuf,
 
-        #[arg(
-            long,
-            default_value = "0",
-            help = "Apply a simple moving average to per-tick data with the given window size. Set to 0 for no smoothing."
-        )]
-        smooth_window: u32,
+        #[arg(long)]
+        pattern: Option<String>,
+
+        #[arg(long, default_value = "3600")]
+        ticks: u32,
+
+        #[arg(long)]
+        mods_dir: Option<PathBuf>,
+
+        #[arg(long)]
+        data_dir: Option<PathBuf>,
     },
 }
 
@@ -87,14 +129,32 @@ async fn main() -> Result<()> {
             .init();
     }
 
-    // Create a global config for all subcommands
-    let global_config = core::GlobalConfig {
+    let global_config = GlobalConfig {
         factorio_path: cli.factorio_path,
         verbose: cli.verbose,
     };
 
     // Capture the result of the benchmark
-    let benchmark_result = match cli.command {
+    let result = match cli.command {
+        Commands::Analyze {
+            data_dir,
+            smooth_window,
+            verbose_metrics,
+            height,
+            width,
+            max_points,
+        } => {
+            let analyze_config = AnalyzeConfig {
+                data_dir,
+                smooth_window,
+                verbose_metrics,
+                height,
+                width,
+                max_points,
+            };
+            analyze::run(global_config, analyze_config).await
+        }
+
         // Run the benchmark with a newly created benchmark config
         Commands::Benchmark {
             saves_dir,
@@ -107,9 +167,8 @@ async fn main() -> Result<()> {
             run_order,
             verbose_metrics,
             strip_prefix,
-            smooth_window,
         } => {
-            let benchmark_config = benchmark::BenchmarkConfig {
+            let benchmark_config = BenchmarkConfig {
                 saves_dir,
                 ticks,
                 runs,
@@ -120,20 +179,32 @@ async fn main() -> Result<()> {
                 run_order,
                 verbose_metrics,
                 strip_prefix,
-                smooth_window,
             };
 
             benchmark::run(global_config, benchmark_config).await
         }
+
+        Commands::Sanitize {
+            saves_dir,
+            pattern,
+            ticks,
+            mods_dir,
+            data_dir,
+        } => {
+            let sanitize_config = SanitizeConfig {
+                saves_dir,
+                pattern,
+                ticks,
+                mods_dir,
+                data_dir,
+            };
+            sanitize::run(global_config, sanitize_config).await
+        }
     };
 
-    // If benchmark::run results in an error, print and exit
-    if let Err(e) = benchmark_result {
+    // If any command results in an error, print and exit
+    if let Err(e) = result {
         tracing::error!("{e}");
-
-        if let Some(hint_text) = e.get_hint() {
-            tracing::error!("{hint_text}");
-        }
 
         std::process::exit(1);
     }

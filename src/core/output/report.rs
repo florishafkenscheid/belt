@@ -1,91 +1,54 @@
-//! Output utilities for BELT.
-//!
-//! Handles writing benchmark results to CSV and Markdown files, and manages report formatting.
+use std::path::{Path, PathBuf};
 
-use charming::ImageRenderer;
 use chrono::Local;
 use handlebars::Handlebars;
 use serde_json::json;
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-};
 
 use crate::{
-    benchmark::{charts, parser::BenchmarkResult, runner::VerboseData},
-    core::Result,
+    benchmark::parser::BenchmarkResult,
+    core::{
+        error::{BenchmarkErrorKind, Result},
+        output::{ResultWriter, WriteData, ensure_output_dir},
+    },
 };
 
-/// Create the specified directory, generate charts, and write the given results
-pub async fn write_results(
-    results: &[BenchmarkResult],
-    output_dir: &Path,
-    template_path: Option<PathBuf>,
-    renderer: &mut ImageRenderer,
-) -> Result<()> {
-    write_csv(results, output_dir)?;
-    if charts::generate_charts(results, output_dir, renderer)
-        .await
-        .is_ok()
-    {
-        write_template(results, output_dir, template_path)?;
-    }
+pub struct ReportWriter {}
 
-    Ok(())
+impl Default for ReportWriter {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
-/// Write the results to a CSV file
-fn write_csv(results: &[BenchmarkResult], output_dir: &Path) -> Result<()> {
-    let csv_path = output_dir.join("results.csv");
+impl ReportWriter {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
 
-    let mut writer = csv::Writer::from_path(&csv_path)?;
-
-    writer.write_record([
-        "save_name",
-        "run_index",
-        "execution_time_ms",
-        "avg_ms",
-        "min_ms",
-        "max_ms",
-        "effective_ups",
-        "percentage_improvement",
-        "ticks",
-        "factorio_version",
-        "platform",
-    ])?;
-
-    for result in results {
-        for (i, run) in result.runs.iter().enumerate() {
-            writer.write_record([
-                &result.save_name,
-                &i.to_string(),
-                &run.execution_time_ms.to_string(),
-                &run.avg_ms.to_string(),
-                &run.min_ms.to_string(),
-                &run.max_ms.to_string(),
-                &run.effective_ups.to_string(),
-                &run.base_diff.to_string(),
-                &result.ticks.to_string(),
-                &result.factorio_version,
-                &result.platform,
-            ])?;
+impl ResultWriter for ReportWriter {
+    fn write(&self, data: &WriteData, path: &Path) -> Result<()> {
+        match data {
+            WriteData::Report {
+                data,
+                template_path,
+            } => write_report(data, template_path, path),
+            _ => Err(BenchmarkErrorKind::InvalidWriteData.into()), // TODO
         }
     }
-
-    writer.flush()?;
-    tracing::info!("Results written to {}", csv_path.display());
-    Ok(())
 }
 
-/// Write the results to a Markdown file
-fn write_template(
+/// Write the results to a Handlebars file
+fn write_report(
     results: &[BenchmarkResult],
-    output_dir: &Path,
-    template_path: Option<PathBuf>,
+    template_path: &Option<PathBuf>,
+    path: &Path,
 ) -> Result<()> {
+    ensure_output_dir(path)?;
     const TPL_STR: &str = "# Factorio Benchmark Results\n\n**Platform:** {{platform}}\n**Factorio Version:** {{factorio_version}}\n**Date:** {{date}}\n\n## Scenario\n* Each save was tested for {{ticks}} tick(s) and {{runs}} run(s)\n\n## Results\n| Metric            | Description                           |\n| ----------------- | ------------------------------------- |\n| **Mean UPS**      | Updates per second – higher is better |\n| **Mean Avg (ms)** | Average frame time – lower is better  |\n| **Mean Min (ms)** | Minimum frame time – lower is better  |\n| **Mean Max (ms)** | Maximum frame time – lower is better  |\n\n| Save | Avg (ms) | Min (ms) | Max (ms) | UPS | Execution Time (ms) | % Difference from base |\n|------|----------|----------|----------|-----|---------------------|------------------------|\n{{#each results}}\n| {{save_name}} | {{avg_ms}} | {{min_ms}} | {{max_ms}} | {{{avg_effective_ups}}} | {{total_execution_time_ms}} | {{percentage_improvement}} |\n{{/each}}\n\n![Chart](result_0_chart.svg)\n![Chart](result_1_chart.svg)\n![Chart](result_2_chart.svg)\n\n## Conclusion";
 
     let mut handlebars = Handlebars::new();
+    // Check for legacy path, otherwise use template string
     let results_path = if let Some(template_path) = template_path {
         let file_name = if template_path.extension().and_then(|s| s.to_str()) == Some("hbs") {
             template_path.file_stem().map(PathBuf::from).unwrap()
@@ -95,7 +58,7 @@ fn write_template(
 
         handlebars.register_template_file("benchmark", template_path)?;
 
-        output_dir.join(file_name)
+        path.join(file_name)
     } else {
         let legacy_path = PathBuf::from("templates/results.md.hbs");
         if legacy_path.exists() {
@@ -103,7 +66,7 @@ fn write_template(
         } else {
             handlebars.register_template_string("benchmark", TPL_STR)?;
         }
-        output_dir.join("results.md")
+        path.join("results.md")
     };
 
     // Calculate aggregated metrics for each benchmark result
@@ -196,75 +159,5 @@ fn write_template(
     std::fs::write(&results_path, rendered)?;
 
     tracing::info!("Report written to {}", results_path.display());
-    Ok(())
-}
-
-pub fn write_verbose_metrics_csv(
-    save_name: &str,
-    save_verbose_data: &[VerboseData],
-    metrics_to_export: &[String],
-    output_dir: &Path,
-) -> Result<()> {
-    if save_verbose_data.is_empty() {
-        return Ok(());
-    }
-
-    let csv_path = output_dir.join(format!("{save_name}_verbose_metrics.csv"));
-    let mut writer = csv::Writer::from_path(&csv_path)?;
-
-    let first_run_csv_data = &save_verbose_data[0].csv_data;
-    let mut reader = csv::Reader::from_reader(first_run_csv_data.as_bytes());
-    let headers_from_factorio: Vec<String> =
-        reader.headers()?.iter().map(|s| s.to_string()).collect();
-    let header_map: HashMap<String, usize> = headers_from_factorio
-        .clone()
-        .into_iter()
-        .enumerate()
-        .map(|(i, h)| (h, i))
-        .collect();
-
-    let actual_metrics_to_export: Vec<String> = if metrics_to_export.contains(&"all".to_string()) {
-        headers_from_factorio
-            .into_iter()
-            .filter(|h| h != "tick" && h != "timestamp")
-            .collect()
-    } else {
-        metrics_to_export.to_vec()
-    };
-
-    let mut header_row = vec!["tick".to_string(), "run".to_string()];
-    header_row.extend(actual_metrics_to_export.iter().cloned());
-    writer.write_record(header_row)?;
-
-    for (run_idx, run_data) in save_verbose_data.iter().enumerate() {
-        let mut inner_reader = csv::Reader::from_reader(run_data.csv_data.as_bytes());
-        // Skip headers
-        let _ = inner_reader.headers()?;
-
-        for record_result in inner_reader.records() {
-            let record = record_result?;
-
-            let tick_str = record.get(0).unwrap_or("t0");
-            let tick_value = tick_str.trim_start_matches('t');
-
-            let mut data_row = vec![tick_value.to_string(), run_idx.to_string()];
-
-            for metric_name in &actual_metrics_to_export {
-                if let Some(&colum_index) = header_map.get(metric_name) {
-                    let value = record.get(colum_index).unwrap_or("0");
-                    data_row.push(value.to_string());
-                } else {
-                    data_row.push("N/A".to_string());
-                }
-            }
-            writer.write_record(data_row)?;
-        }
-    }
-    writer.flush()?;
-    tracing::info!(
-        "Verbose metrics for {} exported to {}",
-        save_name,
-        csv_path.display()
-    );
     Ok(())
 }
