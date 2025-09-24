@@ -63,6 +63,8 @@ pub fn generate_charts(analyze_config: &AnalyzeConfig) -> Result<()> {
         renderer.save(&chart, data_dir.join(format!("{title}.svg")))?;
     }
 
+    tracing::info!("Analyzation complete!");
+
     Ok(())
 }
 

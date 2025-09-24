@@ -1,6 +1,9 @@
 //! Utility functions for BELT.
 
+use serde_json::Value;
+
 use crate::Result;
+use crate::sanitize::parser::ProductionStatistic;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::{path::Path, time::Duration};
@@ -46,6 +49,59 @@ pub fn format_duration(duration: Duration) -> String {
         let hours = total_secs / 3600;
         let mins = (total_secs % 3600) / 60;
         format!("{hours}h{mins}m")
+    }
+}
+
+pub fn process_items(obj: &Value, stat_type: &str, items_vec: &mut Vec<ProductionStatistic>) {
+    if let Some(items_obj) = obj.get("items").and_then(|x| x.as_object()) {
+        for (item_name, quality_map) in items_obj {
+            if let Some(qualities) = quality_map.as_object() {
+                for (quality, count_val) in qualities {
+                    let count = match count_val.as_i64() {
+                        Some(c) => c as i32,
+                        None => {
+                            tracing::error!(
+                                "Invalid count for {} {} {}: {:?}",
+                                stat_type,
+                                item_name,
+                                quality,
+                                count_val
+                            );
+                            0
+                        }
+                    };
+                    items_vec.push(ProductionStatistic {
+                        statistic_type: stat_type.to_string(),
+                        name: item_name.clone(),
+                        quality: Some(quality.clone()),
+                        count,
+                    });
+                }
+            }
+        }
+    }
+}
+
+pub fn process_fluids(obj: &Value, stat_type: &str, fluids_vec: &mut Vec<ProductionStatistic>) {
+    if let Some(fluids_obj) = obj.get("fluids").and_then(|x| x.as_object()) {
+        for (fluid_name, count_val) in fluids_obj {
+            let count = match count_val.as_i64() {
+                Some(c) => c as i32,
+                None => {
+                    eprintln!(
+                        "Invalid count for fluid {} {}: {:?}",
+                        stat_type, fluid_name, count_val
+                    );
+                    0
+                }
+            };
+            fluids_vec.push(ProductionStatistic {
+                statistic_type: stat_type.to_string(),
+                name: fluid_name.clone(),
+                quality: None,
+                count,
+            });
+        }
     }
 }
 

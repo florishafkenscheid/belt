@@ -110,6 +110,15 @@ pub enum BenchmarkErrorKind {
 
     #[error("Tick mismatch, expected: {ticks}, got: {run_ticks}")]
     TickMismatch { ticks: usize, run_ticks: usize },
+
+    #[error("No production statistics found")]
+    NoProductionStatistics,
+
+    #[error("No input statistics in production statistics found")]
+    NoInputStatistics,
+
+    #[error("No output statistics in production statistics found")]
+    NoOutputStatistics,
 }
 
 /// Get a hint for the FactorioProcessFailed error, if it exists
