@@ -5,7 +5,11 @@
 pub mod parser;
 pub mod runner;
 
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::{Arc, atomic::AtomicBool},
+};
 
 use crate::{
     benchmark::runner::VerboseData,
@@ -18,7 +22,11 @@ use crate::{
 };
 
 /// Run all of the benchmarks, capture the logs and write the results to files.
-pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig) -> Result<()> {
+pub async fn run(
+    global_config: GlobalConfig,
+    benchmark_config: BenchmarkConfig,
+    running: &Arc<AtomicBool>,
+) -> Result<()> {
     tracing::info!("Starting benchmark with config: {:?}", benchmark_config);
 
     // Find the Factorio binary
@@ -45,7 +53,7 @@ pub async fn run(global_config: GlobalConfig, benchmark_config: BenchmarkConfig)
 
     // Run the benchmarks
     let runner = runner::BenchmarkRunner::new(benchmark_config.clone(), factorio);
-    let (mut results, all_runs_verbose_data) = runner.run_all(save_files).await?;
+    let (mut results, all_runs_verbose_data) = runner.run_all(save_files, running).await?;
     // Calculate the percentage difference from the worst performer
     utils::calculate_base_differences(&mut results);
 

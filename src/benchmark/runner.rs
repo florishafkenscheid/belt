@@ -4,6 +4,8 @@ use indicatif::{ProgressBar, ProgressStyle};
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::time::Instant;
 
@@ -50,6 +52,7 @@ impl BenchmarkRunner {
     pub async fn run_all(
         &self,
         save_files: Vec<PathBuf>,
+        running: &Arc<AtomicBool>,
     ) -> Result<(Vec<BenchmarkResult>, Vec<VerboseData>)> {
         let execution_schedule = self.create_execution_schedule(&save_files);
         let total_jobs = execution_schedule.len();
@@ -68,6 +71,11 @@ impl BenchmarkRunner {
 
         // Execute jobs according to schedule
         for (job_index, job) in execution_schedule.iter().enumerate() {
+            if !running.load(Ordering::SeqCst) {
+                tracing::info!("Shutdown requested. Aborting remaining benchmarks.");
+                break;
+            }
+
             let save_name = job
                 .save_file
                 .file_stem()
@@ -106,7 +114,8 @@ impl BenchmarkRunner {
             progress.set_message(eta_message);
 
             // Run a single benchmark and get the run data and version
-            let (mut result_for_run, verbose_data) = self.run_single_benchmark(job).await?;
+            let (mut result_for_run, verbose_data) =
+                self.run_single_benchmark(job, running).await?;
 
             if let Some(existing_result) = results_map.get_mut(&result_for_run.save_name) {
                 existing_result.runs.append(&mut result_for_run.runs);
@@ -119,7 +128,11 @@ impl BenchmarkRunner {
             }
         }
 
-        progress.finish_with_message("Benchmarking complete!");
+        if !running.load(Ordering::SeqCst) {
+            progress.finish_with_message("Benchmarking interrupted.");
+        } else {
+            progress.finish_with_message("Benchmarking complete!");
+        }
 
         let mut all_results: Vec<BenchmarkResult> = results_map.into_values().collect();
 
@@ -193,6 +206,7 @@ impl BenchmarkRunner {
     async fn run_single_benchmark(
         &self,
         job: &ExecutionJob,
+        running: &Arc<AtomicBool>,
     ) -> Result<(BenchmarkResult, Option<VerboseData>)> {
         // If mods_file is not set, sync mods with the given save file
         if self.config.mods_dir.is_none() {
@@ -200,7 +214,7 @@ impl BenchmarkRunner {
         }
 
         let factorio_output = self
-            .execute_single_factorio_benchmark(&job.save_file)
+            .execute_single_factorio_benchmark(&job.save_file, running)
             .await?;
 
         let verbose_data_for_return = if !self.config.verbose_metrics.is_empty() {
@@ -233,14 +247,21 @@ impl BenchmarkRunner {
     }
 
     /// Execute a single factorio benchmark run
-    async fn execute_single_factorio_benchmark(&self, save_file: &Path) -> Result<FactorioOutput> {
+    async fn execute_single_factorio_benchmark(
+        &self,
+        save_file: &Path,
+        running: &Arc<AtomicBool>,
+    ) -> Result<FactorioOutput> {
         self.factorio
-            .run_for_ticks(FactorioRunSpec {
-                save_file,
-                ticks: self.config.ticks,
-                mods_dir: self.config.mods_dir.as_deref(),
-                verbose_all_metrics: !self.config.verbose_metrics.is_empty(),
-            })
+            .run_for_ticks(
+                FactorioRunSpec {
+                    save_file,
+                    ticks: self.config.ticks,
+                    mods_dir: self.config.mods_dir.as_deref(),
+                    verbose_all_metrics: !self.config.verbose_metrics.is_empty(),
+                },
+                running,
+            )
             .await
     }
 }
