@@ -107,7 +107,7 @@ fn report_production_statistics(json: &Value) -> Result<()> {
 
     let mut messages = Vec::new();
     for item in items {
-        if item.count > 0 {
+        if item.count > 0.0 {
             if let Some(quality) = item.quality {
                 messages.push(format!(
                     "{}: {}-{} ({})",
@@ -120,7 +120,7 @@ fn report_production_statistics(json: &Value) -> Result<()> {
     }
 
     for fluid in fluids {
-        if fluid.count > 0 {
+        if fluid.count > 0.0 {
             messages.push(format!(
                 "{}: {} ({})",
                 fluid.statistic_type, fluid.name, fluid.count
@@ -145,5 +145,5 @@ pub struct ProductionStatistic {
     pub statistic_type: String,
     pub name: String,
     pub quality: Option<String>,
-    pub count: i32,
+    pub count: f32,
 }

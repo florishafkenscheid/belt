@@ -57,8 +57,8 @@ pub fn process_items(obj: &Value, stat_type: &str, items_vec: &mut Vec<Productio
         for (item_name, quality_map) in items_obj {
             if let Some(qualities) = quality_map.as_object() {
                 for (quality, count_val) in qualities {
-                    let count = match count_val.as_i64() {
-                        Some(c) => c as i32,
+                    let count = match count_val.as_f64() {
+                        Some(c) => c as f32,
                         None => {
                             tracing::error!(
                                 "Invalid count for {} {} {}: {:?}",
@@ -67,7 +67,7 @@ pub fn process_items(obj: &Value, stat_type: &str, items_vec: &mut Vec<Productio
                                 quality,
                                 count_val
                             );
-                            0
+                            0.0
                         }
                     };
                     items_vec.push(ProductionStatistic {
@@ -85,14 +85,14 @@ pub fn process_items(obj: &Value, stat_type: &str, items_vec: &mut Vec<Productio
 pub fn process_fluids(obj: &Value, stat_type: &str, fluids_vec: &mut Vec<ProductionStatistic>) {
     if let Some(fluids_obj) = obj.get("fluids").and_then(|x| x.as_object()) {
         for (fluid_name, count_val) in fluids_obj {
-            let count = match count_val.as_i64() {
-                Some(c) => c as i32,
+            let count = match count_val.as_f64() {
+                Some(c) => c as f32,
                 None => {
                     eprintln!(
                         "Invalid count for fluid {} {}: {:?}",
                         stat_type, fluid_name, count_val
                     );
-                    0
+                    0.0
                 }
             };
             fluids_vec.push(ProductionStatistic {
