@@ -2,6 +2,10 @@
 
 use std::{
     path::PathBuf,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant},
 };
 
@@ -23,7 +27,7 @@ impl SanitizeRunner {
         Self { config, factorio }
     }
 
-    pub async fn run_all(&self, save_files: Vec<PathBuf>) -> Result<()> {
+    pub async fn run_all(&self, save_files: Vec<PathBuf>, running: &Arc<AtomicBool>) -> Result<()> {
         let total_jobs = save_files.len();
         let start_time = Instant::now();
 
@@ -37,6 +41,11 @@ impl SanitizeRunner {
         progress.enable_steady_tick(Duration::from_millis(100));
 
         for (idx, save_file) in save_files.iter().enumerate() {
+            if !running.load(Ordering::SeqCst) {
+                tracing::info!("Shutdown requested. Aborting remaining sanitization.");
+                break;
+            }
+
             progress.set_position(idx as u64);
 
             let save_name = save_file
@@ -61,18 +70,26 @@ impl SanitizeRunner {
 
             let _output = self
                 .factorio
-                .run_for_ticks(FactorioRunSpec {
-                    save_file,
-                    ticks: self.config.ticks,
-                    mods_dir: self.config.mods_dir.as_deref(),
-                    verbose_all_metrics: false,
-                })
+                .run_for_ticks(
+                    FactorioRunSpec {
+                        save_file,
+                        ticks: self.config.ticks,
+                        mods_dir: self.config.mods_dir.as_deref(),
+                        verbose_all_metrics: false,
+                    },
+                    running,
+                )
                 .await?;
 
             parser::report(&self.config)?;
         }
 
-        progress.finish_with_message("Sanitization complete!");
+        if !running.load(Ordering::SeqCst) {
+            progress.finish_with_message("Sanitization interrupted");
+        } else {
+            progress.finish_with_message("Sanitization complete!");
+        }
+
         Ok(())
     }
 }

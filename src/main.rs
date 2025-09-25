@@ -12,7 +12,13 @@ use crate::core::{
     config::{AnalyzeConfig, BenchmarkConfig, SanitizeConfig},
 };
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 #[derive(Parser)]
 #[command(name = "belt")]
@@ -134,6 +140,25 @@ async fn main() -> Result<()> {
         verbose: cli.verbose,
     };
 
+    // Listen to CTRL+C
+    let needs_shutdown = matches!(
+        cli.command,
+        Commands::Benchmark { .. } | Commands::Sanitize { .. }
+    );
+    let running = Arc::new(AtomicBool::new(true));
+    let shutdown_task = if needs_shutdown {
+        let r = running.clone();
+        Some(tokio::spawn(async move {
+            if let Err(e) = tokio::signal::ctrl_c().await {
+                tracing::warn!("Failed to listen for CTRL+C: {e}");
+            }
+            tracing::info!("Received CTRL+C. Initiating graceful shutdown...");
+            r.store(false, Ordering::SeqCst);
+        }))
+    } else {
+        None
+    };
+
     // Capture the result of the benchmark
     let result = match cli.command {
         Commands::Analyze {
@@ -181,7 +206,7 @@ async fn main() -> Result<()> {
                 strip_prefix,
             };
 
-            benchmark::run(global_config, benchmark_config).await
+            benchmark::run(global_config, benchmark_config, &running).await
         }
 
         Commands::Sanitize {
@@ -198,9 +223,20 @@ async fn main() -> Result<()> {
                 mods_dir,
                 data_dir,
             };
-            sanitize::run(global_config, sanitize_config).await
+            sanitize::run(global_config, sanitize_config, &running).await
         }
     };
+
+    // Await shutdown if needed
+    if let Some(task) = shutdown_task {
+        let interrupted = !running.load(Ordering::SeqCst);
+        if interrupted {
+            let _ = task.await;
+            tracing::info!("Shutdown complete");
+        } else {
+            drop(task);
+        }
+    }
 
     // If any command results in an error, print and exit
     if let Err(e) = result {

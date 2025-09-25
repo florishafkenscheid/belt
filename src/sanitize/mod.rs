@@ -1,6 +1,8 @@
 pub mod parser;
 pub mod runner;
 
+use std::sync::{Arc, atomic::AtomicBool};
+
 use crate::{
     Result,
     core::{
@@ -10,7 +12,11 @@ use crate::{
     },
 };
 
-pub async fn run(global_config: GlobalConfig, sanitize_config: SanitizeConfig) -> Result<()> {
+pub async fn run(
+    global_config: GlobalConfig,
+    sanitize_config: SanitizeConfig,
+    running: &Arc<AtomicBool>,
+) -> Result<()> {
     // Find the Factorio binary
     let factorio = FactorioExecutor::discover(global_config.factorio_path)?;
     tracing::info!(
@@ -28,7 +34,7 @@ pub async fn run(global_config: GlobalConfig, sanitize_config: SanitizeConfig) -
 
     // Report
     let runner = runner::SanitizeRunner::new(sanitize_config.clone(), factorio);
-    runner.run_all(save_files).await?;
+    runner.run_all(save_files, running).await?;
 
     Ok(())
 }

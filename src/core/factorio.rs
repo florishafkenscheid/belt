@@ -3,6 +3,11 @@
 use std::{
     path::{Path, PathBuf},
     process::Stdio,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
 };
 use tokio::process::Command;
 
@@ -130,7 +135,11 @@ impl FactorioExecutor {
         Ok(())
     }
 
-    pub async fn run_for_ticks(&self, spec: FactorioRunSpec<'_>) -> Result<FactorioOutput> {
+    pub async fn run_for_ticks(
+        &self,
+        spec: FactorioRunSpec<'_>,
+        running: &Arc<AtomicBool>,
+    ) -> Result<FactorioOutput> {
         let mut cmd = self.create_command();
 
         cmd.args([
@@ -166,7 +175,18 @@ impl FactorioExecutor {
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
-        let output = cmd.spawn()?.wait_with_output().await?;
+        let mut child = cmd.spawn()?;
+        let poll_duration = Duration::from_secs(1);
+        while child.try_wait().is_err() {
+            if !running.load(Ordering::SeqCst) {
+                tracing::info!("Ctrl+C received. Killing Factorio");
+                let _ = child.start_kill();
+                break;
+            }
+            tokio::time::sleep(poll_duration).await;
+        }
+
+        let output = child.wait_with_output().await?;
 
         if !output.status.success() {
             let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();
