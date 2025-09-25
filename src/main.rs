@@ -229,7 +229,13 @@ async fn main() -> Result<()> {
 
     // Await shutdown if needed
     if let Some(task) = shutdown_task {
-        let _ = task.await;
+        let interrupted = !running.load(Ordering::SeqCst);
+        if interrupted {
+            let _ = task.await;
+            tracing::info!("Shutdown complete");
+        } else {
+            drop(task);
+        }
     }
 
     // If any command results in an error, print and exit

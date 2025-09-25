@@ -180,7 +180,7 @@ impl FactorioExecutor {
         while child.try_wait().is_err() {
             if !running.load(Ordering::SeqCst) {
                 tracing::info!("Ctrl+C received. Killing Factorio");
-                let _ = child.kill().await;
+                let _ = child.start_kill();
                 break;
             }
             tokio::time::sleep(poll_duration).await;
