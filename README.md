@@ -3,10 +3,6 @@
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/florishafkenscheid/belt/ci.yml?label=master)
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/florishafkenscheid/belt/release.yml?label=release)
 
-> [!NOTE]
-> This was heavily inspired by abucnasty's work.
-> I wanted to make a more universal, cross-platform version of the existing ps1 script.
-
 BELT is a wrapper for the `factorio --benchmark` command, to make it more user friendly, more efficient to use, and to generate templated handlebars files with the gotten data.
 
 ## Features
@@ -16,7 +12,7 @@ BELT is a wrapper for the `factorio --benchmark` command, to make it more user f
 - [x] **Pattern matching** - Filter save files by name patterns
 - [x] **Async execution** - Fast parallel processing
 - [x] **Verbose metrics support** - Per-tick charts and CSV exports for detailed Factorio metrics
-- [x] **Sanitizer** - Automatically parses and reports on belt-sanitizer mod output
+- [x] **Sanitizer** - Automatically parses and reports on [belt-sanitizer mod](https://mods.factorio.com/mod/belt-sanitizer) output
 - [x] **Smoothing and downsampling** - Configurable smoothing for charts to handle large datasets
 
 ## Quick Start
@@ -32,7 +28,6 @@ belt benchmark ./saves --pattern "inserter*" --output ./benchmark-results
 ```
 
 ## Installation
-
 ### Prerequisites
 1. Factorio installed, BELT searches common installation paths, if none are found, please run with explicit `--factorio-path`.
 2. Some save files to benchmark.
@@ -55,7 +50,6 @@ cargo install --path .
 ```
 
 ## Usage
-
 ### Basic Commands
 
 ```bash
@@ -163,3 +157,6 @@ On every push a linter and formatter checks the code, so just write the code how
 > To do this locally, run `cargo fmt` and `cargo clippy -- -D warnings`
 
 I follow the [Conventional Commits specification](https://www.conventionalcommits.org/) as a standard for my commit messages, I can only encourage you do the same.
+
+## Credits
+This was heavily inspired by abucnasty's videos. I wanted to make a more universal, cross-platform version of the existing ps1 script.
