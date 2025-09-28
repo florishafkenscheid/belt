@@ -160,3 +160,4 @@ I follow the [Conventional Commits specification](https://www.conventionalcommit
 
 ## Credits
 This was heavily inspired by abucnasty's videos. I wanted to make a more universal, cross-platform version of the existing ps1 script.
+`belt sanitize`'s settings.rs file was inspired by the [Typescript work of justarandomgeek](https://github.com/justarandomgeek/vscode-factoriomod-debug)
