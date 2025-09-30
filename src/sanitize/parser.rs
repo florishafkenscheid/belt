@@ -99,11 +99,11 @@ fn report_production_statistics(json: &Value) -> Result<()> {
     let mut items: Vec<ProductionStatistic> = Vec::new();
     let mut fluids: Vec<ProductionStatistic> = Vec::new();
 
-    utils::process_items(input, "input", &mut items);
-    utils::process_items(output, "output", &mut items);
+    utils::process_items(input, "produced", &mut items);
+    utils::process_items(output, "consumed", &mut items);
 
-    utils::process_fluids(input, "input", &mut fluids);
-    utils::process_fluids(output, "output", &mut fluids);
+    utils::process_fluids(input, "produced", &mut fluids);
+    utils::process_fluids(output, "consumed", &mut fluids);
 
     let mut messages = Vec::new();
     for item in items {
