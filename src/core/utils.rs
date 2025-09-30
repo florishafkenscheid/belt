@@ -517,6 +517,36 @@ pub fn compute_global_metric_bounds(
     bounds
 }
 
+pub fn round_to_precision_window(ticks: u32) -> u32 {
+    const ONE_MINUTE: u32 = 3600;
+    const TEN_MINUTES: u32 = 36000;
+    const ONE_HOUR: u32 = 216000;
+    const TEN_HOURS: u32 = 2160000;
+    const FIFTY_HOURS: u32 = 10800000;
+    const TWO_FIFTY_HOURS: u32 = 54000000;
+    const FIVE_SECONDS: u32 = 300;
+
+    // Find the appropriate window size and round up to nearest multiple
+    let window = if ticks >= TWO_FIFTY_HOURS {
+        TWO_FIFTY_HOURS
+    } else if ticks >= FIFTY_HOURS {
+        FIFTY_HOURS
+    } else if ticks >= TEN_HOURS {
+        TEN_HOURS
+    } else if ticks >= ONE_HOUR {
+        ONE_HOUR
+    } else if ticks >= TEN_MINUTES {
+        TEN_MINUTES
+    } else if ticks >= ONE_MINUTE {
+        ONE_MINUTE
+    } else {
+        FIVE_SECONDS
+    };
+
+    // Round up to nearest multiple of window
+    ticks.div_ceil(window) * window
+}
+
 /// Get operating system info
 pub fn get_os_info() -> String {
     format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH)

@@ -44,13 +44,8 @@ pub struct SanitizeConfig {
     pub saves_dir: PathBuf,
     pub pattern: Option<String>,
     pub ticks: u32,
-    // pub statistic: OutputStatistic,
     pub mods_dir: Option<PathBuf>,
     pub data_dir: Option<PathBuf>,
+    pub items: Option<String>,
+    pub fluids: Option<String>,
 }
-
-// #[derive(Debug, Clone)]
-// pub enum OutputStatistic {
-//     Item,
-//     Fluid,
-// }
