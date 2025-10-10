@@ -31,6 +31,7 @@ pub struct FactorioRunSpec<'a> {
     pub ticks: u32,
     pub mods_dir: Option<&'a Path>,
     pub verbose_all_metrics: bool,
+    pub headless: Option<bool>,
 }
 
 impl FactorioExecutor {
@@ -153,8 +154,13 @@ impl FactorioExecutor {
             &spec.ticks.to_string(),
             "--benchmark-runs",
             "1", // Always run single benchmark
-            "--disable-audio",
         ]);
+
+        if let Some(headless) = spec.headless
+            && headless
+        {
+            cmd.arg("--disable-audio");
+        }
 
         if spec.verbose_all_metrics {
             cmd.arg("--benchmark-verbose");

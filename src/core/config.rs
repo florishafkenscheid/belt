@@ -36,6 +36,7 @@ pub struct BenchmarkConfig {
     pub run_order: RunOrder,
     pub verbose_metrics: Vec<String>,
     pub strip_prefix: Option<String>,
+    pub headless: Option<bool>,
 }
 
 /// Sanitization specific configuration
@@ -48,4 +49,5 @@ pub struct SanitizeConfig {
     pub data_dir: Option<PathBuf>,
     pub items: Option<String>,
     pub fluids: Option<String>,
+    pub headless: Option<bool>,
 }
