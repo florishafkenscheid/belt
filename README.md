@@ -92,6 +92,7 @@ belt benchmark /path/to/saves --pattern "benchmark*" --output /path/to/output/di
 | `--run-order <RUN_ORDER>` | In which order to run the benchmarks. Available: `sequential`, `random`, `grouped` | `grouped` |
 | `--verbose-metrics` | Generates more charts based on the `--benchmark-verbose` factorio argument | `none` |
 | `--strip-prefix` | Strip a given prefix off of the save names | `none` |
+| `--headless` | Whether or not to assume headless factorio | `false` |
 
 #### `belt sanitize`
 **Arguments:**
@@ -104,6 +105,9 @@ belt benchmark /path/to/saves --pattern "benchmark*" --output /path/to/output/di
 | `--ticks <TICKS>` | How many ticks to run the sanitization for | `3600` |
 | `--mods-dir <MODS_DIR>` | A directory containing mods to be used for the benchmark| `--sync-mods` on each save file |
 | `--data-dir <DATA_DIR>` | If B.E.L.T. can't find your user data directory, pass it explicitely here. | `none` |
+| `--items <ITEMS>` | A comma separated list of items to track. | `none` |
+| `--fluids <FLUIDS>` | A comma separated list of fluids to track. | `none` |
+| `--headless` | Whether or not to assume headless factorio | `false` |
 
 ### Global Options
 | Option | Description | Default |

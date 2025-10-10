@@ -101,6 +101,9 @@ enum Commands {
 
         #[arg(long)]
         strip_prefix: Option<String>,
+
+        #[arg(long)]
+        headless: Option<bool>,
     },
     Sanitize {
         saves_dir: PathBuf,
@@ -122,6 +125,9 @@ enum Commands {
 
         #[arg(long)]
         fluids: Option<String>,
+
+        #[arg(long)]
+        headless: Option<bool>,
     },
 }
 
@@ -198,6 +204,7 @@ async fn main() -> Result<()> {
             run_order,
             verbose_metrics,
             strip_prefix,
+            headless,
         } => {
             let benchmark_config = BenchmarkConfig {
                 saves_dir,
@@ -210,6 +217,7 @@ async fn main() -> Result<()> {
                 run_order,
                 verbose_metrics,
                 strip_prefix,
+                headless,
             };
 
             benchmark::run(global_config, benchmark_config, &running).await
@@ -223,6 +231,7 @@ async fn main() -> Result<()> {
             data_dir,
             items,
             fluids,
+            headless,
         } => {
             let sanitize_config = SanitizeConfig {
                 saves_dir,
@@ -232,6 +241,7 @@ async fn main() -> Result<()> {
                 data_dir,
                 items,
                 fluids,
+                headless,
             };
             sanitize::run(global_config, sanitize_config, &running).await
         }

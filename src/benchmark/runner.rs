@@ -259,6 +259,7 @@ impl BenchmarkRunner {
                     ticks: self.config.ticks,
                     mods_dir: self.config.mods_dir.as_deref(),
                     verbose_all_metrics: !self.config.verbose_metrics.is_empty(),
+                    headless: self.config.headless,
                 },
                 running,
             )
