@@ -5,6 +5,7 @@ use serde_json::Value;
 use crate::Result;
 use crate::sanitize::parser::ProductionStatistic;
 use std::collections::HashMap;
+use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::{path::Path, time::Duration};
 
@@ -103,6 +104,10 @@ pub fn process_fluids(obj: &Value, stat_type: &str, fluids_vec: &mut Vec<Product
             });
         }
     }
+}
+
+pub fn file_stem_utf8(p: &Path) -> Option<&str> {
+    p.file_stem().and_then(OsStr::to_str)
 }
 
 // File related utilities
@@ -209,7 +214,7 @@ pub fn find_blueprint_files(blueprint_dir: &Path, pattern: Option<&str>) -> Resu
         .into());
     }
 
-    tracing::info!("Found {} bp files", bps.len());
+    tracing::info!("Found {} blueprint files", bps.len());
     for bp in &bps {
         tracing::debug!("  - {}", bp.file_name().unwrap().to_string_lossy());
     }
@@ -284,12 +289,18 @@ pub fn is_executable(path: &Path) -> bool {
 
 /// Check if the belt-sanitizer mod is active
 pub fn check_sanitizer() -> Option<PathBuf> {
-    for path in get_default_user_data_dirs() {
-        if path.join("script-output/belt").exists() {
-            return Some(path.join("script-output/belt"));
-        }
-    }
-    None
+    get_default_user_data_dirs()
+        .iter()
+        .map(|base| base.join(PathBuf::from("script-output/belt")))
+        .find(|candidate| candidate.is_dir())
+}
+
+/// Check if the belt-sanitizer blueprint save file exists
+pub fn check_save_file(name: &str) -> bool {
+    get_default_user_data_dirs()
+        .iter()
+        .map(|base| base.join(format!("saves/{name}")))
+        .any(|path| path.exists())
 }
 
 /// Tries to find [user data directory](https://wiki.factorio.com/Application_directory#User_data_directory)
