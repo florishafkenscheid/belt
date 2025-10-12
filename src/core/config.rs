@@ -51,3 +51,22 @@ pub struct SanitizeConfig {
     pub fluids: Option<String>,
     pub headless: Option<bool>,
 }
+
+/// Blueprint Benchmarking specific configuration
+#[derive(Debug, Clone, Default)]
+pub struct BlueprintBenchmarkConfig {
+    pub blueprints_dir: PathBuf,
+    pub blueprint_stable_ticks: u32,
+    pub base_save_path: PathBuf,
+    pub ticks: u32,
+    pub runs: u32,
+    pub mods_dir: PathBuf,
+    pub data_dir: PathBuf,
+    pub pattern: Option<String>,
+    pub output: Option<PathBuf>,
+    pub template_path: Option<PathBuf>,
+    pub run_order: RunOrder,
+    pub verbose_metrics: Vec<String>,
+    pub strip_prefix: Option<String>,
+    pub headless: Option<bool>,
+}

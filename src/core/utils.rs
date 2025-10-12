@@ -178,6 +178,45 @@ pub fn validate_save_files(save_files: &[PathBuf]) -> Result<()> {
     Ok(())
 }
 
+pub fn find_blueprint_files(blueprint_dir: &Path, pattern: Option<&str>) -> Result<Vec<PathBuf>> {
+    if !blueprint_dir.exists() {
+        return Err(BenchmarkErrorKind::BlueprintDirectoryNotFound {
+            path: blueprint_dir.to_path_buf(),
+        }
+        .into());
+    }
+
+    // If the given path is a file that is ok
+    if blueprint_dir.is_file() {
+        return Ok(vec![blueprint_dir.to_path_buf()]);
+    }
+
+    // Set up the whole pattern
+    let pattern = pattern.unwrap_or("*");
+    let search_pattern = blueprint_dir.join(format!("{pattern}"));
+
+    // Search using the pattern
+    let bps: Vec<PathBuf> = glob::glob(search_pattern.to_string_lossy().as_ref())?
+        .filter_map(std::result::Result::ok)
+        .collect();
+
+    // If empty, return
+    if bps.is_empty() {
+        return Err(BenchmarkErrorKind::NoBlueprintFilesFound {
+            pattern: pattern.to_string(),
+            directory: blueprint_dir.to_path_buf(),
+        }
+        .into());
+    }
+
+    tracing::info!("Found {} bp files", bps.len());
+    for bp in &bps {
+        tracing::debug!("  - {}", bp.file_name().unwrap().to_string_lossy());
+    }
+
+    Ok(bps)
+}
+
 /// Finds files pertaining to benchmark's output
 pub fn find_data_files(data_dir: &Path) -> Result<Vec<PathBuf>> {
     if !data_dir.is_dir() {

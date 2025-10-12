@@ -119,6 +119,12 @@ pub enum BenchmarkErrorKind {
 
     #[error("No output statistics in production statistics found")]
     NoOutputStatistics,
+
+    #[error("Blueprint directory does not exist: {path}")]
+    BlueprintDirectoryNotFound { path: PathBuf },
+
+    #[error("No blueprint files found matching pattern '{pattern}' in {directory}")]
+    NoBlueprintFilesFound { pattern: String, directory: PathBuf },
 }
 
 /// Get a hint for the FactorioProcessFailed error, if it exists
