@@ -1,7 +1,6 @@
 //! The wrapper for the Factorio binary.
 
 use std::{
-    fs::{create_dir_all, read_to_string, write},
     path::{Path, PathBuf},
     process::Stdio,
     sync::{
@@ -17,7 +16,7 @@ use crate::{
     core::{
         Result,
         error::{BenchmarkError, BenchmarkErrorKind},
-        is_executable,
+        is_executable, utils,
     },
 };
 
@@ -33,15 +32,7 @@ pub struct FactorioRunSpec<'a> {
     pub mods_dir: Option<&'a Path>,
     pub verbose_all_metrics: bool,
     pub headless: Option<bool>,
-}
-
-pub struct FactorioBlueprintRunSpec<'a> {
-    pub save_file: &'a Path,
-    pub blueprint_file: &'a Path,
-    pub blueprint_stable_ticks: u32,
-    pub mods_dir: &'a Path,
-    pub data_dir: &'a Path,
-    pub headless: Option<bool>,
+    pub blueprint_file: Option<&'a Path>,
 }
 
 impl FactorioExecutor {
@@ -146,121 +137,6 @@ impl FactorioExecutor {
         Ok(())
     }
 
-    pub async fn run_for_blueprint(
-        &self,
-        spec: FactorioBlueprintRunSpec<'_>,
-        running: &Arc<AtomicBool>,
-    ) -> Result<PathBuf> {
-        // first, lets write the mod files
-        let bench_mod_dir = spec.mods_dir.join("benchmark-builder");
-        create_dir_all(bench_mod_dir)?;
-        let info_path = spec.mods_dir.join("benchmark-builder/info.json");
-        if !info_path.exists() {
-            write(
-                info_path,
-                r#"{
-  "name": "benchmark-builder",
-  "version": "0.1.0",
-  "title": "Benchmark Builder",
-  "author": "TwostepSA",
-  "factorio_version": "2.0",
-  "dependencies": ["base >= 2.0"],
-  "description": "Automatically builds blueprints for benchmarking"
-}"#,
-            )?;
-        }
-        let control_path = spec.mods_dir.join("benchmark-builder/control.lua");
-        if !control_path.exists() {
-            write(control_path, include_str!("control.lua"))?;
-        }
-        let bp_path = spec.mods_dir.join("benchmark-builder/bp.lua");
-
-        write(
-            bp_path,
-            format!(
-                "local values = {{\n  bp_string = \"{}\",\n  save_after_ticks = {},\n  save_game_name = \"blueprint_benchmark\", bots = 0\n}}\nreturn values",
-                read_to_string(spec.blueprint_file.to_str().unwrap())?,
-                spec.blueprint_stable_ticks
-            ),
-        )?;
-
-        // now delete the save we will create, if it exists
-        let new_save_path = spec.data_dir.join(format!(
-            "saves/blueprint_{}.zip",
-            spec.blueprint_file.file_stem().unwrap().to_str().unwrap()
-        ));
-        if new_save_path.exists() {
-            std::fs::remove_file(&new_save_path)?;
-        }
-
-        let mut cmd = self.create_command();
-
-        cmd.args([
-            "--mod-directory",
-            spec.mods_dir
-                .to_str()
-                .ok_or_else(|| BenchmarkErrorKind::InvalidModsFileName {
-                    path: spec.mods_dir.to_path_buf(),
-                })?,
-            "--start-server",
-            spec.save_file
-                .to_str()
-                .ok_or_else(|| BenchmarkErrorKind::InvalidSaveFileName {
-                    path: spec.save_file.to_path_buf(),
-                })?,
-        ]);
-
-        if let Some(headless) = spec.headless
-            && headless
-        {
-            cmd.arg("--disable-audio");
-        }
-
-        // now run until the save file shows up
-        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
-        let mut child = cmd.spawn()?;
-        let mut did_kill = false;
-        let poll_duration = Duration::from_secs(1);
-        while child.try_wait().is_err() {
-            if new_save_path.exists() {
-                did_kill = true;
-                let _ = child.start_kill();
-                break;
-            }
-            if !running.load(Ordering::SeqCst) {
-                tracing::info!("Ctrl+C received. Killing Factorio");
-                let _ = child.start_kill();
-                break;
-            }
-            tokio::time::sleep(poll_duration).await;
-        }
-        let output = child.wait_with_output().await?;
-        if !output.status.success() && !did_kill {
-            let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();
-            let stderr_str = String::from_utf8_lossy(&output.stderr).to_string();
-
-            let hint = if stdout_str.contains("already running")
-                || stderr_str.contains("already running")
-            {
-                Some(
-                    "Factorio might already be running. Please close any open Factorio instances."
-                        .to_string(),
-                )
-            } else {
-                None
-            };
-
-            return Err(
-                BenchmarkError::from(BenchmarkErrorKind::FactorioProcessFailed {
-                    code: output.status.code().unwrap_or(-1),
-                })
-                .with_hint(hint),
-            );
-        }
-
-        Ok(new_save_path)
-    }
-
     pub async fn run_for_ticks(
         &self,
         spec: FactorioRunSpec<'_>,
@@ -306,11 +182,21 @@ impl FactorioExecutor {
             );
         }
 
+        let save_name = spec.blueprint_file.and_then(utils::file_stem_utf8);
+
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         let mut child = cmd.spawn()?;
         let poll_duration = Duration::from_secs(1);
+
         while child.try_wait().is_err() {
+            if let Some(name) = save_name
+                && utils::check_save_file(name)
+            {
+                let _ = child.start_kill();
+                break;
+            }
+
             if !running.load(Ordering::SeqCst) {
                 tracing::info!("Ctrl+C received. Killing Factorio");
                 let _ = child.start_kill();
