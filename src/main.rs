@@ -4,13 +4,13 @@
 
 mod analyze;
 mod benchmark;
+mod blueprint;
 mod core;
 mod sanitize;
-mod blueprintbenchmark;
 
 use crate::core::{
     GlobalConfig, Result, RunOrder,
-    config::{AnalyzeConfig, BenchmarkConfig, SanitizeConfig, BlueprintBenchmarkConfig},
+    config::{AnalyzeConfig, BenchmarkConfig, BlueprintBenchmarkConfig, SanitizeConfig},
 };
 use clap::{Parser, Subcommand};
 use std::{
@@ -106,7 +106,7 @@ enum Commands {
         #[arg(long)]
         headless: Option<bool>,
     },
-    BlueprintBenchmark {
+    Blueprint {
         blueprints_dir: PathBuf,
 
         base_save_path: PathBuf,
@@ -115,41 +115,19 @@ enum Commands {
         mods_dir: PathBuf,
 
         #[arg(long)]
-        data_dir: PathBuf,
+        data_dir: Option<PathBuf>,
+
+        #[arg(long)]
+        prefix: Option<String>,
 
         #[arg(long, default_value = "7200")]
         blueprint_stable_ticks: u32,
-
-        #[arg(long, default_value = "6000")]
-        ticks: u32,
-
-        #[arg(long, default_value = "5")]
-        runs: u32,
 
         #[arg(long)]
         pattern: Option<String>,
 
         #[arg(long)]
         output: Option<PathBuf>,
-
-        #[arg(long)]
-        template_path: Option<PathBuf>,
-
-        #[arg(long, default_value = "grouped")]
-        #[arg(
-            help = "Execution order: sequential (A,B,A,B), random (A,B,B,A), or grouped (A,A,B,B)"
-        )]
-        run_order: RunOrder,
-
-        #[arg(
-            long,
-            value_delimiter = ',',
-            help = "Generate per-tick charts for specified Factorio benchmark metrics (e.g., 'wholeUpdate,gameUpdate'). 'all' to chart all metrics."
-        )]
-        verbose_metrics: Vec<String>,
-
-        #[arg(long)]
-        strip_prefix: Option<String>,
 
         #[arg(long)]
         headless: Option<bool>,
@@ -272,15 +250,18 @@ async fn main() -> Result<()> {
             benchmark::run(global_config, benchmark_config, &running).await
         }
 
-        Commands::BlueprintBenchmark { 
-            blueprints_dir, 
-            base_save_path, 
-            mods_dir, 
-            data_dir, 
-            blueprint_stable_ticks, 
-            ticks, runs, pattern, output, template_path, run_order, verbose_metrics, strip_prefix, headless 
+        Commands::Blueprint {
+            blueprints_dir,
+            base_save_path,
+            mods_dir,
+            data_dir,
+            blueprint_stable_ticks,
+            pattern,
+            output,
+            prefix,
+            headless,
         } => {
-            let blueprint_benchmark_config = BlueprintBenchmarkConfig {
+            let blueprint_config = BlueprintConfig {
                 blueprints_dir,
                 base_save_path,
                 mods_dir,

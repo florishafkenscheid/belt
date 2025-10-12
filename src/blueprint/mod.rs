@@ -9,14 +9,10 @@ use std::{
     sync::{Arc, atomic::AtomicBool},
 };
 
-use crate::
-    core::{
-        FactorioExecutor, GlobalConfig, Result,
-        config::BlueprintBenchmarkConfig,
-        output::ensure_output_dir,
-        utils,
-    }
-;
+use crate::core::{
+    FactorioExecutor, GlobalConfig, Result, config::BlueprintBenchmarkConfig,
+    output::ensure_output_dir, utils,
+};
 
 /// Run all of the benchmarks, capture the logs and write the results to files.
 pub async fn run(
@@ -24,7 +20,10 @@ pub async fn run(
     benchmark_config: BlueprintBenchmarkConfig,
     running: &Arc<AtomicBool>,
 ) -> Result<()> {
-    tracing::info!("Starting blueprint benchmark with config: {:?}", benchmark_config);
+    tracing::info!(
+        "Starting blueprint benchmark with config: {:?}",
+        benchmark_config
+    );
 
     // Find the Factorio binary
     let factorio = FactorioExecutor::discover(global_config.factorio_path)?;
@@ -49,6 +48,6 @@ pub async fn run(
     // Run the benchmarks
     let runner = runner::BlueprintBenchmarkRunner::new(benchmark_config.clone(), factorio);
     let (_, _) = runner.run_all(blueprint_files, running).await?;
-    
+
     Ok(())
 }

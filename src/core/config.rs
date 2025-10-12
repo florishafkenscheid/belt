@@ -54,7 +54,7 @@ pub struct SanitizeConfig {
 
 /// Blueprint Benchmarking specific configuration
 #[derive(Debug, Clone, Default)]
-pub struct BlueprintBenchmarkConfig {
+pub struct BlueprintConfig {
     pub blueprints_dir: PathBuf,
     pub blueprint_stable_ticks: u32,
     pub base_save_path: PathBuf,

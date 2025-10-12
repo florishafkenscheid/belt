@@ -1,9 +1,14 @@
 //! The wrapper for the Factorio binary.
 
 use std::{
-    fs::{create_dir_all, read_to_string, write}, path::{Path, PathBuf}, process::Stdio, sync::{
-        atomic::{AtomicBool, Ordering}, Arc
-    }, time::Duration
+    fs::{create_dir_all, read_to_string, write},
+    path::{Path, PathBuf},
+    process::Stdio,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
 };
 use tokio::process::Command;
 
@@ -151,7 +156,9 @@ impl FactorioExecutor {
         create_dir_all(bench_mod_dir)?;
         let info_path = spec.mods_dir.join("benchmark-builder/info.json");
         if !info_path.exists() {
-            write(info_path, r#"{
+            write(
+                info_path,
+                r#"{
   "name": "benchmark-builder",
   "version": "0.1.0",
   "title": "Benchmark Builder",
@@ -159,18 +166,29 @@ impl FactorioExecutor {
   "factorio_version": "2.0",
   "dependencies": ["base >= 2.0"],
   "description": "Automatically builds blueprints for benchmarking"
-}"#)?;
+}"#,
+            )?;
         }
         let control_path = spec.mods_dir.join("benchmark-builder/control.lua");
         if !control_path.exists() {
             write(control_path, include_str!("control.lua"))?;
         }
         let bp_path = spec.mods_dir.join("benchmark-builder/bp.lua");
-        
-        write(bp_path, format!("local values = {{\n  bp_string = \"{}\",\n  save_after_ticks = {},\n  save_game_name = \"blueprint_benchmark\", bots = 0\n}}\nreturn values", read_to_string(spec.blueprint_file.to_str().unwrap())?, spec.blueprint_stable_ticks))?;
+
+        write(
+            bp_path,
+            format!(
+                "local values = {{\n  bp_string = \"{}\",\n  save_after_ticks = {},\n  save_game_name = \"blueprint_benchmark\", bots = 0\n}}\nreturn values",
+                read_to_string(spec.blueprint_file.to_str().unwrap())?,
+                spec.blueprint_stable_ticks
+            ),
+        )?;
 
         // now delete the save we will create, if it exists
-        let new_save_path = spec.data_dir.join(format!("saves/blueprint_{}.zip", spec.blueprint_file.file_stem().unwrap().to_str().unwrap()));
+        let new_save_path = spec.data_dir.join(format!(
+            "saves/blueprint_{}.zip",
+            spec.blueprint_file.file_stem().unwrap().to_str().unwrap()
+        ));
         if new_save_path.exists() {
             std::fs::remove_file(&new_save_path)?;
         }
@@ -180,10 +198,10 @@ impl FactorioExecutor {
         cmd.args([
             "--mod-directory",
             spec.mods_dir
-                    .to_str()
-                    .ok_or_else(|| BenchmarkErrorKind::InvalidModsFileName {
-                        path: spec.mods_dir.to_path_buf(),
-                    })?,
+                .to_str()
+                .ok_or_else(|| BenchmarkErrorKind::InvalidModsFileName {
+                    path: spec.mods_dir.to_path_buf(),
+                })?,
             "--start-server",
             spec.save_file
                 .to_str()
