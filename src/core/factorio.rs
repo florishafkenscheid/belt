@@ -159,6 +159,8 @@ impl FactorioExecutor {
         if let Some(headless) = spec.headless
             && headless
         {
+            tracing::debug!("Running headless mode, not disabling audio");
+        } else {
             cmd.arg("--disable-audio");
         }
 
