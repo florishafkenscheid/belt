@@ -10,7 +10,7 @@ mod sanitize;
 
 use crate::core::{
     GlobalConfig, Result, RunOrder,
-    config::{AnalyzeConfig, BenchmarkConfig, BlueprintBenchmarkConfig, SanitizeConfig},
+    config::{AnalyzeConfig, BenchmarkConfig, BlueprintConfig, SanitizeConfig},
 };
 use clap::{Parser, Subcommand};
 use std::{
@@ -112,16 +112,13 @@ enum Commands {
         base_save_path: PathBuf,
 
         #[arg(long)]
-        mods_dir: PathBuf,
+        mods_dir: Option<PathBuf>,
 
         #[arg(long)]
         data_dir: Option<PathBuf>,
 
         #[arg(long)]
         prefix: Option<String>,
-
-        #[arg(long, default_value = "7200")]
-        blueprint_stable_ticks: u32,
 
         #[arg(long)]
         pattern: Option<String>,
@@ -255,7 +252,6 @@ async fn main() -> Result<()> {
             base_save_path,
             mods_dir,
             data_dir,
-            blueprint_stable_ticks,
             pattern,
             output,
             prefix,
@@ -266,19 +262,13 @@ async fn main() -> Result<()> {
                 base_save_path,
                 mods_dir,
                 data_dir,
-                blueprint_stable_ticks,
-                ticks,
-                runs,
                 pattern,
                 output,
-                template_path,
-                run_order,
-                verbose_metrics,
-                strip_prefix,
+                prefix,
                 headless,
             };
 
-            blueprintbenchmark::run(global_config, blueprint_benchmark_config, &running).await
+            blueprint::run(global_config, blueprint_config, &running).await
         }
 
         Commands::Sanitize {

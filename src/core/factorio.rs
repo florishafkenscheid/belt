@@ -16,7 +16,7 @@ use crate::{
     core::{
         Result,
         error::{BenchmarkError, BenchmarkErrorKind},
-        is_executable, utils,
+        is_executable
     },
 };
 
@@ -32,7 +32,6 @@ pub struct FactorioRunSpec<'a> {
     pub mods_dir: Option<&'a Path>,
     pub verbose_all_metrics: bool,
     pub headless: Option<bool>,
-    pub blueprint_file: Option<&'a Path>,
 }
 
 impl FactorioExecutor {
@@ -182,21 +181,12 @@ impl FactorioExecutor {
             );
         }
 
-        let save_name = spec.blueprint_file.and_then(utils::file_stem_utf8);
-
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         let mut child = cmd.spawn()?;
         let poll_duration = Duration::from_secs(1);
 
         while child.try_wait().is_err() {
-            if let Some(name) = save_name
-                && utils::check_save_file(name)
-            {
-                let _ = child.start_kill();
-                break;
-            }
-
             if !running.load(Ordering::SeqCst) {
                 tracing::info!("Ctrl+C received. Killing Factorio");
                 let _ = child.start_kill();

@@ -56,17 +56,11 @@ pub struct SanitizeConfig {
 #[derive(Debug, Clone, Default)]
 pub struct BlueprintConfig {
     pub blueprints_dir: PathBuf,
-    pub blueprint_stable_ticks: u32,
     pub base_save_path: PathBuf,
-    pub ticks: u32,
-    pub runs: u32,
-    pub mods_dir: PathBuf,
-    pub data_dir: PathBuf,
+    pub mods_dir: Option<PathBuf>,
+    pub data_dir: Option<PathBuf>,
     pub pattern: Option<String>,
     pub output: Option<PathBuf>,
-    pub template_path: Option<PathBuf>,
-    pub run_order: RunOrder,
-    pub verbose_metrics: Vec<String>,
-    pub strip_prefix: Option<String>,
+    pub prefix: Option<String>,
     pub headless: Option<bool>,
 }

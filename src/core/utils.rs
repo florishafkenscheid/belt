@@ -198,7 +198,7 @@ pub fn find_blueprint_files(blueprint_dir: &Path, pattern: Option<&str>) -> Resu
 
     // Set up the whole pattern
     let pattern = pattern.unwrap_or("*");
-    let search_pattern = blueprint_dir.join(format!("{pattern}"));
+    let search_pattern = blueprint_dir.join(pattern);
 
     // Search using the pattern
     let bps: Vec<PathBuf> = glob::glob(search_pattern.to_string_lossy().as_ref())?
