@@ -1,6 +1,5 @@
 pub mod parser;
 pub mod runner;
-pub mod settings;
 
 use std::sync::{Arc, atomic::AtomicBool};
 
@@ -9,9 +8,9 @@ use crate::{
     core::{
         FactorioExecutor,
         config::{GlobalConfig, SanitizeConfig},
+        settings::{ModSettings, ModSettingsScopeName, ModSettingsValue},
         utils,
     },
-    sanitize::settings::{ModSettings, ModSettingsScopeName, ModSettingsValue},
 };
 
 pub async fn run(

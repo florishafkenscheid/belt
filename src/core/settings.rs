@@ -41,7 +41,7 @@ impl From<u8> for PropertyTreeType {
             5 => PropertyTreeType::Dictionary,
             6 => PropertyTreeType::SignedInteger,
             7 => PropertyTreeType::UnsignedInteger,
-            _ => panic!("Invalid PropertyTreeType: {}", value),
+            _ => panic!("Invalid PropertyTreeType: {value}"),
         }
     }
 }
@@ -383,7 +383,7 @@ impl ModSettings {
                     _ => {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidData,
-                            format!("Wrapper for key '{}' is not a dictionary", key),
+                            format!("Wrapper for key '{key}' is not a dictionary"),
                         ));
                     }
                 };
@@ -391,7 +391,7 @@ impl ModSettings {
                 let element = wrapper_dict.get("value").ok_or_else(|| {
                     io::Error::new(
                         io::ErrorKind::InvalidData,
-                        format!("Missing 'value' for key '{}'", key),
+                        format!("Missing 'value' for key '{key}'"),
                     )
                 })?;
 
@@ -407,7 +407,7 @@ impl ModSettings {
                                 Some(PropertyTreeData::Number(v)) => Ok(*v),
                                 _ => Err(io::Error::new(
                                     io::ErrorKind::InvalidData,
-                                    format!("Dictionary for '{}' missing number '{}'", key, name),
+                                    format!("Dictionary for '{key}' missing number '{name}'"),
                                 )),
                             }
                         };
@@ -423,8 +423,7 @@ impl ModSettings {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidData,
                             format!(
-                                "Unexpected type in ModSettings Tree for key '{}': {:?}",
-                                key, other
+                                "Unexpected type in ModSettings Tree for key '{key}': {other:?}",
                             ),
                         ));
                     }
