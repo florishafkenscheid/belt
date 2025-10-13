@@ -115,6 +115,9 @@ enum Commands {
         count: u32,
 
         #[arg(long)]
+        buffer_ticks: u32,
+
+        #[arg(long)]
         mods_dir: Option<PathBuf>,
 
         #[arg(long)]
@@ -251,6 +254,7 @@ async fn main() -> Result<()> {
             blueprints_dir,
             base_save_path,
             count,
+            buffer_ticks,
             mods_dir,
             pattern,
             output,
@@ -261,6 +265,7 @@ async fn main() -> Result<()> {
                 blueprints_dir,
                 base_save_path,
                 count,
+                buffer_ticks,
                 mods_dir,
                 pattern,
                 output,

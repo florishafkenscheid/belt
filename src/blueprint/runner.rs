@@ -58,6 +58,13 @@ impl BlueprintRunner {
             {
                 let dat_file = &mods_dir.join("mod-settings.dat");
                 let mut ms = ModSettings::load_from_file(dat_file)?;
+                // Target tick
+                ms.set(
+                    ModSettingsScopeName::Startup,
+                    "belt-sanitizer-target-tick",
+                    Some(ModSettingsValue::Int(self.config.buffer_ticks as i64)),
+                );
+
                 // Blueprint mode
                 ms.set(
                     ModSettingsScopeName::Startup,
@@ -91,7 +98,7 @@ impl BlueprintRunner {
                 .run_for_ticks(
                     FactorioRunSpec {
                         save_file: self.config.base_save_path.as_path(),
-                        ticks: 20, // Arbitrary, (should) happen in a few ticks
+                        ticks: self.config.buffer_ticks,
                         mods_dir: self.config.mods_dir.as_deref(),
                         verbose_all_metrics: false,
                         headless: self.config.headless,
