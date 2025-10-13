@@ -290,10 +290,10 @@ pub fn check_sanitizer() -> Option<PathBuf> {
 }
 
 /// Check if the belt-sanitizer blueprint save file exists
-pub fn check_save_file(name: &str) -> Option<PathBuf> {
+pub fn check_save_file(name: String) -> Option<PathBuf> {
     get_default_user_data_dirs()
         .iter()
-        .map(|base| base.join(format!("saves/{name}")))
+        .map(|base| base.join(format!("saves/{name}.zip")))
         .find(|path| path.exists())
 }
 

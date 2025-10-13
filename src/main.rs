@@ -131,6 +131,9 @@ enum Commands {
 
         #[arg(long)]
         headless: Option<bool>,
+
+        #[arg(long)]
+        bot_count: Option<u32>,
     },
     Sanitize {
         saves_dir: PathBuf,
@@ -260,6 +263,7 @@ async fn main() -> Result<()> {
             output,
             prefix,
             headless,
+            bot_count,
         } => {
             let blueprint_config = BlueprintConfig {
                 blueprints_dir,
@@ -271,6 +275,7 @@ async fn main() -> Result<()> {
                 output,
                 prefix,
                 headless,
+                bot_count,
             };
 
             blueprint::run(global_config, blueprint_config, &running).await

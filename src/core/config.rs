@@ -64,4 +64,5 @@ pub struct BlueprintConfig {
     pub output: Option<PathBuf>,
     pub prefix: Option<String>,
     pub headless: Option<bool>,
+    pub bot_count: Option<u32>,
 }

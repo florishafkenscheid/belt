@@ -48,10 +48,17 @@ pub async fn run(
         let dat_file = &mods_dir.join("mod-settings.dat");
         let mut ms = ModSettings::load_from_file(dat_file)?;
 
+        // Disable blueprint-mode just to be sure
+        ms.set(
+            ModSettingsScopeName::Startup,
+            "belt-sanitizer-blueprint-mode",
+            Some(ModSettingsValue::Bool(false)),
+        );
+
         // Prod check tick
         ms.set(
             ModSettingsScopeName::Startup,
-            "belt-sanitizer-production-check-tick",
+            "belt-sanitizer-target-tick",
             Some(ModSettingsValue::Int(adjusted_ticks as i64)),
         );
 

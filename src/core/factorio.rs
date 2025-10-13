@@ -16,7 +16,7 @@ use crate::{
     core::{
         Result,
         error::{BenchmarkError, BenchmarkErrorKind},
-        is_executable
+        is_executable,
     },
 };
 
