@@ -57,8 +57,8 @@ pub struct SanitizeConfig {
 pub struct BlueprintConfig {
     pub blueprints_dir: PathBuf,
     pub base_save_path: PathBuf,
+    pub count: u32,
     pub mods_dir: Option<PathBuf>,
-    pub data_dir: Option<PathBuf>,
     pub pattern: Option<String>,
     pub output: Option<PathBuf>,
     pub prefix: Option<String>,

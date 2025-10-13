@@ -125,6 +125,12 @@ pub enum BenchmarkErrorKind {
 
     #[error("No blueprint files found matching pattern '{pattern}' in {directory}")]
     NoBlueprintFilesFound { pattern: String, directory: PathBuf },
+
+    #[error("Invalid Blueprint file name: {path}")]
+    InvalidBlueprintFileName { path: PathBuf },
+
+    #[error("No mods directory found.")]
+    NoModsDirectoryFound,
 }
 
 /// Get a hint for the FactorioProcessFailed error, if it exists

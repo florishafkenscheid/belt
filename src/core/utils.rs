@@ -5,7 +5,6 @@ use serde_json::Value;
 use crate::Result;
 use crate::sanitize::parser::ProductionStatistic;
 use std::collections::HashMap;
-use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::{path::Path, time::Duration};
 
@@ -89,9 +88,8 @@ pub fn process_fluids(obj: &Value, stat_type: &str, fluids_vec: &mut Vec<Product
             let count = match count_val.as_f64() {
                 Some(c) => c as f32,
                 None => {
-                    eprintln!(
-                        "Invalid count for fluid {} {}: {:?}",
-                        stat_type, fluid_name, count_val
+                    tracing::error!(
+                        "Invalid count for fluid {stat_type} {fluid_name}: {count_val:?}"
                     );
                     0.0
                 }
@@ -104,10 +102,6 @@ pub fn process_fluids(obj: &Value, stat_type: &str, fluids_vec: &mut Vec<Product
             });
         }
     }
-}
-
-pub fn file_stem_utf8(p: &Path) -> Option<&str> {
-    p.file_stem().and_then(OsStr::to_str)
 }
 
 // File related utilities
@@ -296,11 +290,19 @@ pub fn check_sanitizer() -> Option<PathBuf> {
 }
 
 /// Check if the belt-sanitizer blueprint save file exists
-pub fn check_save_file(name: &str) -> bool {
+pub fn check_save_file(name: &str) -> Option<PathBuf> {
     get_default_user_data_dirs()
         .iter()
         .map(|base| base.join(format!("saves/{name}")))
-        .any(|path| path.exists())
+        .find(|path| path.exists())
+}
+
+/// Find mod directory
+pub fn find_mod_directory() -> Option<PathBuf> {
+    get_default_user_data_dirs()
+        .iter()
+        .map(|base| base.join("mods"))
+        .find(|path| path.is_dir())
 }
 
 /// Tries to find [user data directory](https://wiki.factorio.com/Application_directory#User_data_directory)

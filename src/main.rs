@@ -112,10 +112,10 @@ enum Commands {
         base_save_path: PathBuf,
 
         #[arg(long)]
-        mods_dir: Option<PathBuf>,
+        count: u32,
 
         #[arg(long)]
-        data_dir: Option<PathBuf>,
+        mods_dir: Option<PathBuf>,
 
         #[arg(long)]
         prefix: Option<String>,
@@ -250,8 +250,8 @@ async fn main() -> Result<()> {
         Commands::Blueprint {
             blueprints_dir,
             base_save_path,
+            count,
             mods_dir,
-            data_dir,
             pattern,
             output,
             prefix,
@@ -260,8 +260,8 @@ async fn main() -> Result<()> {
             let blueprint_config = BlueprintConfig {
                 blueprints_dir,
                 base_save_path,
+                count,
                 mods_dir,
-                data_dir,
                 pattern,
                 output,
                 prefix,
