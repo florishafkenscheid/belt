@@ -3,8 +3,8 @@
 use std::path::{Path, PathBuf};
 
 use crate::{
-    Result,
     benchmark::{parser::BenchmarkResult, runner::VerboseData},
+    Result,
 };
 
 // Re-export submodules

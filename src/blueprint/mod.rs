@@ -6,10 +6,10 @@ pub mod runner;
 
 use std::{
     path::Path,
-    sync::{Arc, atomic::AtomicBool},
+    sync::{atomic::AtomicBool, Arc},
 };
 
-use crate::core::{FactorioExecutor, GlobalConfig, Result, config::BlueprintConfig, output, utils};
+use crate::core::{config::BlueprintConfig, output, utils, FactorioExecutor, GlobalConfig, Result};
 
 /// Run all of the benchmarks, capture the logs and write the results to files.
 pub async fn run(

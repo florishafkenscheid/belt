@@ -9,15 +9,15 @@ mod core;
 mod sanitize;
 
 use crate::core::{
-    GlobalConfig, Result, RunOrder,
     config::{AnalyzeConfig, BenchmarkConfig, BlueprintConfig, SanitizeConfig},
+    GlobalConfig, Result, RunOrder,
 };
 use clap::{Parser, Subcommand};
 use std::{
     path::PathBuf,
     sync::{
-        Arc,
         atomic::{AtomicBool, Ordering},
+        Arc,
     },
 };
 
@@ -185,7 +185,7 @@ async fn main() -> Result<()> {
     // Listen to CTRL+C
     let needs_shutdown = matches!(
         cli.command,
-        Commands::Benchmark { .. } | Commands::Sanitize { .. }
+        Commands::Benchmark { .. } | Commands::Sanitize { .. } | Commands::Blueprint { .. }
     );
     let running = Arc::new(AtomicBool::new(true));
     let shutdown_task = if needs_shutdown {

@@ -3,8 +3,8 @@
 use std::{
     path::PathBuf,
     sync::{
-        Arc,
         atomic::{AtomicBool, Ordering},
+        Arc,
     },
     time::{Duration, Instant},
 };
@@ -12,9 +12,11 @@ use std::{
 use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::{
-    Result,
-    core::{FactorioExecutor, config::SanitizeConfig, factorio::FactorioRunSpec, format_duration},
+    core::{
+        config::SanitizeConfig, factorio::FactorioTickRunSpec, format_duration, FactorioExecutor,
+    },
     sanitize::parser,
+    Result,
 };
 
 pub struct SanitizeRunner {
@@ -71,7 +73,7 @@ impl SanitizeRunner {
             let _output = self
                 .factorio
                 .run_for_ticks(
-                    FactorioRunSpec {
+                    FactorioTickRunSpec {
                         save_file,
                         ticks: self.config.ticks,
                         mods_dir: self.config.mods_dir.as_deref(),

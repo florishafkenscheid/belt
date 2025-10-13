@@ -4,8 +4,8 @@ use std::{
     path::{Path, PathBuf},
     process::Stdio,
     sync::{
-        Arc,
         atomic::{AtomicBool, Ordering},
+        Arc,
     },
     time::Duration,
 };
@@ -14,9 +14,8 @@ use tokio::process::Command;
 use crate::{
     benchmark::runner::FactorioOutput,
     core::{
-        Result,
         error::{BenchmarkError, BenchmarkErrorKind},
-        is_executable,
+        is_executable, utils, Result,
     },
 };
 
@@ -26,11 +25,18 @@ pub struct FactorioExecutor {
     executable_path: PathBuf,
 }
 
-pub struct FactorioRunSpec<'a> {
+pub struct FactorioTickRunSpec<'a> {
     pub save_file: &'a Path,
     pub ticks: u32,
     pub mods_dir: Option<&'a Path>,
     pub verbose_all_metrics: bool,
+    pub headless: Option<bool>,
+}
+
+pub struct FactorioSaveRunSpec<'a> {
+    pub base_save_file: &'a Path,
+    pub new_save_name: String,
+    pub mods_dir: Option<&'a Path>,
     pub headless: Option<bool>,
 }
 
@@ -138,7 +144,7 @@ impl FactorioExecutor {
 
     pub async fn run_for_ticks(
         &self,
-        spec: FactorioRunSpec<'_>,
+        spec: FactorioTickRunSpec<'_>,
         running: &Arc<AtomicBool>,
     ) -> Result<FactorioOutput> {
         let mut cmd = self.create_command();
@@ -186,13 +192,24 @@ impl FactorioExecutor {
         let mut child = cmd.spawn()?;
         let poll_duration = Duration::from_secs(1);
 
-        while child.try_wait().is_err() {
-            if !running.load(Ordering::SeqCst) {
-                tracing::info!("Ctrl+C received. Killing Factorio");
-                let _ = child.start_kill();
-                break;
+        loop {
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    tracing::debug!("Exited with: {status}");
+                    break;
+                }
+                Ok(None) => {
+                    if !running.load(Ordering::SeqCst) {
+                        tracing::info!("Ctrl+C received. Killing Factorio");
+                        let _ = child.start_kill();
+                        break;
+                    }
+                    tokio::time::sleep(poll_duration).await;
+                }
+                Err(err) => {
+                    tracing::error!("Error while polling child: {err}");
+                }
             }
-            tokio::time::sleep(poll_duration).await;
         }
 
         let output = child.wait_with_output().await?;
@@ -242,5 +259,101 @@ impl FactorioExecutor {
                 verbose_data: None,
             })
         }
+    }
+
+    pub async fn run_for_save(
+        &self,
+        spec: FactorioSaveRunSpec<'_>,
+        running: &Arc<AtomicBool>,
+    ) -> Result<()> {
+        let mut cmd = self.create_command();
+
+        cmd.args([
+            "--load-game",
+            spec.base_save_file.to_str().ok_or_else(|| {
+                BenchmarkErrorKind::InvalidSaveFileName {
+                    path: spec.base_save_file.to_path_buf(),
+                }
+            })?,
+            "--disable-migration-window",
+        ]);
+
+        if let Some(headless) = spec.headless
+            && headless
+        {
+            tracing::debug!("Running headless mode, not disabling audio");
+        } else {
+            cmd.arg("--disable-audio");
+        }
+
+        if let Some(mods_dir) = spec.mods_dir {
+            cmd.arg("--mod-directory");
+            cmd.arg(
+                mods_dir
+                    .to_str()
+                    .ok_or_else(|| BenchmarkErrorKind::InvalidModsFileName {
+                        path: mods_dir.to_path_buf(),
+                    })?,
+            );
+        }
+
+        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+        let mut child = cmd.spawn()?;
+        let poll_duration = Duration::from_secs(1);
+
+        loop {
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    tracing::debug!("Exited with: {status}");
+                    break;
+                }
+                Ok(None) => {
+                    if utils::check_save_file(format!("_autosave-{}", spec.new_save_name.clone()))
+                        .is_some()
+                    {
+                        let _ = child.start_kill();
+                        break;
+                    }
+
+                    if !running.load(Ordering::SeqCst) {
+                        tracing::info!("Ctrl+C received. Killing Factorio");
+                        let _ = child.start_kill();
+                        break;
+                    }
+                    tokio::time::sleep(poll_duration).await;
+                }
+                Err(err) => {
+                    tracing::error!("Error while polling child: {err}");
+                }
+            }
+        }
+
+        let output = child.wait_with_output().await?;
+
+        if !output.status.success() && output.status.code().is_some() {
+            let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr_str = String::from_utf8_lossy(&output.stderr).to_string();
+
+            let hint = if stdout_str.contains("already running")
+                || stderr_str.contains("already running")
+            {
+                Some(
+                    "Factorio might already be running. Please close any open Factorio instances."
+                        .to_string(),
+                )
+            } else {
+                None
+            };
+
+            return Err(
+                BenchmarkError::from(BenchmarkErrorKind::FactorioProcessFailed {
+                    code: output.status.code().unwrap_or(-1),
+                })
+                .with_hint(hint),
+            );
+        }
+
+        Ok(())
     }
 }

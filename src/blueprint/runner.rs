@@ -1,17 +1,16 @@
 //! Running and collecting logs of benchmarks on save file(s)
 
-use std::fs;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
+use std::{fs, sync::atomic::Ordering};
 
 use crate::core::{
-    FactorioExecutor, Result,
     config::BlueprintConfig,
     error::{BenchmarkError, BenchmarkErrorKind},
-    factorio::FactorioRunSpec,
+    factorio::FactorioSaveRunSpec,
     settings::{ModSettings, ModSettingsScopeName, ModSettingsValue},
-    utils,
+    utils, FactorioExecutor, Result,
 };
 
 pub struct BlueprintRunner {
@@ -32,6 +31,11 @@ impl BlueprintRunner {
         running: &Arc<AtomicBool>,
     ) -> Result<()> {
         for bp_file in &blueprint_files {
+            if !running.load(Ordering::SeqCst) {
+                tracing::info!("Shutdown requested. Aborting remaining blueprints.");
+                break;
+            }
+
             // add prefix to bp file
             let orig_name = bp_file.file_name().and_then(|n| n.to_str()).ok_or(
                 BenchmarkErrorKind::InvalidBlueprintFileName {
@@ -46,7 +50,7 @@ impl BlueprintRunner {
             )?;
 
             // Apply optional prefix to both name and stem
-            let (filename, filestem) = if let Some(prefix) = &self.config.prefix {
+            let filestem = if let Some(prefix) = &self.config.prefix {
                 // Compute new filename (prefix + original filename)
                 let new_filename = format!("{prefix}{orig_name}");
                 // Compute new stem (prefix + original stem)
@@ -56,9 +60,9 @@ impl BlueprintRunner {
                 let new_path = bp_file.with_file_name(&new_filename);
                 std::fs::rename(bp_file, &new_path)?;
 
-                (new_filename, new_filestem)
+                new_filestem
             } else {
-                (orig_name.to_string(), orig_stem.to_string())
+                orig_stem.to_string()
             };
 
             // inject mod settings
@@ -83,10 +87,6 @@ impl BlueprintRunner {
 
                 // Blueprint string
                 let blueprint_string = fs::read_to_string(bp_file)?;
-                tracing::debug!(
-                    "Using blueprint string: {blueprint_string}, from: {}",
-                    bp_file.display()
-                );
                 ms.set(
                     ModSettingsScopeName::Startup,
                     "belt-sanitizer-blueprint-string",
@@ -124,14 +124,12 @@ impl BlueprintRunner {
                 );
             }
 
-            let _output = self
-                .factorio
-                .run_for_ticks(
-                    FactorioRunSpec {
-                        save_file: self.config.base_save_path.as_path(),
-                        ticks: self.config.buffer_ticks,
+            self.factorio
+                .run_for_save(
+                    FactorioSaveRunSpec {
+                        base_save_file: &self.config.base_save_path,
+                        new_save_name: filestem.clone(),
                         mods_dir: self.config.mods_dir.as_deref(),
-                        verbose_all_metrics: false,
                         headless: self.config.headless,
                     },
                     running,
@@ -139,15 +137,15 @@ impl BlueprintRunner {
                 .await?;
 
             // check existance
-            if let Some(save_file) = utils::check_save_file(format!("_autosave-{}", &filename)) {
+            if let Some(save_file) = utils::check_save_file(format!("_autosave-{}", &filestem)) {
                 tracing::debug!("Found generated save file at: {}", save_file.display());
 
                 if let Some(output_dir) = &self.config.output {
-                    std::fs::rename(&save_file, output_dir.join(&filename))?;
+                    std::fs::rename(&save_file, output_dir.join(format!("{}.zip", &filestem)))?;
                     tracing::info!(
                         "Moved generated save from: {}, to: {}",
                         save_file.display(),
-                        output_dir.join(filename).display()
+                        output_dir.display()
                     );
                 }
             } else {

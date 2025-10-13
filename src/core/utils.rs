@@ -2,8 +2,8 @@
 
 use serde_json::Value;
 
-use crate::Result;
 use crate::sanitize::parser::ProductionStatistic;
+use crate::Result;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::{path::Path, time::Duration};
@@ -294,7 +294,10 @@ pub fn check_save_file(name: String) -> Option<PathBuf> {
     get_default_user_data_dirs()
         .iter()
         .map(|base| base.join(format!("saves/{name}.zip")))
-        .find(|path| path.exists())
+        .find(|path| {
+            tracing::debug!("{}", path.display());
+            path.exists()
+        })
 }
 
 /// Find mod directory

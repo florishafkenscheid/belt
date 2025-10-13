@@ -4,18 +4,18 @@ use indicatif::{ProgressBar, ProgressStyle};
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::Instant;
 
 use super::BenchmarkConfig;
 use crate::benchmark::parser;
 use crate::benchmark::parser::BenchmarkResult;
-use crate::core::Result;
 use crate::core::error::BenchmarkErrorKind;
-use crate::core::factorio::FactorioRunSpec;
+use crate::core::factorio::FactorioTickRunSpec;
 use crate::core::format_duration;
+use crate::core::Result;
 use crate::core::{FactorioExecutor, RunOrder};
 
 /// A job, indicating a single benchmark run, to be used in queues of a specific order
@@ -254,7 +254,7 @@ impl BenchmarkRunner {
     ) -> Result<FactorioOutput> {
         self.factorio
             .run_for_ticks(
-                FactorioRunSpec {
+                FactorioTickRunSpec {
                     save_file,
                     ticks: self.config.ticks,
                     mods_dir: self.config.mods_dir.as_deref(),
