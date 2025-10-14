@@ -64,7 +64,13 @@ fn report_detection_warnings(json: &Value) -> Result<()> {
                     "Enemies found on surface '{}'",
                     surface["name"].as_str().unwrap_or("unknown")
                 ));
-                break;
+            }
+
+            if snapshot["active_cars"].as_u64().unwrap_or(0) > 0 {
+                warnings.push(format!(
+                    "Active cars found on surface '{}'",
+                    surface["name"].as_str().unwrap_or("unknown")
+                ));
             }
         }
     }
