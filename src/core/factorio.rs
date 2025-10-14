@@ -229,6 +229,9 @@ impl FactorioExecutor {
                 None
             };
 
+            tracing::debug!("Out: {stdout_str}");
+            tracing::debug!("Err: {stderr_str}");
+
             return Err(
                 BenchmarkError::from(BenchmarkErrorKind::FactorioProcessFailed {
                     code: output.status.code().unwrap_or(-1),
