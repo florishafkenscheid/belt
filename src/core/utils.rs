@@ -294,10 +294,7 @@ pub fn check_save_file(name: String) -> Option<PathBuf> {
     get_default_user_data_dirs()
         .iter()
         .map(|base| base.join(format!("saves/{name}.zip")))
-        .find(|path| {
-            tracing::debug!("{}", path.display());
-            path.exists()
-        })
+        .find(|path| path.exists())
 }
 
 /// Find mod directory
