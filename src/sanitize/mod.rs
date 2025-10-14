@@ -1,17 +1,15 @@
 pub mod parser;
 pub mod runner;
-pub mod settings;
 
-use std::sync::{Arc, atomic::AtomicBool};
+use std::sync::{atomic::AtomicBool, Arc};
 
 use crate::{
-    Result,
     core::{
-        FactorioExecutor,
         config::{GlobalConfig, SanitizeConfig},
-        utils,
+        settings::{ModSettings, ModSettingsScopeName, ModSettingsValue},
+        utils, FactorioExecutor,
     },
-    sanitize::settings::{ModSettings, ModSettingsScopeName, ModSettingsValue},
+    Result,
 };
 
 pub async fn run(
@@ -49,10 +47,17 @@ pub async fn run(
         let dat_file = &mods_dir.join("mod-settings.dat");
         let mut ms = ModSettings::load_from_file(dat_file)?;
 
+        // Disable blueprint-mode just to be sure
+        ms.set(
+            ModSettingsScopeName::Startup,
+            "belt-sanitizer-blueprint-mode",
+            Some(ModSettingsValue::Bool(false)),
+        );
+
         // Prod check tick
         ms.set(
             ModSettingsScopeName::Startup,
-            "belt-sanitizer-production-check-tick",
+            "belt-sanitizer-target-tick",
             Some(ModSettingsValue::Int(adjusted_ticks as i64)),
         );
 

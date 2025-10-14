@@ -2,8 +2,8 @@ pub mod charts;
 pub mod parser;
 
 use crate::{
-    Result,
     core::config::{AnalyzeConfig, GlobalConfig},
+    Result,
 };
 
 pub async fn run(_global_config: GlobalConfig, analyze_config: AnalyzeConfig) -> Result<()> {

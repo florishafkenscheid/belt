@@ -2,8 +2,8 @@
 
 use serde_json::Value;
 
-use crate::Result;
 use crate::sanitize::parser::ProductionStatistic;
+use crate::Result;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::{path::Path, time::Duration};
@@ -88,9 +88,8 @@ pub fn process_fluids(obj: &Value, stat_type: &str, fluids_vec: &mut Vec<Product
             let count = match count_val.as_f64() {
                 Some(c) => c as f32,
                 None => {
-                    eprintln!(
-                        "Invalid count for fluid {} {}: {:?}",
-                        stat_type, fluid_name, count_val
+                    tracing::error!(
+                        "Invalid count for fluid {stat_type} {fluid_name}: {count_val:?}"
                     );
                     0.0
                 }
@@ -178,6 +177,45 @@ pub fn validate_save_files(save_files: &[PathBuf]) -> Result<()> {
     Ok(())
 }
 
+pub fn find_blueprint_files(blueprint_dir: &Path, pattern: Option<&str>) -> Result<Vec<PathBuf>> {
+    if !blueprint_dir.exists() {
+        return Err(BenchmarkErrorKind::BlueprintDirectoryNotFound {
+            path: blueprint_dir.to_path_buf(),
+        }
+        .into());
+    }
+
+    // If the given path is a file that is ok
+    if blueprint_dir.is_file() {
+        return Ok(vec![blueprint_dir.to_path_buf()]);
+    }
+
+    // Set up the whole pattern
+    let pattern = pattern.unwrap_or("*");
+    let search_pattern = blueprint_dir.join(pattern);
+
+    // Search using the pattern
+    let bps: Vec<PathBuf> = glob::glob(search_pattern.to_string_lossy().as_ref())?
+        .filter_map(std::result::Result::ok)
+        .collect();
+
+    // If empty, return
+    if bps.is_empty() {
+        return Err(BenchmarkErrorKind::NoBlueprintFilesFound {
+            pattern: pattern.to_string(),
+            directory: blueprint_dir.to_path_buf(),
+        }
+        .into());
+    }
+
+    tracing::info!("Found {} blueprint files", bps.len());
+    for bp in &bps {
+        tracing::debug!("  - {}", bp.file_name().unwrap().to_string_lossy());
+    }
+
+    Ok(bps)
+}
+
 /// Finds files pertaining to benchmark's output
 pub fn find_data_files(data_dir: &Path) -> Result<Vec<PathBuf>> {
     if !data_dir.is_dir() {
@@ -245,12 +283,26 @@ pub fn is_executable(path: &Path) -> bool {
 
 /// Check if the belt-sanitizer mod is active
 pub fn check_sanitizer() -> Option<PathBuf> {
-    for path in get_default_user_data_dirs() {
-        if path.join("script-output/belt").exists() {
-            return Some(path.join("script-output/belt"));
-        }
-    }
-    None
+    get_default_user_data_dirs()
+        .iter()
+        .map(|base| base.join(PathBuf::from("script-output/belt")))
+        .find(|candidate| candidate.is_dir())
+}
+
+/// Check if the belt-sanitizer blueprint save file exists
+pub fn check_save_file(name: String) -> Option<PathBuf> {
+    get_default_user_data_dirs()
+        .iter()
+        .map(|base| base.join(format!("saves/{name}.zip")))
+        .find(|path| path.exists())
+}
+
+/// Find mod directory
+pub fn find_mod_directory() -> Option<PathBuf> {
+    get_default_user_data_dirs()
+        .iter()
+        .map(|base| base.join("mods"))
+        .find(|path| path.is_dir())
 }
 
 /// Tries to find [user data directory](https://wiki.factorio.com/Application_directory#User_data_directory)

@@ -4,19 +4,20 @@
 
 mod analyze;
 mod benchmark;
+mod blueprint;
 mod core;
 mod sanitize;
 
 use crate::core::{
+    config::{AnalyzeConfig, BenchmarkConfig, BlueprintConfig, SanitizeConfig},
     GlobalConfig, Result, RunOrder,
-    config::{AnalyzeConfig, BenchmarkConfig, SanitizeConfig},
 };
 use clap::{Parser, Subcommand};
 use std::{
     path::PathBuf,
     sync::{
-        Arc,
         atomic::{AtomicBool, Ordering},
+        Arc,
     },
 };
 
@@ -105,6 +106,35 @@ enum Commands {
         #[arg(long)]
         headless: Option<bool>,
     },
+    Blueprint {
+        blueprints_dir: PathBuf,
+
+        base_save_path: PathBuf,
+
+        #[arg(long)]
+        count: u32,
+
+        #[arg(long)]
+        buffer_ticks: u32,
+
+        #[arg(long)]
+        mods_dir: Option<PathBuf>,
+
+        #[arg(long)]
+        prefix: Option<String>,
+
+        #[arg(long)]
+        pattern: Option<String>,
+
+        #[arg(long)]
+        output: Option<PathBuf>,
+
+        #[arg(long)]
+        headless: Option<bool>,
+
+        #[arg(long)]
+        bot_count: Option<u32>,
+    },
     Sanitize {
         saves_dir: PathBuf,
 
@@ -155,7 +185,7 @@ async fn main() -> Result<()> {
     // Listen to CTRL+C
     let needs_shutdown = matches!(
         cli.command,
-        Commands::Benchmark { .. } | Commands::Sanitize { .. }
+        Commands::Benchmark { .. } | Commands::Sanitize { .. } | Commands::Blueprint { .. }
     );
     let running = Arc::new(AtomicBool::new(true));
     let shutdown_task = if needs_shutdown {
@@ -221,6 +251,34 @@ async fn main() -> Result<()> {
             };
 
             benchmark::run(global_config, benchmark_config, &running).await
+        }
+
+        Commands::Blueprint {
+            blueprints_dir,
+            base_save_path,
+            count,
+            buffer_ticks,
+            mods_dir,
+            pattern,
+            output,
+            prefix,
+            headless,
+            bot_count,
+        } => {
+            let blueprint_config = BlueprintConfig {
+                blueprints_dir,
+                base_save_path,
+                count,
+                buffer_ticks,
+                mods_dir,
+                pattern,
+                output,
+                prefix,
+                headless,
+                bot_count,
+            };
+
+            blueprint::run(global_config, blueprint_config, &running).await
         }
 
         Commands::Sanitize {

@@ -7,6 +7,7 @@ pub mod error;
 pub mod factorio;
 pub mod output;
 pub mod platform;
+pub mod settings;
 pub mod utils;
 
 pub use config::GlobalConfig;
