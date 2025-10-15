@@ -4,8 +4,8 @@ use std::{
     path::{Path, PathBuf},
     process::Stdio,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc,
+        atomic::{AtomicBool, Ordering},
     },
     time::Duration,
 };
@@ -14,8 +14,9 @@ use tokio::process::Command;
 use crate::{
     benchmark::runner::FactorioOutput,
     core::{
+        Result,
         error::{BenchmarkError, BenchmarkErrorKind},
-        is_executable, utils, Result,
+        is_executable, utils,
     },
 };
 
@@ -142,11 +143,7 @@ impl FactorioExecutor {
         Ok(())
     }
 
-    pub async fn run_for_ticks(
-        &self,
-        spec: FactorioTickRunSpec<'_>,
-        running: &Arc<AtomicBool>,
-    ) -> Result<FactorioOutput> {
+    pub async fn run_for_ticks(&self, spec: FactorioTickRunSpec<'_>) -> Result<FactorioOutput> {
         let mut cmd = self.create_command();
 
         cmd.args([
@@ -189,29 +186,7 @@ impl FactorioExecutor {
 
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
-        let mut child = cmd.spawn()?;
-        let poll_duration = Duration::from_secs(1);
-
-        loop {
-            match child.try_wait() {
-                Ok(Some(status)) => {
-                    tracing::debug!("Exited with: {status}");
-                    break;
-                }
-                Ok(None) => {
-                    if !running.load(Ordering::SeqCst) {
-                        tracing::info!("Ctrl+C received. Killing Factorio");
-                        let _ = child.start_kill();
-                        break;
-                    }
-                    tokio::time::sleep(poll_duration).await;
-                }
-                Err(err) => {
-                    tracing::error!("Error while polling child: {err}");
-                }
-            }
-        }
-
+        let child = cmd.spawn()?;
         let output = child.wait_with_output().await?;
 
         if !output.status.success() {

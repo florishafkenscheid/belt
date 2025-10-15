@@ -80,7 +80,6 @@ impl SanitizeRunner {
                         verbose_all_metrics: false,
                         headless: self.config.headless,
                     },
-                    running,
                 )
                 .await?;
 

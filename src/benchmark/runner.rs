@@ -4,18 +4,18 @@ use indicatif::{ProgressBar, ProgressStyle};
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::time::Instant;
 
 use super::BenchmarkConfig;
 use crate::benchmark::parser;
 use crate::benchmark::parser::BenchmarkResult;
+use crate::core::Result;
 use crate::core::error::BenchmarkErrorKind;
 use crate::core::factorio::FactorioTickRunSpec;
 use crate::core::format_duration;
-use crate::core::Result;
 use crate::core::{FactorioExecutor, RunOrder};
 
 /// A job, indicating a single benchmark run, to be used in queues of a specific order
@@ -114,8 +114,7 @@ impl BenchmarkRunner {
             progress.set_message(eta_message);
 
             // Run a single benchmark and get the run data and version
-            let (mut result_for_run, verbose_data) =
-                self.run_single_benchmark(job, running).await?;
+            let (mut result_for_run, verbose_data) = self.run_single_benchmark(job).await?;
 
             if let Some(existing_result) = results_map.get_mut(&result_for_run.save_name) {
                 existing_result.runs.append(&mut result_for_run.runs);
@@ -206,7 +205,6 @@ impl BenchmarkRunner {
     async fn run_single_benchmark(
         &self,
         job: &ExecutionJob,
-        running: &Arc<AtomicBool>,
     ) -> Result<(BenchmarkResult, Option<VerboseData>)> {
         // If mods_file is not set, sync mods with the given save file
         if self.config.mods_dir.is_none() {
@@ -214,7 +212,7 @@ impl BenchmarkRunner {
         }
 
         let factorio_output = self
-            .execute_single_factorio_benchmark(&job.save_file, running)
+            .execute_single_factorio_benchmark(&job.save_file)
             .await?;
 
         let verbose_data_for_return = if !self.config.verbose_metrics.is_empty() {
@@ -247,22 +245,15 @@ impl BenchmarkRunner {
     }
 
     /// Execute a single factorio benchmark run
-    async fn execute_single_factorio_benchmark(
-        &self,
-        save_file: &Path,
-        running: &Arc<AtomicBool>,
-    ) -> Result<FactorioOutput> {
+    async fn execute_single_factorio_benchmark(&self, save_file: &Path) -> Result<FactorioOutput> {
         self.factorio
-            .run_for_ticks(
-                FactorioTickRunSpec {
-                    save_file,
-                    ticks: self.config.ticks,
-                    mods_dir: self.config.mods_dir.as_deref(),
-                    verbose_all_metrics: !self.config.verbose_metrics.is_empty(),
-                    headless: self.config.headless,
-                },
-                running,
-            )
+            .run_for_ticks(FactorioTickRunSpec {
+                save_file,
+                ticks: self.config.ticks,
+                mods_dir: self.config.mods_dir.as_deref(),
+                verbose_all_metrics: !self.config.verbose_metrics.is_empty(),
+                headless: self.config.headless,
+            })
             .await
     }
 }
