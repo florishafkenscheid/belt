@@ -3,10 +3,11 @@
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/florishafkenscheid/belt/ci.yml?label=master)
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/florishafkenscheid/belt/release.yml?label=release)
 
-BELT is a wrapper for the `factorio --benchmark` command, to make it more user friendly, more efficient to use, and to generate templated handlebars files with the gotten data.
+BELT is a comprehensive benchmarking and testing suite for Factorio, providing multiple output formats, and powerful analysis tools for optimizing your designs.
 
 ## Features
 - [x] **Benchmarking** - Benchmark a single save or a whole directory
+- [x] **Blueprint testing** - Automatically stamp and benchmark blueprints
 - [x] **Cross-platform** - Works on Windows, macOS, and Linux
 - [x] **Multiple output formats** - CSV, Markdown reports, and SVG charts
 - [x] **Pattern matching** - Filter save files by name patterns
@@ -65,6 +66,8 @@ belt benchmark /path/to/saves --pattern "benchmark*" --output /path/to/output/di
 
 ### Command Reference
 #### `belt analyze`
+Generate charts from existing benchmark CSV data.
+
 **Arguments:*
 - `<DATA_DIR>` - The location of the csv(s) to generate charts based off of.
 - `<HEIGHT>` - The height of the generated charts in pixels.
@@ -73,11 +76,13 @@ belt benchmark /path/to/saves --pattern "benchmark*" --output /path/to/output/di
 **Options:**
 | Option | Description | Default |
 | ------ | ----------- | ------- |
-| `--smooth-window` | Add a smoothing effect to generated charts | `0` |
-| `--verbose-metrics` | Generates more charts based on the `--benchmark-verbose` factorio argument | `none` |
-| `--max-points` | Max data points that the verbose charts can reach before being downsampled | `0` |
+| `--smooth-window <SMOOTH_WINDOW>` | Add a smoothing effect to generated charts | `0` |
+| `--verbose-metrics <VERBOSE_METRICS>` | Generates more charts based on the `--benchmark-verbose` factorio argument | `none` |
+| `--max-points <MAX_POINTS>` | Max data points that the verbose charts can reach before being downsampled | `0` |
 
 #### `belt benchmark`
+Run benchmarks on one or more save files.
+
 **Arguments:**
 - `<SAVES_DIR>` - The location of the save(s) to be benchmarked.
 
@@ -90,11 +95,32 @@ belt benchmark /path/to/saves --pattern "benchmark*" --output /path/to/output/di
 | `--output <OUTPUT_DIR>` | A directory to output the .csv and .md files to | `.` |
 | `--mods-dir <MODS_DIR>` | A directory containing mods to be used for the benchmark| `--sync-mods` on each save file |
 | `--run-order <RUN_ORDER>` | In which order to run the benchmarks. Available: `sequential`, `random`, `grouped` | `grouped` |
-| `--verbose-metrics` | Generates more charts based on the `--benchmark-verbose` factorio argument | `none` |
-| `--strip-prefix` | Strip a given prefix off of the save names | `none` |
-| `--headless` | Whether or not to assume headless factorio | `false` |
+| `--verbose-metrics <VERBOSE_METRICS>` | Generates more charts based on the `--benchmark-verbose` factorio argument | `none` |
+| `--strip-prefix <PREFIX>` | Strip a given prefix off of the save names | `none` |
+| `--headless <HEADLESS>` | Whether or not to assume headless factorio | `false` |
+
+#### `belt blueprint`
+Stamp blueprints into a base save.
+
+**Arguments:**
+- `<BLUEPRINTS_DIR>` - Directory containing blueprint files.
+- `<BASE_SAVE_PATH>` - Base save file to stamp blueprints into.
+
+**Options:**
+| Option | Description | Default |
+| ------ | ----------- | ------- |
+| `--count <COUNT>` | Number of times to stamp each blueprint. | **required** |
+| `--buffer-ticks <BUFFER_TICKS>` | Ticks to wait between stamping operations. | **required** |
+| `--bot-count <BOT_COUNT>` | Number of construction bots to use for building. | `0` |
+| `--prefix <PREFIX>` | Prefix to add to generated save names. | `none` |
+| `--pattern <PATTERN>` | Pattern to match against when searching for blueprint files. | `*` |
+| `--output <OUTPUT_DIR>` | Directory to output generated saves. | `.` |
+| `--mods-dir <MODS_DIR>` | Directory containing mods to use. | `--sync-mods` on each save file |
+| `--headless <HEADLESS>` | Whether or not to assume headless factorio | `false` |
 
 #### `belt sanitize`
+Run the belt-sanitizer mod on save files to track item/fluid production and consumption.
+
 **Arguments:**
 - `<SAVES_DIR>` - The location of the save(s) to be sanitized.
 
@@ -118,26 +144,38 @@ belt benchmark /path/to/saves --pattern "benchmark*" --output /path/to/output/di
 ### Examples
 #### Example 1: Basic Benchmarking
 ```bash
-# Run a benchmark on the my-saves directory for 6000 ticks per run, and running each save file 3 times.
+# Run 3 benchmarks per save for 6000 ticks each
 belt benchmark ./my-saves --ticks 6000 --runs 3
 ```
 
 #### Example 2: Pattern Filtering
 ```bash
-# Run a benchmark on the my-saves directory, only matching save files that start with "science" and outputting it to science-results/results.{csv,md}
-belt benchmark ./my-saves --pattern science --output science-results
+# Benchmark only saves starting with "science"
+belt benchmark ./my-saves --pattern "science*" --output ./science-results
 ```
 
 #### Example 3: Custom Factorio Path
 ```bash
-# Run a benchmark on the my-saves directory, with an explicit path to the factorio binary
+# Specify explicit Factorio binary location
 belt --factorio-path /path/to/factorio benchmark ./my-saves
 ```
 
-#### Example 4: Specifying a mod list
+#### Example 4: Blueprint Testing
 ```bash
-# Run a benchmark on the my-saves directory and a mod directory
-belt --factorio-path /path/to/factorio --mods-dir /path/to/mods benchmark ./my-saves
+# Stamp each blueprint 100 times with 60 tick buffer
+belt blueprint ./blueprints ./base-save.zip --count 100 --buffer-ticks 60
+```
+
+#### Example 5: Analyzing Existing Data
+```bash
+# Generate charts from existing benchmark data
+belt analyze ./benchmark-results --height 600 --width 1200 --smooth-window 50
+```
+
+#### Example 6: Item/Fluid Tracking
+```bash
+# Track specific items and fluids over 3600 ticks
+belt sanitize ./saves --items "iron-plate,copper-plate" --fluids "water,crude-oil"
 ```
 
 ### Advanced Usage
