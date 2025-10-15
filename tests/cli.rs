@@ -4,6 +4,26 @@ use assert_cmd::cargo::cargo_bin_cmd;
 use tempfile::tempdir;
 
 #[test]
+fn test_blueprint_help_includes_mining_module_replacement_options() -> Result<(), Box<dyn Error>> {
+    let mut cmd = cargo_bin_cmd!("belt");
+
+    let output = cmd.arg("blueprint").arg("--help").output()?;
+    assert!(
+        output.status.success(),
+        "Command should succeed. Stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("--mining-module-replacement"));
+    assert!(stdout.contains("--mining-module-replacement-quality"));
+    assert!(stdout.contains("[default: speed-module-3]"));
+    assert!(stdout.contains("[default: legendary]"));
+
+    Ok(())
+}
+
+#[test]
 fn test_benchmark_command_creates_output_files() -> Result<(), Box<dyn Error>> {
     let temp_dir = tempdir()?;
     let temp_path = temp_dir.path();

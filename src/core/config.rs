@@ -233,6 +233,12 @@ pub struct BlueprintConfig {
     /// Number of buffer ticks before measuring
     #[serde(default)]
     pub buffer_ticks: u32,
+    /// Module to insert into mining drills after interpreting ore markers
+    #[serde(default = "default_mining_module_replacement")]
+    pub mining_module_replacement: String,
+    /// Quality of the replacement modules inserted into mining drills
+    #[serde(default = "default_mining_module_replacement_quality")]
+    pub mining_module_replacement_quality: String,
     /// Directory containing mods to use
     #[serde(default)]
     pub mods_dir: Option<PathBuf>,
@@ -260,6 +266,8 @@ impl Default for BlueprintConfig {
             base_save_path: PathBuf::new(),
             count: 0,
             buffer_ticks: 0,
+            mining_module_replacement: default_mining_module_replacement(),
+            mining_module_replacement_quality: default_mining_module_replacement_quality(),
             mods_dir: None,
             pattern: None,
             output: None,
@@ -268,6 +276,14 @@ impl Default for BlueprintConfig {
             bot_count: None,
         }
     }
+}
+
+fn default_mining_module_replacement() -> String {
+    "speed-module-3".to_string()
+}
+
+fn default_mining_module_replacement_quality() -> String {
+    "legendary".to_string()
 }
 
 impl BlueprintConfig {

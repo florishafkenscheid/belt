@@ -108,6 +108,24 @@ impl BlueprintRunner {
                     Some(ModSettingsValue::Int(self.config.count as i64)),
                 );
 
+                // Mining drill module replacement
+                ms.set(
+                    ModSettingsScopeName::Startup,
+                    "belt-sanitizer-mining-module-replacement",
+                    Some(ModSettingsValue::String(
+                        self.config.mining_module_replacement.clone(),
+                    )),
+                );
+
+                // Mining drill module replacement quality
+                ms.set(
+                    ModSettingsScopeName::Startup,
+                    "belt-sanitizer-mining-module-replacement-quality",
+                    Some(ModSettingsValue::String(
+                        self.config.mining_module_replacement_quality.clone(),
+                    )),
+                );
+
                 // Blueprint bot count
                 if let Some(bot_count) = self.config.bot_count {
                     ms.set(

@@ -115,12 +115,34 @@ Stamp blueprints into a base save.
 | ------ | ----------- | ------- |
 | `--count <COUNT>` | Number of times to stamp each blueprint. | **required** |
 | `--buffer-ticks <BUFFER_TICKS>` | Ticks to wait between stamping operations. | **required** |
+| `--mining-module-replacement <MINING_MODULE_REPLACEMENT>` | Module to insert into mining drills after ore marker modules have been interpreted. | `speed-module-3` |
+| `--mining-module-replacement-quality <MINING_MODULE_REPLACEMENT_QUALITY>` | Quality of replacement modules inserted into mining drills. | `legendary` |
 | `--bot-count <BOT_COUNT>` | Number of construction bots to use for building. | `0` |
 | `--prefix <PREFIX>` | Prefix to add to generated save names. | `none` |
 | `--pattern <PATTERN>` | Pattern to match against when searching for blueprint files. | `*` |
 | `--output <OUTPUT_DIR>` | Directory to output generated saves. | `.` |
 | `--mods-dir <MODS_DIR>` | Directory containing mods to use. | `--sync-mods` on each save file |
 | `--headless <HEADLESS>` | Whether or not to assume headless factorio | `false` |
+
+`belt blueprint` passes each blueprint string to the belt-sanitizer mod, which stamps it into the
+base save before generating the benchmark save. For mining setups, the sanitizer creates ore patches
+before reviving ghosts so drills can be built immediately. Ore selection is controlled by blueprint
+markers in this order:
+
+| Marker | Resource |
+| ------ | -------- |
+| `stone-path` tile | `stone` |
+| `concrete` tile | `iron-ore` |
+| `hazard-concrete` tile | `coal` |
+| `refined-concrete` tile | `copper-ore` |
+| `refined-hazard-concrete` tile | `scrap` |
+| `efficiency-module` request | `stone`, `iron-ore`, `copper-ore`, `coal`, or `uranium-ore` for `normal`, `uncommon`, `rare`, `epic`, or `legendary` quality |
+| `efficiency-module-2` request | `calcite`, `tungsten-ore`, or `scrap` for `normal`, `uncommon`, or `rare` quality |
+
+Tile markers near a drill take precedence over module markers. After the resource is selected,
+mining-drill module requests are replaced with `--mining-module-replacement` and
+`--mining-module-replacement-quality`, so marker modules do not have to be the modules used in the
+final save.
 
 #### `belt sanitize`
 

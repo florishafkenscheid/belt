@@ -110,6 +110,12 @@ enum Commands {
         #[arg(long, help = "Number of buffer ticks before measuring")]
         buffer_ticks: Option<u32>,
 
+        #[arg(long, default_value = "speed-module-3")]
+        mining_module_replacement: String,
+
+        #[arg(long, default_value = "legendary")]
+        mining_module_replacement_quality: String,
+
         #[arg(long, help = "Directory containing mods to use")]
         mods_dir: Option<PathBuf>,
 
@@ -301,6 +307,8 @@ async fn main() -> Result<()> {
             base_save_path,
             count,
             buffer_ticks,
+            mining_module_replacement,
+            mining_module_replacement_quality,
             mods_dir,
             pattern,
             output,
@@ -317,6 +325,8 @@ async fn main() -> Result<()> {
             if let Some(v) = buffer_ticks {
                 blueprint_config.buffer_ticks = v;
             }
+            blueprint_config.mining_module_replacement = mining_module_replacement;
+            blueprint_config.mining_module_replacement_quality = mining_module_replacement_quality;
             if let Some(v) = mods_dir {
                 blueprint_config.mods_dir = Some(v);
             }
