@@ -32,7 +32,7 @@ impl ResultWriter for ReportWriter {
             WriteData::Report {
                 data,
                 template_path,
-            } => write_report(data, template_path, path),
+            } => write_report(data, template_path.as_ref(), path),
             _ => Err(BenchmarkErrorKind::InvalidWriteData.into()), // TODO
         }
     }
@@ -41,7 +41,7 @@ impl ResultWriter for ReportWriter {
 /// Write the results to a Handlebars file
 fn write_report(
     results: &[BenchmarkResult],
-    template_path: &Option<PathBuf>,
+    template_path: Option<&PathBuf>,
     path: &Path,
 ) -> Result<()> {
     ensure_output_dir(path)?;
