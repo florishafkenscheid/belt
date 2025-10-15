@@ -8,15 +8,16 @@ pub mod runner;
 use std::{
     collections::HashMap,
     path::Path,
-    sync::{atomic::AtomicBool, Arc},
+    sync::{Arc, atomic::AtomicBool},
 };
 
 use crate::{
     benchmark::runner::VerboseData,
     core::{
+        FactorioExecutor, GlobalConfig, Result,
         config::BenchmarkConfig,
-        output::{ensure_output_dir, report::ReportWriter, CsvWriter, ResultWriter, WriteData},
-        utils, FactorioExecutor, GlobalConfig, Result,
+        output::{CsvWriter, ResultWriter, WriteData, ensure_output_dir, report::ReportWriter},
+        utils,
     },
 };
 

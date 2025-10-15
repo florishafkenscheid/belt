@@ -5,7 +5,7 @@ use std::path::Path;
 
 use crate::core::config::BenchmarkConfig;
 use crate::core::error::BenchmarkErrorKind;
-use crate::core::{get_os_info, Result};
+use crate::core::{Result, get_os_info};
 
 /// The result of a benchmark of a single run
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

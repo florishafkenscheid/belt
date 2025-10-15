@@ -1,16 +1,17 @@
 //! Running and collecting logs of benchmarks on save file(s)
 
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::{fs, sync::atomic::Ordering};
 
 use crate::core::{
+    FactorioExecutor, Result,
     config::BlueprintConfig,
     error::{BenchmarkError, BenchmarkErrorKind},
     factorio::FactorioSaveRunSpec,
     settings::{ModSettings, ModSettingsScopeName, ModSettingsValue},
-    utils, FactorioExecutor, Result,
+    utils,
 };
 
 pub struct BlueprintRunner {

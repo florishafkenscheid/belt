@@ -4,7 +4,7 @@ use crate::{
     benchmark::{parser::BenchmarkResult, runner::VerboseData},
     core::{
         error::{BenchmarkErrorKind, Result},
-        output::{ensure_output_dir, ResultWriter, WriteData},
+        output::{ResultWriter, WriteData, ensure_output_dir},
     },
 };
 

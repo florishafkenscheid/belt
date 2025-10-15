@@ -5,8 +5,8 @@ use std::{fs, path::Path};
 use serde_json::Value;
 
 use crate::{
-    core::{config::SanitizeConfig, error::BenchmarkErrorKind, utils},
     Result,
+    core::{config::SanitizeConfig, error::BenchmarkErrorKind, utils},
 };
 
 pub fn report(config: &SanitizeConfig) -> Result<()> {

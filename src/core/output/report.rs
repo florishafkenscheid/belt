@@ -8,7 +8,7 @@ use crate::{
     benchmark::parser::BenchmarkResult,
     core::{
         error::{BenchmarkErrorKind, Result},
-        output::{ensure_output_dir, ResultWriter, WriteData},
+        output::{ResultWriter, WriteData, ensure_output_dir},
     },
 };
 

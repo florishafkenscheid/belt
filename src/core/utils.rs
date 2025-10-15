@@ -2,8 +2,8 @@
 
 use serde_json::Value;
 
-use crate::sanitize::parser::ProductionStatistic;
 use crate::Result;
+use crate::sanitize::parser::ProductionStatistic;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::{path::Path, time::Duration};

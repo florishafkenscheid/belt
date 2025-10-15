@@ -9,15 +9,15 @@ mod core;
 mod sanitize;
 
 use crate::core::{
-    config::{AnalyzeConfig, BenchmarkConfig, BlueprintConfig, SanitizeConfig},
     GlobalConfig, Result, RunOrder,
+    config::{AnalyzeConfig, BenchmarkConfig, BlueprintConfig, SanitizeConfig},
 };
 use clap::{Parser, Subcommand};
 use std::{
     path::PathBuf,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc,
+        atomic::{AtomicBool, Ordering},
     },
 };
 

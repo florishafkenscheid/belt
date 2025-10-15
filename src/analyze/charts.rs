@@ -5,13 +5,13 @@
 use std::collections::HashMap;
 
 use charming::{
+    Chart, ImageRenderer,
     component::{Axis, Grid, Title},
     element::{
         AxisLabel, AxisType, ItemStyle, JsFunction, Label, LabelPosition, SplitArea, SplitLine,
     },
     series::{Bar, Boxplot, Line, Scatter},
     theme::Theme,
-    Chart, ImageRenderer,
 };
 
 use crate::{
