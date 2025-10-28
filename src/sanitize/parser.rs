@@ -66,11 +66,16 @@ fn report_detection_warnings(json: &Value) -> Result<()> {
                 ));
             }
 
-            if surface["active_cars"].as_u64().unwrap_or(0) > 0 {
-                warnings.push(format!(
-                    "Active cars found on surface '{}'",
-                    surface["name"].as_str().unwrap_or("unknown")
-                ));
+            if let Some(entities_map) = surface["active_entities"].as_object() {
+                for (entity_type, count_value) in entities_map {
+                    if count_value.as_u64().unwrap_or(0) > 0 {
+                        warnings.push(format!(
+                            "Active {} found on surface '{}'",
+                            entity_type,
+                            surface["name"].as_str().unwrap_or("unknown")
+                        ));
+                    }
+                }
             }
         }
     }
