@@ -14,7 +14,12 @@ use indicatif::{ProgressBar, ProgressStyle};
 use crate::{
     Result,
     core::{
-        FactorioExecutor, config::SanitizeConfig, factorio::FactorioTickRunSpec, format_duration,
+        FactorioExecutor,
+        config::SanitizeConfig,
+        factorio::FactorioTickRunSpec,
+        format_duration,
+        settings::{ModSettings, ModSettingsScopeName, ModSettingsValue},
+        utils,
     },
     sanitize::parser,
 };
@@ -68,6 +73,47 @@ impl SanitizeRunner {
 
             if self.config.mods_dir.is_none() {
                 self.factorio.sync_mods_for_save(save_file).await?;
+            }
+
+            // Update belt-sanitizer mod settings
+            if let Some(ref mods_dir) = self.config.mods_dir.clone().or(utils::find_mod_directory())
+            {
+                let dat_file = &mods_dir.join("mod-settings.dat");
+                let mut ms = ModSettings::load_from_file(dat_file)?;
+
+                // Disable blueprint-mode just to be sure
+                ms.set(
+                    ModSettingsScopeName::Startup,
+                    "belt-sanitizer-blueprint-mode",
+                    Some(ModSettingsValue::Bool(false)),
+                );
+
+                // Prod check tick
+                ms.set(
+                    ModSettingsScopeName::Startup,
+                    "belt-sanitizer-target-tick",
+                    Some(ModSettingsValue::Int(self.config.ticks as i64)),
+                );
+
+                // Items
+                if let Some(ref items) = self.config.items {
+                    ms.set(
+                        ModSettingsScopeName::Startup,
+                        "belt-sanitizer-production-items",
+                        Some(ModSettingsValue::String(items.clone())),
+                    );
+                }
+
+                // Fluids
+                if let Some(ref fluids) = self.config.fluids {
+                    ms.set(
+                        ModSettingsScopeName::Startup,
+                        "belt-sanitizer-production-fluids",
+                        Some(ModSettingsValue::String(fluids.clone())),
+                    );
+                }
+
+                ms.save_to_file(dat_file)?;
             }
 
             let _output = self
