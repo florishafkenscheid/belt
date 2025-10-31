@@ -44,7 +44,11 @@ pub async fn run(
     }
 
     // Update belt-sanitizer mod settings
-    if let Some(ref mods_dir) = sanitize_config.mods_dir {
+    if let Some(ref mods_dir) = sanitize_config
+        .mods_dir
+        .clone()
+        .or(utils::find_mod_directory())
+    {
         let dat_file = &mods_dir.join("mod-settings.dat");
         let mut ms = ModSettings::load_from_file(dat_file)?;
 
