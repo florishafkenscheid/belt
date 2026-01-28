@@ -2,8 +2,6 @@
 //!
 //! Uses the `charming` crate to render SVG charts for UPS and improvement metrics.
 
-use std::collections::HashMap;
-
 use charming::{
     Chart, ImageRenderer,
     component::{Axis, Grid, Title},
@@ -50,10 +48,23 @@ pub fn generate_charts(analyze_config: &AnalyzeConfig) -> Result<()> {
 
     // Verbose
     for (save_name, data) in &verbose_data_by_save {
-        for metric in &analyze_config.verbose_metrics {
-            let prepped_data = prepare_metric(save_name, data, metric, analyze_config)?;
-            charts.push(draw_metric_chart(&prepped_data, metric)?);
-            charts.push(draw_min_chart(&prepped_data, metric)?);
+        let first_csv = &data[0].csv_data;
+        let mut reader = csv::Reader::from_reader(first_csv.as_bytes());
+        let headers: Vec<String> = reader.headers()?.iter().map(|s| s.to_string()).collect();
+        let metrics_to_chart: Vec<String> =
+            if analyze_config.verbose_metrics.contains(&"all".to_string()) {
+                headers
+                    .into_iter()
+                    .filter(|h| h != "tick" && h != "timestamp" && !h.is_empty())
+                    .collect()
+            } else {
+                analyze_config.verbose_metrics.clone()
+            };
+
+        for metric in metrics_to_chart {
+            let prepped_data = prepare_metric(save_name, data, &metric, analyze_config)?;
+            charts.push(draw_metric_chart(&prepped_data, &metric)?);
+            charts.push(draw_min_chart(&prepped_data, &metric)?);
         }
     }
 
@@ -317,18 +328,13 @@ fn prepare_metric(
     let first_csv = &data[0].csv_data;
     let mut reader = csv::Reader::from_reader(first_csv.as_bytes());
     let headers: Vec<String> = reader.headers()?.iter().map(|s| s.to_string()).collect();
-    let header_map: HashMap<String, usize> = headers
-        .clone()
-        .into_iter()
-        .enumerate()
-        .map(|(i, h)| (h, i))
-        .collect();
-
-    let column_index = header_map
-        .get(metric)
-        .ok_or(BenchmarkErrorKind::InvalidMetric {
-            metric: metric.to_owned(),
-        })?;
+    let column_index =
+        headers
+            .iter()
+            .position(|h| h == metric)
+            .ok_or(BenchmarkErrorKind::InvalidMetric {
+                metric: metric.to_owned(),
+            })?;
 
     let mut all_runs_raw_ns: Vec<Vec<f64>> = Vec::new();
     let mut ticks: Vec<u64> = Vec::new();
@@ -338,13 +344,13 @@ fn prepare_metric(
 
         let mut reader = csv::Reader::from_reader(run.csv_data.as_bytes());
         for record in reader.records() {
-            let rec = record?; // <-
+            let rec = record?;
             let tick_str = rec.get(0).ok_or(BenchmarkErrorKind::ParseError {
                 reason: "Couldn't get record[0]".to_string(),
             })?;
             let tick = tick_str.parse::<u64>()?;
             let value_str = rec
-                .get(*column_index)
+                .get(column_index)
                 .ok_or(BenchmarkErrorKind::ParseError {
                     reason: "Couldn't get metric column value".to_string(),
                 })?;
