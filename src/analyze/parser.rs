@@ -78,6 +78,7 @@ fn read_benchmark_results(csv_path: &PathBuf) -> Result<Vec<BenchmarkRun>> {
             max_ms,
             effective_ups,
             base_diff,
+            mimalloc_stats: None,
         });
     }
 

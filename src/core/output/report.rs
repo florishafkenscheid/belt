@@ -8,7 +8,7 @@ use handlebars::Handlebars;
 use serde_json::json;
 
 use crate::{
-    benchmark::parser::BenchmarkRun,
+    benchmark::parser::{BenchmarkRun, MimallocStats},
     core::{
         error::{BenchmarkErrorKind, Result},
         output::{ResultWriter, WriteData, ensure_output_dir},
@@ -35,18 +35,14 @@ impl ResultWriter for ReportWriter {
             WriteData::Report {
                 data,
                 template_path,
-            } => write_report(data, template_path.as_ref(), path),
+            } => write_report(data, template_path.as_deref(), path),
             _ => Err(BenchmarkErrorKind::InvalidWriteData.into()), // TODO
         }
     }
 }
 
 /// Write the results to a Handlebars file
-fn write_report(
-    results: &[BenchmarkRun],
-    template_path: Option<&PathBuf>,
-    path: &Path,
-) -> Result<()> {
+fn write_report(results: &[BenchmarkRun], template_path: Option<&Path>, path: &Path) -> Result<()> {
     ensure_output_dir(path)?;
     const TPL_STR: &str = "# Factorio Benchmark Results\n\n**Platform:** {{platform}}\n**Factorio Version:** {{factorio_version}}\n**Date:** {{date}}\n\n## Scenario\n* Each save was tested for {{ticks}} tick(s) and {{runs}} run(s)\n\n## Results\n| Metric            | Description                           |\n| ----------------- | ------------------------------------- |\n| **Mean UPS**      | Updates per second – higher is better |\n| **Mean Avg (ms)** | Average frame time – lower is better  |\n| **Mean Min (ms)** | Minimum frame time – lower is better  |\n| **Mean Max (ms)** | Maximum frame time – lower is better  |\n\n| Save | Avg (ms) | Min (ms) | Max (ms) | UPS | Execution Time (ms) | % Difference from base |\n|------|----------|----------|----------|-----|---------------------|------------------------|\n{{#each results}}\n| {{save_name}} | {{avg_ms}} | {{min_ms}} | {{max_ms}} | {{{avg_effective_ups}}} | {{total_execution_time_ms}} | {{percentage_improvement}} |\n{{/each}}\n\n## Conclusion";
 
@@ -102,6 +98,7 @@ fn write_report(
             "avg_effective_ups": (avg_effective_ups as u64).to_string(),
             "percentage_improvement": format!("{:.2}%", avg_base_diff),
             "total_execution_time_ms": a.total_execution_time_ms as u64,
+            "mimalloc": a.mimalloc_stats,
         }));
     }
 
@@ -164,6 +161,8 @@ struct Aggregate {
     max_ms: f64,
     effective_ups: f64,
     base_diff: f64,
+
+    mimalloc_stats: Vec<MimallocStats>,
 }
 
 impl Aggregate {
@@ -178,6 +177,8 @@ impl Aggregate {
             max_ms: f64::NEG_INFINITY,
             effective_ups: 0.0,
             base_diff: 0.0,
+
+            mimalloc_stats: Vec::new(),
         }
     }
 
@@ -191,6 +192,10 @@ impl Aggregate {
 
         self.effective_ups += r.effective_ups;
         self.base_diff += r.base_diff;
+
+        if let Some(stats) = r.mimalloc_stats.clone() {
+            self.mimalloc_stats.push(stats);
+        }
     }
 }
 

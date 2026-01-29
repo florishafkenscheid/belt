@@ -88,7 +88,7 @@ pub async fn run(
     let report_writer = ReportWriter::new();
     let data = WriteData::Report {
         data: results.clone(),
-        template_path: benchmark_config.template_path,
+        template_path: benchmark_config.template_path.as_deref(),
     };
     report_writer.write(&data, output_dir)?;
 

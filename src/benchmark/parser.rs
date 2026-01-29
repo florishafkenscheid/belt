@@ -24,6 +24,7 @@ pub struct BenchmarkRun {
     pub max_ms: f64,
     pub effective_ups: f64,
     pub base_diff: f64,
+    pub mimalloc_stats: Option<MimallocStats>,
 }
 
 // Build perfomance line regexs
@@ -36,6 +37,12 @@ static PERFORMED_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 static MS_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"^\s*avg:\s*(?P<avg>[0-9]+(?:\.[0-9]+)?)\s*ms,\s*min:\s*(?P<min>[0-9]+(?:\.[0-9]+)?)\s*ms,\s*max:\s*(?P<max>[0-9]+(?:\.[0-9]+)?)\s*ms\s*$",
+    ).expect("Regex building failed")
+});
+
+static MIMALLOC_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"heap\sstats:\s*peak\s*total\s*current\s*block\s*total#\s*reserved:\s*(?P<reserved_peak>(?:\d+)(?:\.\d+\s[[:alpha:]]{2,3})?)\s*(?P<reserved_total>(?:\d+)(?:\.\d+\s[[:alpha:]]{2,3})?)\s*(?P<reserved_current>(?:\d+)(?:\.\d+\s[[:alpha:]]{2,3})?)\s*committed:\s*(?P<committed_peak>(?:\d+)(?:\.\d+\s[[:alpha:]]{2,3})?)\s*(?P<committed_total>(?:\d+)(?:\.\d+\s[[:alpha:]]{2,3})?)\s*(?P<committed_current>(?:\d+)(?:\.\d+\s[[:alpha:]]{2,3})?)\s*reset:\s*(?:\d+)\s*purged:\s*(?:\d+)\s*touched:\s*(?P<touched_peak>(?:\d+)(?:\.\d+\s[[:alpha:]]{2,3})?)\s*(?P<touched_total>(?:\d+)(?:\.\d+\s[[:alpha:]]{2,3})?)\s*(?P<touched_current>(?:\d+)(?:\.\d+\s[[:alpha:]]{2,3})?)\s*(?P<touched_status>(?:[[:alpha:]]+[[:blank:]]?)*)\s*pages:\s*(?P<pages_peak>(?:\d+)(?:\.\d+\s[[:alpha:]]{2,3})?)\s*(?P<pages_total>(?:\d+)(?:\.\d+\s[[:alpha:]]{2,3})?)\s*(?P<pages_current>(?:\d+)(?:\.\d+\s[[:alpha:]]{2,3})?)\s*(?P<pages_status>(?:[[:alpha:]]+[[:blank:]]?)*)\s*-abandoned:\s*(?P<abandoned_peak>(?:\d+)(?:\.\d+\s[[:alpha:]]{2,3})?)\s*(?P<abandoned_total>(?:\d+)(?:\.\d+\s[[:alpha:]]{2,3})?)\s*(?P<abandoned_current>(?:\d+)(?:\.\d+\s[[:alpha:]]{2,3})?)\s*(?P<abandoned_status>(?:[[:alpha:]]+[[:blank:]]?)*).*\n.*\n.*\n.*\n.*\n.*\n.*\n.*\n.*\n\s*mmaps:\s*(?P<mmaps>\d+)\s*commits:\s*(?P<commits>\d+)\s*resets:\s*(?P<resets>\d+)\s*purges:\s*(?P<purges>\d+).*\n.*\s*threads:\s*(?P<threads_peak>(?:\d+)(?:\.\d+\s[[:alpha:]]{2,3})?)\s*(?P<threads_total>(?:\d+)(?:\.\d+\s[[:alpha:]]{2,3})?)\s*(?P<threads_current>(?:\d+)(?:\.\d+\s[[:alpha:]]{2,3})?)\s*(?P<threads_status>(?:[[:alpha:]]+[[:blank:]]?)*)\n.*\n.*\n.*\n.*peak rss:\s(?P<rss_peak>(?:\d+)(?:\.\d+\s[[:alpha:]]{2,3})?).*"
     ).expect("Regex building failed")
 });
 
@@ -78,8 +85,8 @@ pub fn parse_benchmark_log(
     // Iterate over collected lines
     for line in iterator {
         if let Some(captures) = PERFORMED_REGEX.captures(line) {
-            let ticks: u32 = get_named_type(&captures, "ticks")?;
-            let execution_time: f64 = get_named_type(&captures, "execution_time")?;
+            let ticks: u32 = get_capture(&captures, "ticks")?;
+            let execution_time: f64 = get_capture(&captures, "execution_time")?;
 
             let effective_ups = 1000.0 * ticks as f64 / execution_time;
 
@@ -89,16 +96,51 @@ pub fn parse_benchmark_log(
         }
 
         if let Some(captures) = MS_REGEX.captures(line) {
-            run.avg_ms = get_named_type(&captures, "avg")?;
-            run.min_ms = get_named_type(&captures, "min")?;
-            run.max_ms = get_named_type(&captures, "max")?;
+            run.avg_ms = get_capture(&captures, "avg")?;
+            run.min_ms = get_capture(&captures, "min")?;
+            run.max_ms = get_capture(&captures, "max")?;
         }
+
+        #[cfg(unix)]
+        if line.contains("hugeadm:WARNING") {
+            tracing::warn!("{line}");
+        }
+    }
+
+    if let Some(start) = log.rfind("heap stats:")
+        && let Some(captures) = MIMALLOC_REGEX.captures_at(log, start)
+    {
+        let committed_bytes = parse_size(get_capture(&captures, "committed_peak")?);
+        let rss_bytes = parse_size(get_capture(&captures, "rss_peak")?);
+
+        run.mimalloc_stats = Some(MimallocStats {
+            committed_peak: get_capture(&captures, "committed_peak")?,
+            peak_rss: get_capture(&captures, "rss_peak")?,
+            reserved_peak: get_capture(&captures, "reserved_peak")?,
+            committed_current: get_capture(&captures, "committed_current")?,
+            reserved_current: get_capture(&captures, "reserved_current")?,
+            pages_current: get_capture(&captures, "pages_current")?,
+            pages_status: get_capture(&captures, "pages_status")?,
+            abandoned_current: get_capture(&captures, "abandoned_current")?,
+            abandoned_status: get_capture(&captures, "abandoned_status")?,
+            threads_peak: get_capture(&captures, "threads_peak")?,
+            threads_total: get_capture(&captures, "threads_total")?,
+            mmaps: get_capture(&captures, "mmaps")?,
+            purges: get_capture(&captures, "purges")?,
+            resets: get_capture(&captures, "resets")?,
+            commit_efficiency: format!(
+                "{:.1}%",
+                (rss_bytes as f64 / committed_bytes as f64) * 100.0
+            ),
+            thread_churn: get_capture::<u32>(&captures, "threads_total")?
+                - get_capture::<u32>(&captures, "threads_peak")?,
+        })
     }
 
     Ok(run)
 }
 
-fn get_named_type<T>(captures: &Captures, key: &str) -> Result<T>
+fn get_capture<T>(captures: &Captures, key: &str) -> Result<T>
 where
     T: std::str::FromStr,
     <T as std::str::FromStr>::Err: std::fmt::Display,
@@ -118,6 +160,51 @@ where
             string: s.to_string(),
         })
     })
+}
+
+// Helper to parse "3.9 GiB" -> bytes
+fn parse_size(s: String) -> u64 {
+    let parts: Vec<&str> = s.split_whitespace().collect();
+    if parts.is_empty() {
+        return 0;
+    }
+    let value = parts[0].parse::<f64>().unwrap_or(0.0);
+    let multiplier = if parts.len() > 1 {
+        match parts[1] {
+            "KiB" | "KB" => 1024.0,
+            "Ki" => 1024.0 * 8.0,
+            "MiB" | "MB" => 1024.0 * 1024.0,
+            "Mi" => 1024.0 * 1024.0 * 8.0,
+            "GiB" | "GB" => 1024.0 * 1024.0 * 1024.0,
+            "Gi" => 1024.0 * 1024.0 * 1024.0 * 8.0,
+            "TiB" | "TB" => 1024.0 * 1024.0 * 1024.0 * 1024.0,
+            "Ti" => 1024.0 * 1024.0 * 1024.0 * 1024.0 * 8.0,
+            _ => 1.0,
+        }
+    } else {
+        1.0
+    };
+    (value * multiplier) as u64
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct MimallocStats {
+    pub committed_peak: String,
+    pub peak_rss: String,
+    pub reserved_peak: String,
+    pub committed_current: String,
+    pub reserved_current: String,
+    pub pages_current: String,
+    pub pages_status: String,
+    pub abandoned_current: String,
+    pub abandoned_status: String,
+    pub threads_peak: u32,
+    pub threads_total: u32,
+    pub mmaps: String,
+    pub purges: String,
+    pub resets: String,
+    pub commit_efficiency: String,
+    pub thread_churn: u32,
 }
 
 #[cfg(test)]
