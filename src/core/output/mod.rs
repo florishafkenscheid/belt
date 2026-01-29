@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use crate::{
     Result,
-    benchmark::{parser::BenchmarkResult, runner::VerboseData},
+    benchmark::{parser::BenchmarkRun, runner::VerboseData},
 };
 
 // Re-export submodules
@@ -15,7 +15,7 @@ pub use csv::CsvWriter;
 // Simple data holder
 #[derive(Debug)]
 pub enum WriteData {
-    Benchmark(Vec<BenchmarkResult>),
+    Benchmark(Vec<BenchmarkRun>),
 
     Verbose {
         data: Vec<VerboseData>,
@@ -23,7 +23,7 @@ pub enum WriteData {
     },
 
     Report {
-        data: Vec<BenchmarkResult>,
+        data: Vec<BenchmarkRun>,
         template_path: Option<PathBuf>,
     },
 }

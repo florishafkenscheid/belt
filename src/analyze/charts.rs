@@ -2,6 +2,8 @@
 //!
 //! Uses the `charming` crate to render SVG charts for UPS and improvement metrics.
 
+use std::collections::BTreeMap;
+
 use charming::{
     Chart, ImageRenderer,
     component::{Axis, Grid, Title},
@@ -14,7 +16,7 @@ use charming::{
 
 use crate::{
     analyze::parser,
-    benchmark::{parser::BenchmarkResult, runner::VerboseData},
+    benchmark::{parser::BenchmarkRun, runner::VerboseData},
     core::{
         config::AnalyzeConfig,
         error::{BenchmarkErrorKind, Result},
@@ -79,15 +81,19 @@ pub fn generate_charts(analyze_config: &AnalyzeConfig) -> Result<()> {
     Ok(())
 }
 
-fn draw_ups_chart(data: &[BenchmarkResult]) -> Result<(Chart, String)> {
+fn draw_ups_chart(data: &[BenchmarkRun]) -> Result<(Chart, String)> {
     let save_names: Vec<String> = data.iter().map(|result| result.save_name.clone()).collect();
 
-    let avg_ups_values: Vec<i64> = data
-        .iter()
-        .map(|result| {
-            let total_ups: f64 = result.runs.iter().map(|run| run.effective_ups).sum();
-            (total_ups / result.runs.len() as f64).round() as i64
-        })
+    let mut sums: BTreeMap<&str, (f64, u32)> = BTreeMap::new();
+    for r in data.iter() {
+        let entry = sums.entry(r.save_name.as_str()).or_insert((0.0, 0));
+        entry.0 += r.effective_ups;
+        entry.1 += 1;
+    }
+
+    let avg_ups_values: Vec<i64> = sums
+        .values()
+        .map(|&(sum, n)| (sum / n as f64).round() as i64)
         .collect();
 
     Ok((
@@ -128,7 +134,7 @@ fn draw_ups_chart(data: &[BenchmarkResult]) -> Result<(Chart, String)> {
     ))
 }
 
-fn draw_boxplot_chart(data: &[BenchmarkResult]) -> Result<(Chart, String)> {
+fn draw_boxplot_chart(data: &[BenchmarkRun]) -> Result<(Chart, String)> {
     let boxplot_data = utils::calculate_boxplot_data(data);
     let y_min = (boxplot_data.min_value * 0.95).floor();
     let y_max = (boxplot_data.max_value * 1.05).ceil();
@@ -182,14 +188,20 @@ fn draw_boxplot_chart(data: &[BenchmarkResult]) -> Result<(Chart, String)> {
     ))
 }
 
-fn draw_improvement_chart(data: &[BenchmarkResult]) -> Result<(Chart, String)> {
+fn draw_improvement_chart(data: &[BenchmarkRun]) -> Result<(Chart, String)> {
     let save_names: Vec<String> = data.iter().map(|result| result.save_name.clone()).collect();
 
-    let base_diffs: Vec<f64> = data
-        .iter()
-        .map(|result| {
-            let total_base_diffs: f64 = result.runs.iter().map(|run| run.base_diff).sum();
-            let avg = total_base_diffs / result.runs.len() as f64;
+    let mut sums: BTreeMap<&str, (f64, u32)> = BTreeMap::new();
+    for r in data.iter() {
+        let entry = sums.entry(r.save_name.as_str()).or_insert((0.0, 0));
+        entry.0 += r.base_diff;
+        entry.1 += 1;
+    }
+
+    let base_diffs: Vec<f64> = sums
+        .values()
+        .map(|&(sum, n)| {
+            let avg = sum / n as f64;
             (avg * 100.0).round() / 100.0
         })
         .collect();

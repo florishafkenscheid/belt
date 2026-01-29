@@ -1,11 +1,14 @@
-use std::path::{Path, PathBuf};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use chrono::Local;
 use handlebars::Handlebars;
 use serde_json::json;
 
 use crate::{
-    benchmark::parser::BenchmarkResult,
+    benchmark::parser::BenchmarkRun,
     core::{
         error::{BenchmarkErrorKind, Result},
         output::{ResultWriter, WriteData, ensure_output_dir},
@@ -40,7 +43,7 @@ impl ResultWriter for ReportWriter {
 
 /// Write the results to a Handlebars file
 fn write_report(
-    results: &[BenchmarkResult],
+    results: &[BenchmarkRun],
     template_path: Option<&PathBuf>,
     path: &Path,
 ) -> Result<()> {
@@ -70,47 +73,35 @@ fn write_report(
     };
 
     // Calculate aggregated metrics for each benchmark result
+    let aggs = aggregate_by_save_name(results);
+
     let mut table_results = Vec::new();
-    for result in results {
-        // Aggregate metrics from all runs
-        let total_execution_time_ms: f64 = result.runs.iter().map(|r| r.execution_time_ms).sum();
-        let avg_ms: f64 =
-            result.runs.iter().map(|r| r.avg_ms).sum::<f64>() / result.runs.len() as f64;
+    for a in &aggs {
+        let n = a.runs.max(1) as f64;
 
-        let min_ms: f64 = result
-            .runs
-            .iter()
-            .map(|r| r.min_ms)
-            .min_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap_or(0.0);
+        let avg_ms = a.avg_ms / n;
+        let avg_effective_ups = a.effective_ups / n;
+        let avg_base_diff = a.base_diff / n;
 
-        let max_ms: f64 = result
-            .runs
-            .iter()
-            .map(|r| r.max_ms)
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap_or(0.0);
-
-        let avg_effective_ups: f64 =
-            result.runs.iter().map(|r| r.effective_ups).sum::<f64>() / result.runs.len() as f64;
-
-        let avg_base_diff: f64 =
-            result.runs.iter().map(|r| r.base_diff).sum::<f64>() / result.runs.len() as f64;
-
-        // Round values for display
-        let avg_ms_rounded = (avg_ms * 1000.0).round() / 1000.0;
-        let min_ms_rounded = (min_ms * 1000.0).round() / 1000.0;
-        let max_ms_rounded = (max_ms * 1000.0).round() / 1000.0;
-        let avg_ups = avg_effective_ups as u64;
+        let min_ms = if a.min_ms.is_infinite() {
+            0.0
+        } else {
+            a.min_ms
+        };
+        let max_ms = if a.max_ms.is_infinite() {
+            0.0
+        } else {
+            a.max_ms
+        };
 
         table_results.push(json!({
-            "save_name": result.save_name,
-            "avg_ms": format!("{:.3}", avg_ms_rounded),
-            "min_ms": format!("{:.3}", min_ms_rounded),
-            "max_ms": format!("{:.3}", max_ms_rounded),
-            "avg_effective_ups": avg_ups.to_string(),
+            "save_name": a.save_name,
+            "avg_ms": format!("{:.3}", avg_ms),
+            "min_ms": format!("{:.3}", min_ms),
+            "max_ms": format!("{:.3}", max_ms),
+            "avg_effective_ups": (avg_effective_ups as u64).to_string(),
             "percentage_improvement": format!("{:.2}%", avg_base_diff),
-            "total_execution_time_ms": total_execution_time_ms as u64,
+            "total_execution_time_ms": a.total_execution_time_ms as u64,
         }));
     }
 
@@ -146,11 +137,11 @@ fn write_report(
     }
 
     let data = json!({
-        "platform": results.first().map(|r| &r.platform).unwrap_or(&"unknown".to_string()).to_string(),
-        "factorio_version": results.first().map(|r| &r.factorio_version).unwrap_or(&"unknown".to_string()).to_string(),
+        "platform": results.first().map(|run| run.platform.as_str()),
+        "factorio_version": results.first().map(|run| run.factorio_version.as_str()),
         "results": table_results,
-        "ticks": results.first().map(|r| r.ticks).unwrap_or(0),
-        "runs": results.first().map(|r| r.runs.len()).unwrap_or(0),
+        "ticks": results.first().map(|run| run.ticks).unwrap_or(0),
+        "runs": results.len(),
         "date": Local::now().date_naive().to_string(),
     });
 
@@ -160,4 +151,59 @@ fn write_report(
 
     tracing::info!("Report written to {}", results_path.display());
     Ok(())
+}
+
+#[derive(Debug, Clone)]
+struct Aggregate {
+    save_name: String,
+
+    runs: u32,
+    total_execution_time_ms: f64,
+    avg_ms: f64,
+    min_ms: f64,
+    max_ms: f64,
+    effective_ups: f64,
+    base_diff: f64,
+}
+
+impl Aggregate {
+    fn new(r: &BenchmarkRun) -> Self {
+        Self {
+            save_name: r.save_name.clone(),
+
+            runs: 0,
+            total_execution_time_ms: 0.0,
+            avg_ms: 0.0,
+            min_ms: f64::INFINITY,
+            max_ms: f64::NEG_INFINITY,
+            effective_ups: 0.0,
+            base_diff: 0.0,
+        }
+    }
+
+    fn push(&mut self, r: &BenchmarkRun) {
+        self.runs += 1;
+        self.total_execution_time_ms += r.execution_time_ms;
+
+        self.avg_ms += r.avg_ms;
+        self.min_ms = self.min_ms.min(r.min_ms);
+        self.max_ms = self.max_ms.max(r.max_ms);
+
+        self.effective_ups += r.effective_ups;
+        self.base_diff += r.base_diff;
+    }
+}
+
+fn aggregate_by_save_name(runs: &[BenchmarkRun]) -> Vec<Aggregate> {
+    let mut map: HashMap<&str, Aggregate> = HashMap::new();
+
+    for run in runs {
+        map.entry(run.save_name.as_str())
+            .or_insert_with(|| Aggregate::new(run))
+            .push(run);
+    }
+
+    let mut aggs: Vec<Aggregate> = map.into_values().collect();
+    aggs.sort_by(|a, b| a.save_name.cmp(&b.save_name));
+    aggs
 }

@@ -6,10 +6,7 @@ use std::{
 use csv::Reader;
 
 use crate::{
-    benchmark::{
-        parser::{BenchmarkResult, BenchmarkRun},
-        runner::VerboseData,
-    },
+    benchmark::{parser::BenchmarkRun, runner::VerboseData},
     core::{
         error::{BenchmarkErrorKind, Result},
         utils,
@@ -20,7 +17,7 @@ use crate::{
 #[allow(clippy::complexity)]
 pub fn read_data(
     data_dir: &Path,
-) -> Result<(Vec<BenchmarkResult>, HashMap<String, Vec<VerboseData>>)> {
+) -> Result<(Vec<BenchmarkRun>, HashMap<String, Vec<VerboseData>>)> {
     let files = utils::find_data_files(data_dir)?;
 
     let results_csv = files
@@ -48,67 +45,51 @@ pub fn read_data(
 }
 
 /// Read results.csv and reconstruct BenchmarkResult vector
-fn read_benchmark_results(csv_path: &PathBuf) -> Result<Vec<BenchmarkResult>> {
+fn read_benchmark_results(csv_path: &PathBuf) -> Result<Vec<BenchmarkRun>> {
     let mut reader = Reader::from_path(csv_path)?;
-    let mut results_map: HashMap<String, BenchmarkResult> = HashMap::new();
+    let mut runs: Vec<BenchmarkRun> = Vec::new();
 
-    for result in reader.records() {
-        let record = result?;
+    for row in reader.records() {
+        let record = row?;
 
         let save_name = record.get(0).unwrap_or("unknown").to_string();
-        let run_index: usize = record.get(1).unwrap_or("0").parse().unwrap_or(0);
+        let index: u32 = record.get(1).unwrap_or("0").parse().unwrap_or(0);
+
         let execution_time_ms: f64 = record.get(2).unwrap_or("0").parse().unwrap_or(0.0);
         let avg_ms: f64 = record.get(3).unwrap_or("0").parse().unwrap_or(0.0);
         let min_ms: f64 = record.get(4).unwrap_or("0").parse().unwrap_or(0.0);
         let max_ms: f64 = record.get(5).unwrap_or("0").parse().unwrap_or(0.0);
         let effective_ups: f64 = record.get(6).unwrap_or("0").parse().unwrap_or(0.0);
         let base_diff: f64 = record.get(7).unwrap_or("0").parse().unwrap_or(0.0);
+
         let ticks: u32 = record.get(8).unwrap_or("0").parse().unwrap_or(0);
         let factorio_version = record.get(9).unwrap_or("unknown").to_string();
         let platform = record.get(10).unwrap_or("unknown").to_string();
 
-        let run = BenchmarkRun {
+        runs.push(BenchmarkRun {
+            index,
+            save_name,
+            factorio_version,
+            platform,
             execution_time_ms,
+            ticks,
             avg_ms,
             min_ms,
             max_ms,
             effective_ups,
             base_diff,
-        };
-
-        let result = results_map
-            .entry(save_name.clone())
-            .or_insert_with(|| BenchmarkResult {
-                save_name,
-                ticks,
-                runs: Vec::new(),
-                factorio_version,
-                platform,
-            });
-
-        if result.runs.len() <= run_index {
-            result.runs.resize(run_index + 1, BenchmarkRun::default());
-        }
-        result.runs[run_index] = run;
+        });
     }
 
-    let mut all_results: Vec<BenchmarkResult> = results_map.into_values().collect();
-
-    // Sort by performance
-    all_results.sort_by(|a, b| {
-        let avg_a: f64 =
-            a.runs.iter().map(|run| run.effective_ups).sum::<f64>() / a.runs.len() as f64;
-        let avg_b: f64 =
-            b.runs.iter().map(|run| run.effective_ups).sum::<f64>() / b.runs.len() as f64;
-
-        avg_a
-            .partial_cmp(&avg_b)
-            .unwrap_or(std::cmp::Ordering::Equal)
+    // Optional: stable-ish ordering (by save then index), handy for debugging
+    runs.sort_by(|a, b| {
+        a.save_name
+            .cmp(&b.save_name)
+            .then_with(|| a.index.cmp(&b.index))
     });
 
     tracing::debug!("Read results from: {}", csv_path.display());
-
-    Ok(all_results)
+    Ok(runs)
 }
 
 /// Read *_verbose_metrics.csv files and reconstruct VerboseData
@@ -149,7 +130,7 @@ fn read_verbose_data(verbose_csv_files: &[PathBuf]) -> Result<HashMap<String, Ve
             .into_iter()
             .map(|(run_index, csv_data)| VerboseData {
                 save_name: file_stem.clone(),
-                run_index,
+                run_index: run_index.try_into().unwrap_or(u32::MAX),
                 csv_data,
             })
             .collect();

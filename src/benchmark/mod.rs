@@ -93,13 +93,7 @@ pub async fn run(
     report_writer.write(&data, output_dir)?;
 
     tracing::info!("Benchmark complete!");
-    tracing::info!(
-        "Total benchmarks run: {}",
-        results
-            .iter()
-            .map(|result| result.runs.len() as u64)
-            .sum::<u64>()
-    );
+    tracing::info!("Total benchmarks run: {}", results.len());
 
     Ok(())
 }

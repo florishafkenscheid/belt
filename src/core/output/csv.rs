@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::Path};
 
 use crate::{
-    benchmark::{parser::BenchmarkResult, runner::VerboseData},
+    benchmark::{parser::BenchmarkRun, runner::VerboseData},
     core::{
         error::{BenchmarkErrorKind, Result},
         output::{ResultWriter, WriteData, ensure_output_dir},
@@ -36,7 +36,7 @@ impl ResultWriter for CsvWriter {
 }
 
 /// Write the results to a CSV file
-fn write_benchmark_csv(results: &[BenchmarkResult], path: &Path) -> Result<()> {
+fn write_benchmark_csv(results: &[BenchmarkRun], path: &Path) -> Result<()> {
     ensure_output_dir(path)?;
 
     let csv_path = path.join("results.csv");
@@ -58,21 +58,19 @@ fn write_benchmark_csv(results: &[BenchmarkResult], path: &Path) -> Result<()> {
     ])?;
 
     for result in results {
-        for (i, run) in result.runs.iter().enumerate() {
-            writer.write_record([
-                &result.save_name,
-                &i.to_string(),
-                &run.execution_time_ms.to_string(),
-                &run.avg_ms.to_string(),
-                &run.min_ms.to_string(),
-                &run.max_ms.to_string(),
-                &run.effective_ups.to_string(),
-                &run.base_diff.to_string(),
-                &result.ticks.to_string(),
-                &result.factorio_version,
-                &result.platform,
-            ])?;
-        }
+        writer.write_record([
+            &result.save_name,
+            &result.index.to_string(),
+            &result.execution_time_ms.to_string(),
+            &result.avg_ms.to_string(),
+            &result.min_ms.to_string(),
+            &result.max_ms.to_string(),
+            &result.effective_ups.to_string(),
+            &result.base_diff.to_string(),
+            &result.ticks.to_string(),
+            &result.factorio_version,
+            &result.platform,
+        ])?;
     }
 
     writer.flush()?;
