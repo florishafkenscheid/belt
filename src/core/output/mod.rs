@@ -1,10 +1,10 @@
 //! Shared output utilities for writing results (e.g., CSVs, reports).
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::{
     Result,
-    benchmark::{parser::BenchmarkResult, runner::VerboseData},
+    benchmark::{parser::BenchmarkRun, runner::VerboseData},
 };
 
 // Re-export submodules
@@ -14,8 +14,8 @@ pub use csv::CsvWriter;
 
 // Simple data holder
 #[derive(Debug)]
-pub enum WriteData {
-    Benchmark(Vec<BenchmarkResult>),
+pub enum WriteData<'a> {
+    Benchmark(Vec<BenchmarkRun>),
 
     Verbose {
         data: Vec<VerboseData>,
@@ -23,8 +23,8 @@ pub enum WriteData {
     },
 
     Report {
-        data: Vec<BenchmarkResult>,
-        template_path: Option<PathBuf>,
+        data: Vec<BenchmarkRun>,
+        template_path: Option<&'a Path>,
     },
 }
 

@@ -27,7 +27,7 @@ pub async fn run(
     benchmark_config: BenchmarkConfig,
     running: &Arc<AtomicBool>,
 ) -> Result<()> {
-    tracing::info!("Starting benchmark with config: {:?}", benchmark_config);
+    tracing::debug!("Starting benchmark with config: {:?}", benchmark_config);
 
     // Find the Factorio binary
     let factorio = FactorioExecutor::discover(global_config.factorio_path)?;
@@ -88,18 +88,12 @@ pub async fn run(
     let report_writer = ReportWriter::new();
     let data = WriteData::Report {
         data: results.clone(),
-        template_path: benchmark_config.template_path,
+        template_path: benchmark_config.template_path.as_deref(),
     };
     report_writer.write(&data, output_dir)?;
 
     tracing::info!("Benchmark complete!");
-    tracing::info!(
-        "Total benchmarks run: {}",
-        results
-            .iter()
-            .map(|result| result.runs.len() as u64)
-            .sum::<u64>()
-    );
+    tracing::info!("Total benchmarks run: {}", results.len());
 
     Ok(())
 }

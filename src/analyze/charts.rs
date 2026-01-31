@@ -2,7 +2,7 @@
 //!
 //! Uses the `charming` crate to render SVG charts for UPS and improvement metrics.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use charming::{
     Chart, ImageRenderer,
@@ -16,7 +16,7 @@ use charming::{
 
 use crate::{
     analyze::parser,
-    benchmark::{parser::BenchmarkResult, runner::VerboseData},
+    benchmark::{parser::BenchmarkRun, runner::VerboseData},
     core::{
         config::AnalyzeConfig,
         error::{BenchmarkErrorKind, Result},
@@ -50,10 +50,23 @@ pub fn generate_charts(analyze_config: &AnalyzeConfig) -> Result<()> {
 
     // Verbose
     for (save_name, data) in &verbose_data_by_save {
-        for metric in &analyze_config.verbose_metrics {
-            let prepped_data = prepare_metric(save_name, data, metric, analyze_config)?;
-            charts.push(draw_metric_chart(&prepped_data, metric)?);
-            charts.push(draw_min_chart(&prepped_data, metric)?);
+        let first_csv = &data[0].csv_data;
+        let mut reader = csv::Reader::from_reader(first_csv.as_bytes());
+        let headers: Vec<String> = reader.headers()?.iter().map(|s| s.to_string()).collect();
+        let metrics_to_chart: Vec<String> =
+            if analyze_config.verbose_metrics.contains(&"all".to_string()) {
+                headers
+                    .into_iter()
+                    .filter(|h| h != "tick" && h != "timestamp" && !h.is_empty())
+                    .collect()
+            } else {
+                analyze_config.verbose_metrics.clone()
+            };
+
+        for metric in metrics_to_chart {
+            let prepped_data = prepare_metric(save_name, data, &metric, analyze_config)?;
+            charts.push(draw_metric_chart(&prepped_data, &metric)?);
+            charts.push(draw_min_chart(&prepped_data, &metric)?);
         }
     }
 
@@ -68,15 +81,19 @@ pub fn generate_charts(analyze_config: &AnalyzeConfig) -> Result<()> {
     Ok(())
 }
 
-fn draw_ups_chart(data: &[BenchmarkResult]) -> Result<(Chart, String)> {
+fn draw_ups_chart(data: &[BenchmarkRun]) -> Result<(Chart, String)> {
     let save_names: Vec<String> = data.iter().map(|result| result.save_name.clone()).collect();
 
-    let avg_ups_values: Vec<i64> = data
-        .iter()
-        .map(|result| {
-            let total_ups: f64 = result.runs.iter().map(|run| run.effective_ups).sum();
-            (total_ups / result.runs.len() as f64).round() as i64
-        })
+    let mut sums: BTreeMap<&str, (f64, u32)> = BTreeMap::new();
+    for r in data.iter() {
+        let entry = sums.entry(r.save_name.as_str()).or_insert((0.0, 0));
+        entry.0 += r.effective_ups;
+        entry.1 += 1;
+    }
+
+    let avg_ups_values: Vec<i64> = sums
+        .values()
+        .map(|&(sum, n)| (sum / n as f64).round() as i64)
         .collect();
 
     Ok((
@@ -117,7 +134,7 @@ fn draw_ups_chart(data: &[BenchmarkResult]) -> Result<(Chart, String)> {
     ))
 }
 
-fn draw_boxplot_chart(data: &[BenchmarkResult]) -> Result<(Chart, String)> {
+fn draw_boxplot_chart(data: &[BenchmarkRun]) -> Result<(Chart, String)> {
     let boxplot_data = utils::calculate_boxplot_data(data);
     let y_min = (boxplot_data.min_value * 0.95).floor();
     let y_max = (boxplot_data.max_value * 1.05).ceil();
@@ -171,14 +188,20 @@ fn draw_boxplot_chart(data: &[BenchmarkResult]) -> Result<(Chart, String)> {
     ))
 }
 
-fn draw_improvement_chart(data: &[BenchmarkResult]) -> Result<(Chart, String)> {
+fn draw_improvement_chart(data: &[BenchmarkRun]) -> Result<(Chart, String)> {
     let save_names: Vec<String> = data.iter().map(|result| result.save_name.clone()).collect();
 
-    let base_diffs: Vec<f64> = data
-        .iter()
-        .map(|result| {
-            let total_base_diffs: f64 = result.runs.iter().map(|run| run.base_diff).sum();
-            let avg = total_base_diffs / result.runs.len() as f64;
+    let mut sums: BTreeMap<&str, (f64, u32)> = BTreeMap::new();
+    for r in data.iter() {
+        let entry = sums.entry(r.save_name.as_str()).or_insert((0.0, 0));
+        entry.0 += r.base_diff;
+        entry.1 += 1;
+    }
+
+    let base_diffs: Vec<f64> = sums
+        .values()
+        .map(|&(sum, n)| {
+            let avg = sum / n as f64;
             (avg * 100.0).round() / 100.0
         })
         .collect();
@@ -317,18 +340,13 @@ fn prepare_metric(
     let first_csv = &data[0].csv_data;
     let mut reader = csv::Reader::from_reader(first_csv.as_bytes());
     let headers: Vec<String> = reader.headers()?.iter().map(|s| s.to_string()).collect();
-    let header_map: HashMap<String, usize> = headers
-        .clone()
-        .into_iter()
-        .enumerate()
-        .map(|(i, h)| (h, i))
-        .collect();
-
-    let column_index = header_map
-        .get(metric)
-        .ok_or(BenchmarkErrorKind::InvalidMetric {
-            metric: metric.to_owned(),
-        })?;
+    let column_index =
+        headers
+            .iter()
+            .position(|h| h == metric)
+            .ok_or(BenchmarkErrorKind::InvalidMetric {
+                metric: metric.to_owned(),
+            })?;
 
     let mut all_runs_raw_ns: Vec<Vec<f64>> = Vec::new();
     let mut ticks: Vec<u64> = Vec::new();
@@ -338,13 +356,13 @@ fn prepare_metric(
 
         let mut reader = csv::Reader::from_reader(run.csv_data.as_bytes());
         for record in reader.records() {
-            let rec = record?; // <-
+            let rec = record?;
             let tick_str = rec.get(0).ok_or(BenchmarkErrorKind::ParseError {
                 reason: "Couldn't get record[0]".to_string(),
             })?;
             let tick = tick_str.parse::<u64>()?;
             let value_str = rec
-                .get(*column_index)
+                .get(column_index)
                 .ok_or(BenchmarkErrorKind::ParseError {
                     reason: "Couldn't get metric column value".to_string(),
                 })?;

@@ -78,7 +78,7 @@ impl FactorioExecutor {
         // Check each candidate for if it exists
         for candidate in candidates {
             if candidate.exists() {
-                tracing::info!("Found Factorio at: {}", candidate.display());
+                tracing::debug!("Found Factorio at: {}", candidate.display());
                 return Ok(candidate);
             }
         }
@@ -215,11 +215,13 @@ impl FactorioExecutor {
             );
         }
 
-        let stdout = String::from_utf8(output.stdout)?;
+        let summary = String::from_utf8_lossy(&output.stdout).to_string()
+            + &String::from_utf8_lossy(&output.stderr);
+
         const VERBOSE_HEADER: &str = "tick,timestamp,wholeUpdate";
 
-        if let Some(index) = stdout.find(VERBOSE_HEADER) {
-            let (summary, verbose_part) = stdout.split_at(index);
+        if let Some(index) = summary.find(VERBOSE_HEADER) {
+            let (summary, verbose_part) = summary.split_at(index);
 
             let cleaned_verbose_data: String = verbose_part
                 .lines()
@@ -233,7 +235,7 @@ impl FactorioExecutor {
             })
         } else {
             Ok(FactorioOutput {
-                summary: stdout,
+                summary,
                 verbose_data: None,
             })
         }

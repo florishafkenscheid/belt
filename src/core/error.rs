@@ -131,6 +131,12 @@ pub enum BenchmarkErrorKind {
 
     #[error("No mods directory found.")]
     NoModsDirectoryFound,
+
+    #[error("Malformed benchmark output: {field} {string}")]
+    MalformedBenchmarkOutput { field: String, string: String },
+
+    #[error("Missing capture field: {field}")]
+    MissingCaptureField { field: String },
 }
 
 /// Get a hint for the FactorioProcessFailed error, if it exists

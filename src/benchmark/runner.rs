@@ -10,8 +10,7 @@ use std::time::Duration;
 use tokio::time::Instant;
 
 use super::BenchmarkConfig;
-use crate::benchmark::parser;
-use crate::benchmark::parser::BenchmarkResult;
+use crate::benchmark::parser::{self, BenchmarkRun};
 use crate::core::Result;
 use crate::core::error::BenchmarkErrorKind;
 use crate::core::factorio::FactorioTickRunSpec;
@@ -22,13 +21,13 @@ use crate::core::{FactorioExecutor, RunOrder};
 #[derive(Debug, Clone)]
 struct ExecutionJob {
     save_file: PathBuf,
-    run_index: usize,
+    run_index: u32,
 }
 
 #[derive(Debug, Clone)]
 pub struct VerboseData {
     pub save_name: String,
-    pub run_index: usize,
+    pub run_index: u32,
     pub csv_data: String,
 }
 
@@ -53,12 +52,12 @@ impl BenchmarkRunner {
         &self,
         save_files: Vec<PathBuf>,
         running: &Arc<AtomicBool>,
-    ) -> Result<(Vec<BenchmarkResult>, Vec<VerboseData>)> {
+    ) -> Result<(Vec<BenchmarkRun>, Vec<VerboseData>)> {
         let execution_schedule = self.create_execution_schedule(&save_files);
         let total_jobs = execution_schedule.len();
         let start_time = Instant::now();
         let mut all_verbose_data: Vec<VerboseData> = Vec::new();
-        let mut results_map: HashMap<String, BenchmarkResult> = HashMap::new();
+        let mut results_map: HashMap<String, Vec<BenchmarkRun>> = HashMap::new();
 
         let progress = ProgressBar::new(total_jobs as u64);
         progress.set_style(
@@ -114,13 +113,12 @@ impl BenchmarkRunner {
             progress.set_message(eta_message);
 
             // Run a single benchmark and get the run data and version
-            let (mut result_for_run, verbose_data) = self.run_single_benchmark(job).await?;
+            let (result_for_run, verbose_data) = self.run_single_benchmark(job).await?;
 
-            if let Some(existing_result) = results_map.get_mut(&result_for_run.save_name) {
-                existing_result.runs.append(&mut result_for_run.runs);
-            } else {
-                results_map.insert(result_for_run.save_name.clone(), result_for_run);
-            }
+            results_map
+                .entry(result_for_run.save_name.clone())
+                .or_default()
+                .push(result_for_run);
 
             if let Some(data) = verbose_data {
                 all_verbose_data.push(data);
@@ -133,19 +131,16 @@ impl BenchmarkRunner {
             progress.finish_with_message("Benchmarking complete!");
         }
 
-        let mut all_results: Vec<BenchmarkResult> = results_map.into_values().collect();
+        let mut groups: Vec<(String, Vec<BenchmarkRun>)> = results_map.into_iter().collect();
 
         // Sort by performance
-        all_results.sort_by(|a, b| {
-            let avg_a: f64 =
-                a.runs.iter().map(|run| run.effective_ups).sum::<f64>() / a.runs.len() as f64;
-            let avg_b: f64 =
-                b.runs.iter().map(|run| run.effective_ups).sum::<f64>() / b.runs.len() as f64;
-
-            avg_a
-                .partial_cmp(&avg_b)
+        groups.sort_by(|(_, runs_a), (_, runs_b)| {
+            avg_effective_ups(runs_a)
+                .partial_cmp(&avg_effective_ups(runs_b))
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
+
+        let all_results = groups.into_iter().flat_map(|(_, runs)| runs).collect();
 
         Ok((all_results, all_verbose_data))
     }
@@ -161,7 +156,7 @@ impl BenchmarkRunner {
                     for run_index in 0..self.config.runs {
                         schedule.push(ExecutionJob {
                             save_file: save_file.clone(),
-                            run_index: run_index as usize,
+                            run_index,
                         });
                     }
                 }
@@ -172,7 +167,7 @@ impl BenchmarkRunner {
                     for save_file in save_files {
                         schedule.push(ExecutionJob {
                             save_file: save_file.clone(),
-                            run_index: run_index as usize,
+                            run_index,
                         });
                     }
                 }
@@ -182,7 +177,7 @@ impl BenchmarkRunner {
                     for run_index in 0..self.config.runs {
                         schedule.push(ExecutionJob {
                             save_file: save_file.clone(),
-                            run_index: run_index as usize,
+                            run_index,
                         });
                     }
                 }
@@ -205,7 +200,7 @@ impl BenchmarkRunner {
     async fn run_single_benchmark(
         &self,
         job: &ExecutionJob,
-    ) -> Result<(BenchmarkResult, Option<VerboseData>)> {
+    ) -> Result<(BenchmarkRun, Option<VerboseData>)> {
         // If mods_file is not set, sync mods with the given save file
         if self.config.mods_dir.is_none() {
             self.factorio.sync_mods_for_save(&job.save_file).await?;
@@ -230,16 +225,9 @@ impl BenchmarkRunner {
             None
         };
 
-        let result =
+        let mut result =
             parser::parse_benchmark_log(&factorio_output.summary, &job.save_file, &self.config)?;
-
-        // Extract the single run (since we're only running 1 benchmark at a time)
-        if result.runs.len() != 1 {
-            return Err(BenchmarkErrorKind::ParseError {
-                reason: format!("Expected 1 run, got {}", result.runs.len()),
-            }
-            .into());
-        }
+        result.index = job.run_index;
 
         Ok((result, verbose_data_for_return))
     }
@@ -256,6 +244,13 @@ impl BenchmarkRunner {
             })
             .await
     }
+}
+
+fn avg_effective_ups(runs: &[BenchmarkRun]) -> f64 {
+    if runs.is_empty() {
+        return f64::NEG_INFINITY; // or 0.0, depending on what "no runs" should mean
+    }
+    runs.iter().map(|r| r.effective_ups).sum::<f64>() / runs.len() as f64
 }
 
 #[cfg(test)]

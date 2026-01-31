@@ -3,8 +3,9 @@
 use serde_json::Value;
 
 use crate::Result;
+use crate::benchmark::parser::BenchmarkRun;
 use crate::sanitize::parser::ProductionStatistic;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use std::{path::Path, time::Duration};
 
@@ -252,7 +253,6 @@ use std::fs;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
-use crate::benchmark::parser::BenchmarkResult;
 use crate::benchmark::runner::VerboseData;
 use crate::core::error::BenchmarkErrorKind;
 
@@ -328,35 +328,31 @@ fn get_default_user_data_dirs() -> Vec<PathBuf> {
 
 // Math related utilities
 /// Calculate the base differences of a list of save's results.
-pub fn calculate_base_differences(results: &mut [BenchmarkResult]) {
-    // Calculate average effective_ups for each save
-    let avg_ups_per_save: Vec<f64> = results
-        .iter()
-        .map(|result| {
-            let total_ups: f64 = result.runs.iter().map(|run| run.effective_ups).sum();
-            total_ups / result.runs.len() as f64
-        })
-        .collect();
+pub fn calculate_base_differences(runs: &mut [BenchmarkRun]) {
+    // save_name -> (sum_ups, count)
+    let mut sums: BTreeMap<String, (f64, u32)> = BTreeMap::new();
 
-    // Find the minimum average effective_ups across all saves
-    let min_avg_ups = avg_ups_per_save
-        .iter()
+    for r in runs.iter() {
+        let entry = sums.entry(r.save_name.clone()).or_insert((0.0, 0));
+        entry.0 += r.effective_ups;
+        entry.1 += 1;
+    }
+
+    let min_avg_ups = sums
+        .values()
+        .map(|&(sum, n)| if n == 0 { 0.0 } else { sum / n as f64 })
         .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-        .copied()
         .unwrap_or(0.0);
 
-    // Calculate base_diff as percentage improvement for each run relative to the worst-performing save's average
-    for (result_idx, result) in results.iter_mut().enumerate() {
-        let save_avg_ups = avg_ups_per_save[result_idx];
-        let percentage_improvement = if min_avg_ups > 0.0 {
+    for r in runs.iter_mut() {
+        let (sum, n) = sums.get(&r.save_name).copied().unwrap_or((0.0, 0));
+        let save_avg_ups = if n == 0 { 0.0 } else { sum / n as f64 };
+
+        r.base_diff = if min_avg_ups > 0.0 {
             ((save_avg_ups - min_avg_ups) / min_avg_ups) * 100.0
         } else {
             0.0
         };
-
-        for run in result.runs.iter_mut() {
-            run.base_diff = percentage_improvement;
-        }
     }
 }
 
@@ -400,33 +396,32 @@ pub struct BoxplotData {
 }
 
 /// Manually calculate the boxplot data given the benchmark results
-pub fn calculate_boxplot_data(results: &[BenchmarkResult]) -> BoxplotData {
-    // Collect save names
-    let save_names: Vec<String> = results
-        .iter()
-        .map(|result| result.save_name.clone())
-        .collect();
+pub fn calculate_boxplot_data(runs: &[BenchmarkRun]) -> BoxplotData {
+    let mut grouped: BTreeMap<String, Vec<f64>> = BTreeMap::new();
+    let mut all_individual_ups: Vec<f64> = Vec::with_capacity(runs.len());
 
-    let mut grouped_boxplot_data: Vec<Vec<f64>> = Vec::new();
-    let mut outliers: Vec<(usize, f64)> = Vec::new();
-    let mut all_individual_ups: Vec<f64> = Vec::new();
-
-    // Iterate over every result and push UPS values
-    for result in results {
-        let mut values: Vec<f64> = result.runs.iter().map(|run| run.effective_ups).collect();
-        values.sort_by(|a, b| a.partial_cmp(b).unwrap());
-
-        all_individual_ups.extend(&values);
-        grouped_boxplot_data.push(values);
+    for r in runs {
+        grouped
+            .entry(r.save_name.clone())
+            .or_default()
+            .push(r.effective_ups);
     }
 
-    // Calculate boxplot statistics manually
-    let mut boxplot_data: Vec<Vec<f64>> = Vec::new();
+    // Sort each group and collect global min/max inputs
+    for values in grouped.values_mut() {
+        values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        all_individual_ups.extend(values.iter().copied());
+    }
 
-    for (category_idx, values) in grouped_boxplot_data.iter().enumerate() {
+    let save_names: Vec<String> = grouped.keys().cloned().collect();
+
+    let mut boxplot_values: Vec<Vec<f64>> = Vec::with_capacity(grouped.len());
+    let mut outliers: Vec<(usize, f64)> = Vec::new();
+
+    for (category_idx, (_name, values)) in grouped.iter().enumerate() {
         if values.is_empty() {
             continue;
-        };
+        }
 
         let len = values.len();
         let q1_idx = len / 4;
@@ -434,56 +429,56 @@ pub fn calculate_boxplot_data(results: &[BenchmarkResult]) -> BoxplotData {
         let q3_idx = (3 * len) / 4;
 
         let q1 = values[q1_idx];
-        let q2 = values[q2_idx]; // median
+        let q2 = values[q2_idx];
         let q3 = values[q3_idx];
         let iqr = q3 - q1;
 
         let lower_fence = q1 - 1.5 * iqr;
         let upper_fence = q3 + 1.5 * iqr;
 
-        // Find whiskers (actual min/max within fences)
         let lower_whisker = values
             .iter()
             .find(|&&v| v >= lower_fence)
-            .unwrap_or(&values[0]);
+            .copied()
+            .unwrap_or(values[0]);
+
         let upper_whisker = values
             .iter()
             .rev()
             .find(|&&v| v <= upper_fence)
-            .unwrap_or(&values[len - 1]);
+            .copied()
+            .unwrap_or(values[len - 1]);
 
-        // Collect outliers
         for &value in values {
             if value < lower_fence || value > upper_fence {
                 outliers.push((category_idx, value));
             }
         }
 
-        // Boxplot data format: [min, Q1, median, Q3, max]
-        boxplot_data.push(vec![*lower_whisker, q1, q2, q3, *upper_whisker]);
+        // [min, Q1, median, Q3, max]
+        boxplot_values.push(vec![lower_whisker, q1, q2, q3, upper_whisker]);
     }
 
     let min_ups = all_individual_ups
         .iter()
-        .cloned()
+        .copied()
         .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
         .unwrap_or(0.0);
 
     let max_ups = all_individual_ups
         .iter()
-        .cloned()
+        .copied()
         .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
         .unwrap_or(0.0);
 
-    // Convert outliers to scatter data
-    let scatter_data: Vec<Vec<f64>> = outliers
+    let outlier_values: Vec<Vec<f64>> = outliers
         .into_iter()
         .map(|(category, value)| vec![category as f64, value])
         .collect();
 
     BoxplotData {
-        boxplot_values: boxplot_data,
-        outlier_values: scatter_data,
+        boxplot_values,
+        outlier_values,
         category_names: save_names,
         min_value: min_ups,
         max_value: max_ups,

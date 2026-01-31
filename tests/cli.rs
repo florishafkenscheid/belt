@@ -1,6 +1,6 @@
 use std::{error::Error, fs::File};
 
-use assert_cmd::Command;
+use assert_cmd::cargo::cargo_bin_cmd;
 use tempfile::tempdir;
 
 #[test]
@@ -27,7 +27,7 @@ fn test_benchmark_command_creates_output_files() -> Result<(), Box<dyn Error>> {
         std::fs::set_permissions(&fake_factorio_exe, perms)?;
     }
 
-    let mut cmd = Command::cargo_bin("belt")?;
+    let mut cmd = cargo_bin_cmd!("belt");
 
     cmd.arg("benchmark")
         .arg(&save_file_path)
