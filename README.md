@@ -68,7 +68,7 @@ belt benchmark /path/to/saves --pattern "benchmark*" --output /path/to/output/di
 #### `belt analyze`
 Generate charts from existing benchmark CSV data.
 
-**Arguments:*
+**Arguments:**
 - `<DATA_DIR>` - The location of the csv(s) to generate charts based off of.
 - `<HEIGHT>` - The height of the generated charts in pixels.
 - `<WIDTH>` - The width of the generated charts in pixels.

@@ -78,7 +78,7 @@ impl FactorioExecutor {
         // Check each candidate for if it exists
         for candidate in candidates {
             if candidate.exists() {
-                tracing::info!("Found Factorio at: {}", candidate.display());
+                tracing::debug!("Found Factorio at: {}", candidate.display());
                 return Ok(candidate);
             }
         }

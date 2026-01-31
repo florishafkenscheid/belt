@@ -27,7 +27,7 @@ pub async fn run(
     benchmark_config: BenchmarkConfig,
     running: &Arc<AtomicBool>,
 ) -> Result<()> {
-    tracing::info!("Starting benchmark with config: {:?}", benchmark_config);
+    tracing::debug!("Starting benchmark with config: {:?}", benchmark_config);
 
     // Find the Factorio binary
     let factorio = FactorioExecutor::discover(global_config.factorio_path)?;
