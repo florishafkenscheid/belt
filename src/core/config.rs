@@ -13,6 +13,17 @@
 //! - `~/.config/belt/config.toml` (Linux/macOS)
 //! - `%APPDATA%\belt\config.toml` (Windows)
 //!
+//! # Environment Variables
+//!
+//! Environment variables use double underscore (`__`) to separate the section from
+//! the field name. This allows field names that contain underscores.
+//!
+//! Examples:
+//! - `BELT_BENCHMARK__TICKS` → `benchmark.ticks`
+//! - `BELT_BENCHMARK__RUNS` → `benchmark.runs`
+//! - `BELT_ANALYZE__SMOOTH_WINDOW` → `analyze.smooth_window`
+//! - `BELT_GLOBAL__VERBOSE` → `global.verbose`
+//!
 //! # Example Config File
 //!
 //! ```toml
@@ -376,8 +387,9 @@ pub fn create_figment() -> Result<Figment, ConfigError> {
     }
 
     // Add environment variables with BELT_ prefix
-    // Environment variables are mapped like: BELT_BENCHMARK_TICKS -> benchmark.ticks
-    figment = figment.merge(Env::prefixed("BELT_").split("_"));
+    // Environment variables are mapped like: BELT_BENCHMARK__TICKS -> benchmark.ticks
+    // Note: Use double underscore (__) to separate sections from field names
+    figment = figment.merge(Env::prefixed("BELT_").split("__"));
 
     Ok(figment)
 }
@@ -390,7 +402,7 @@ pub fn create_figment_from_file(path: &PathBuf) -> Result<Figment, ConfigError> 
 
     let figment = Figment::new()
         .merge(Toml::file(path))
-        .merge(Env::prefixed("BELT_").split("_"));
+        .merge(Env::prefixed("BELT_").split("__"));
 
     Ok(figment)
 }

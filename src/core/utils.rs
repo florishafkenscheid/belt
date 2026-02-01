@@ -12,7 +12,7 @@ use std::{path::Path, time::Duration};
 
 // Structs & Impls
 /// Execution order for benchmark runs
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum RunOrder {
     /// Run benchmarks in sequential order (A, B, A, B)
