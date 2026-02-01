@@ -1,5 +1,6 @@
 //! Utility functions for BELT.
 
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::Result;
@@ -10,10 +11,15 @@ use std::path::PathBuf;
 use std::{path::Path, time::Duration};
 
 // Structs & Impls
-#[derive(Debug, Clone, Default)]
+/// Execution order for benchmark runs
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
 pub enum RunOrder {
+    /// Run benchmarks in sequential order (A, B, A, B)
     Sequential,
+    /// Run benchmarks in random order
     Random,
+    /// Run benchmarks in grouped order (A, A, B, B) - default
     #[default]
     Grouped,
 }
