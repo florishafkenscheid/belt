@@ -96,7 +96,7 @@ enum Commands {
         #[arg(long, help = "Output directory or file path")]
         output: Option<PathBuf>,
 
-        #[arg(long, help = "Path to HTML report template")]
+        #[arg(long, help = "Path to handlebars report template")]
         template_path: Option<PathBuf>,
 
         #[arg(long, help = "Directory containing mods to use")]
