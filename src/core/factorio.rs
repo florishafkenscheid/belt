@@ -215,8 +215,8 @@ impl FactorioExecutor {
             );
         }
 
-        let summary = String::from_utf8_lossy(&output.stdout).to_string()
-            + &String::from_utf8_lossy(&output.stderr);
+        let summary = String::from_utf8_lossy(&output.stderr).to_string()
+            + String::from_utf8_lossy(&output.stdout).as_ref();
 
         const VERBOSE_HEADER: &str = "tick,timestamp,wholeUpdate";
 
@@ -292,13 +292,13 @@ impl FactorioExecutor {
                     if utils::check_save_file(format!("_autosave-{}", spec.new_save_name.clone()))
                         .is_some()
                     {
-                        let _ = child.start_kill();
+                        child.start_kill()?;
                         break;
                     }
 
                     if !running.load(Ordering::SeqCst) {
                         tracing::info!("Ctrl+C received. Killing Factorio");
-                        let _ = child.start_kill();
+                        child.start_kill()?;
                         break;
                     }
                     tokio::time::sleep(poll_duration).await;
