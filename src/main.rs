@@ -47,6 +47,9 @@ struct Cli {
         help = "Initialize config directory with example config"
     )]
     init_config: bool,
+
+    #[arg(long, global = true, help = "Prints the BELT binary's version")]
+    version: bool,
 }
 
 #[derive(Subcommand)]
@@ -197,6 +200,15 @@ async fn main() -> Result<()> {
                 std::process::exit(1);
             }
         }
+    }
+
+    // Also handle before CLI parsing, same reason.
+    if args.contains(&"--version".to_string()) {
+        let version = env!("CARGO_PKG_VERSION");
+        let bin = env!("CARGO_BIN_NAME");
+        println!("{bin} v{version}");
+
+        return Ok(());
     }
 
     // Parse input
