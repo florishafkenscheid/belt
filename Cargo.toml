@@ -1,6 +1,6 @@
 [package]
 name = "belt"
-version = "3.7.0"
+version = "3.8.0"
 edition = "2024"
 description = "A fast, cross-platform Factorio benchmarking tool"
 license = "MIT"
@@ -40,3 +40,4 @@ chrono = "0.4"
 charming = { version = "0.6", features = ["ssr"] }
 regex = "1.12"
 figment = { version = "0.10", features = ["toml", "env"] }
+sysinfo = "0.38"

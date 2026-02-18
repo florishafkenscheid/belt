@@ -76,6 +76,8 @@ fn write_benchmark_csv(results: &[BenchmarkRun], path: &Path) -> Result<()> {
     writer.flush()?;
     tracing::info!("Results written to {}", csv_path.display());
 
+    write_cpu_freq_csv(results, path)?;
+
     Ok(())
 }
 
@@ -144,5 +146,42 @@ fn write_verbose_csv(data: &[VerboseData], metrics: &[String], path: &Path) -> R
         data[0].save_name,
         csv_path.display()
     );
+    Ok(())
+}
+
+fn write_cpu_freq_csv(data: &[BenchmarkRun], path: &Path) -> Result<()> {
+    if let Some(first_run) = data.first()
+        && first_run.cpu_data.is_empty()
+    {
+        tracing::error!("CPU data for first run is empty. Aborting CPU frequency CSV.");
+        return Ok(());
+    }
+
+    let csv_path = path.join(format!("{}_cpu_freq.csv", data[0].save_name));
+
+    let mut writer = csv::Writer::from_path(&csv_path)?;
+
+    writer.write_record([
+        "save_name",
+        "run_index",
+        "core_index",
+        "cpu_frequency",
+        "timestamp",
+    ])?;
+
+    for result in data {
+        for frequency_data in &result.cpu_data {
+            writer.write_record([
+                &result.save_name,
+                &result.index.to_string(),
+                &frequency_data.core_index.to_string(),
+                &frequency_data.frequency.to_string(),
+                &frequency_data.timestamp.to_string(),
+            ])?;
+        }
+    }
+
+    tracing::info!("CPU frequency results written to {}", csv_path.display());
+
     Ok(())
 }

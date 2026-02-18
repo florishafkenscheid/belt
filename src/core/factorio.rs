@@ -4,15 +4,16 @@ use std::{
     path::{Path, PathBuf},
     process::Stdio,
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
-    time::Duration,
+    time::{Duration, SystemTime},
 };
+use sysinfo::System;
 use tokio::process::Command;
 
 use crate::{
-    benchmark::runner::FactorioOutput,
+    benchmark::runner::{CpuFrequencyData, FactorioOutput},
     core::{
         Result,
         error::{BenchmarkError, BenchmarkErrorKind},
@@ -187,7 +188,44 @@ impl FactorioExecutor {
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         let child = cmd.spawn()?;
+
+        let cpu_freqs = Arc::new(Mutex::new(Vec::<CpuFrequencyData>::new()));
+        let cpu_freqs_thread = Arc::clone(&cpu_freqs);
+
+        let cpu_logger = tokio::spawn(async move {
+            let mut sys = System::new_all();
+
+            let mut interval = tokio::time::interval(Duration::from_millis(100));
+            let now = SystemTime::now();
+
+            loop {
+                interval.tick().await;
+
+                sys.refresh_cpu_frequency();
+                for (i, cpu) in sys.cpus().iter().enumerate() {
+                    if let Ok(mut data) = cpu_freqs_thread.lock() {
+                        data.push(CpuFrequencyData {
+                            frequency: cpu.frequency(),
+                            timestamp: now.elapsed().unwrap_or(Duration::ZERO).as_millis(),
+                            core_index: i,
+                        });
+                    }
+                }
+            }
+        });
+
         let output = child.wait_with_output().await?;
+
+        cpu_logger.abort();
+        // Wait for cpu_logger to die
+        let _ = cpu_logger.await;
+        // Get rid of the Arc and Mutex
+        let cpu_frequency_data = Arc::into_inner(cpu_freqs)
+            .and_then(|mutex| mutex.into_inner().ok())
+            .unwrap_or_else(|| {
+                tracing::error!("Error extracting data from mutex. CPU frequency data is void.");
+                Vec::new()
+            });
 
         if !output.status.success() {
             let stdout_str = String::from_utf8_lossy(&output.stdout).to_string();
@@ -232,11 +270,13 @@ impl FactorioExecutor {
             Ok(FactorioOutput {
                 summary: summary.to_string(),
                 verbose_data: Some(cleaned_verbose_data),
+                cpu_data: cpu_frequency_data,
             })
         } else {
             Ok(FactorioOutput {
                 summary,
                 verbose_data: None,
+                cpu_data: cpu_frequency_data,
             })
         }
     }

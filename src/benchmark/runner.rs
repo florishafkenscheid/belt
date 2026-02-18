@@ -2,6 +2,7 @@
 
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::seq::SliceRandom;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -31,9 +32,17 @@ pub struct VerboseData {
     pub csv_data: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CpuFrequencyData {
+    pub frequency: u64,
+    pub timestamp: u128,
+    pub core_index: usize,
+}
+
 pub struct FactorioOutput {
     pub summary: String,
     pub verbose_data: Option<String>,
+    pub cpu_data: Vec<CpuFrequencyData>,
 }
 
 pub struct BenchmarkRunner {
@@ -228,6 +237,7 @@ impl BenchmarkRunner {
         let mut result =
             parser::parse_benchmark_log(&factorio_output.summary, &job.save_file, &self.config)?;
         result.index = job.run_index;
+        result.cpu_data = factorio_output.cpu_data;
 
         Ok((result, verbose_data_for_return))
     }
