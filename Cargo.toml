@@ -40,3 +40,4 @@ chrono = "0.4"
 charming = { version = "0.6", features = ["ssr"] }
 regex = "1.12"
 figment = { version = "0.10", features = ["toml", "env"] }
+sysinfo = "0.38"

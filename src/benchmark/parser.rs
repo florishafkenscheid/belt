@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::LazyLock;
 
+use crate::benchmark::runner::CpuFrequencyData;
 use crate::core::config::BenchmarkConfig;
 use crate::core::error::BenchmarkError;
 use crate::core::error::BenchmarkErrorKind;
@@ -25,6 +26,7 @@ pub struct BenchmarkRun {
     pub effective_ups: f64,
     pub base_diff: f64,
     pub mimalloc_stats: Option<MimallocStats>,
+    pub cpu_data: Vec<CpuFrequencyData>,
 }
 
 // Build perfomance line regexs
