@@ -11,7 +11,7 @@ use thiserror::Error;
 /// The wrapper for the error kind, with an optional hint.
 #[derive(Debug)]
 pub struct BenchmarkError {
-    kind: BenchmarkErrorKind,
+    kind: Box<BenchmarkErrorKind>,
     hint: Option<String>,
 }
 
@@ -137,6 +137,12 @@ pub enum BenchmarkErrorKind {
 
     #[error("Missing capture field: {field}")]
     MissingCaptureField { field: String },
+
+    #[error("Failed to load configuration: {0}")]
+    ConfigLoadError(String),
+
+    #[error("Configuration file not found: {0}")]
+    ConfigNotFound(PathBuf),
 }
 
 /// Get a hint for the FactorioProcessFailed error, if it exists
@@ -175,7 +181,7 @@ where
 {
     fn from(error: E) -> Self {
         BenchmarkError {
-            kind: BenchmarkErrorKind::from(error),
+            kind: Box::new(BenchmarkErrorKind::from(error)),
             hint: None,
         }
     }

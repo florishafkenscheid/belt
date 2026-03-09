@@ -58,25 +58,13 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 use crate::core::RunOrder;
+use crate::core::error::{BenchmarkErrorKind, Result};
 
 /// Default configuration file name
 const CONFIG_FILENAME: &str = "config.toml";
 
 /// Configuration directory name for BELT
 const APP_NAME: &str = "belt";
-
-// =============================================================================
-// Error Handling
-// =============================================================================
-
-/// Errors that can occur during configuration loading
-#[derive(Debug, thiserror::Error)]
-pub enum ConfigError {
-    #[error("Failed to load configuration: {0}")]
-    LoadError(String),
-    #[error("Configuration file not found: {0}")]
-    NotFound(PathBuf),
-}
 
 // =============================================================================
 // Configuration Structs
@@ -96,11 +84,8 @@ pub struct GlobalConfig {
 
 impl GlobalConfig {
     /// Load global configuration from figment
-    pub fn from_figment(figment: &Figment) -> Result<Self, ConfigError> {
-        figment
-            .extract_inner("global")
-            .or_else(|_| figment.extract())
-            .map_err(|e| ConfigError::LoadError(e.to_string()))
+    pub fn from_figment(figment: &Figment) -> Result<Self> {
+        extract_config(figment, "global")
     }
 }
 
@@ -150,11 +135,8 @@ fn default_width() -> u32 {
 
 impl AnalyzeConfig {
     /// Load configuration from figment
-    pub fn from_figment(figment: &Figment) -> Result<Self, ConfigError> {
-        figment
-            .extract_inner("analyze")
-            .or_else(|_| figment.extract())
-            .map_err(|e| ConfigError::LoadError(e.to_string()))
+    pub fn from_figment(figment: &Figment) -> Result<Self> {
+        extract_config(figment, "analyze")
     }
 }
 
@@ -224,11 +206,8 @@ fn default_runs() -> u32 {
 
 impl BenchmarkConfig {
     /// Load configuration from figment
-    pub fn from_figment(figment: &Figment) -> Result<Self, ConfigError> {
-        figment
-            .extract_inner("benchmark")
-            .or_else(|_| figment.extract())
-            .map_err(|e| ConfigError::LoadError(e.to_string()))
+    pub fn from_figment(figment: &Figment) -> Result<Self> {
+        extract_config(figment, "benchmark")
     }
 }
 
@@ -282,11 +261,8 @@ impl Default for SanitizeConfig {
 
 impl SanitizeConfig {
     /// Load configuration from figment
-    pub fn from_figment(figment: &Figment) -> Result<Self, ConfigError> {
-        figment
-            .extract_inner("sanitize")
-            .or_else(|_| figment.extract())
-            .map_err(|e| ConfigError::LoadError(e.to_string()))
+    pub fn from_figment(figment: &Figment) -> Result<Self> {
+        extract_config(figment, "sanitize")
     }
 }
 
@@ -344,11 +320,8 @@ impl Default for BlueprintConfig {
 
 impl BlueprintConfig {
     /// Load configuration from figment
-    pub fn from_figment(figment: &Figment) -> Result<Self, ConfigError> {
-        figment
-            .extract_inner("blueprint")
-            .or_else(|_| figment.extract())
-            .map_err(|e| ConfigError::LoadError(e.to_string()))
+    pub fn from_figment(figment: &Figment) -> Result<Self> {
+        extract_config(figment, "blueprint")
     }
 }
 
@@ -376,7 +349,7 @@ fn get_config_file_path() -> Option<PathBuf> {
 /// 1. Environment variables (BELT_*)
 /// 2. Config file
 /// 3. Default values
-pub fn create_figment() -> Result<Figment, ConfigError> {
+pub fn create_figment() -> Result<Figment> {
     let mut figment = Figment::new();
 
     // Add config file if it exists
@@ -395,9 +368,9 @@ pub fn create_figment() -> Result<Figment, ConfigError> {
 }
 
 /// Create a Figment from a specific config file path
-pub fn create_figment_from_file(path: &PathBuf) -> Result<Figment, ConfigError> {
+pub fn create_figment_from_file(path: &PathBuf) -> Result<Figment> {
     if !path.exists() {
-        return Err(ConfigError::NotFound(path.clone()));
+        return Err(BenchmarkErrorKind::ConfigNotFound(path.clone()).into());
     }
 
     let figment = Figment::new()
@@ -408,16 +381,17 @@ pub fn create_figment_from_file(path: &PathBuf) -> Result<Figment, ConfigError> 
 }
 
 /// Initialize the configuration directory with an example config file
-pub fn init_config_dir() -> Result<PathBuf, ConfigError> {
-    let config_dir = dirs::config_dir()
-        .ok_or_else(|| ConfigError::LoadError("Could not find config directory".to_string()))?;
+pub fn init_config_dir() -> Result<PathBuf> {
+    let config_dir = dirs::config_dir().ok_or_else(|| {
+        BenchmarkErrorKind::ConfigLoadError("Could not find config directory".to_string())
+    })?;
     let belt_config_dir = config_dir.join(APP_NAME);
     let config_file = belt_config_dir.join(CONFIG_FILENAME);
 
     // Create directory if it doesn't exist
     if !belt_config_dir.exists() {
         std::fs::create_dir_all(&belt_config_dir)
-            .map_err(|e| ConfigError::LoadError(e.to_string()))?;
+            .map_err(|e| BenchmarkErrorKind::ConfigLoadError(e.to_string()))?;
     }
 
     // Create example config if it doesn't exist
@@ -453,8 +427,15 @@ pub fn init_config_dir() -> Result<PathBuf, ConfigError> {
 # buffer_ticks = 120
 "#;
         std::fs::write(&config_file, example_config)
-            .map_err(|e| ConfigError::LoadError(e.to_string()))?;
+            .map_err(|e| BenchmarkErrorKind::ConfigLoadError(e.to_string()))?;
     }
 
     Ok(config_file)
+}
+
+fn extract_config<'a, T: Deserialize<'a>>(figment: &Figment, section: &str) -> Result<T> {
+    figment
+        .extract_inner(section)
+        .or_else(|_| figment.extract().map_err(Box::new))
+        .map_err(|e| BenchmarkErrorKind::ConfigLoadError(e.to_string()).into())
 }
