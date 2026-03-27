@@ -150,10 +150,16 @@ fn write_verbose_csv(data: &[VerboseData], metrics: &[String], path: &Path) -> R
 }
 
 fn write_cpu_freq_csv(data: &[BenchmarkRun], path: &Path) -> Result<()> {
+    if data.is_empty() {
+        return Ok(());
+    }
+
     if let Some(first_run) = data.first()
         && first_run.cpu_data.is_empty()
     {
-        tracing::error!("CPU data for first run is empty. Aborting CPU frequency CSV.");
+        tracing::debug!(
+            "CPU frequency recording disabled or no CPU data captured. Skipping CPU frequency CSV."
+        );
         return Ok(());
     }
 

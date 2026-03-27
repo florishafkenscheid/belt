@@ -116,6 +116,7 @@ Run benchmarks on one or more save files.
 | `--verbose-metrics <VERBOSE_METRICS>` | Generates more charts based on the `--benchmark-verbose` factorio argument | `none` |
 | `--strip-prefix <PREFIX>` | Strip a given prefix off of the save names | `none` |
 | `--headless <HEADLESS>` | Whether or not to assume headless factorio | `false` |
+| `--record-cpu <RECORD_CPU>` | Whether or not to log CPU frequency samples during benchmark runs | `true` |
 
 #### `belt blueprint`
 

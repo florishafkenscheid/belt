@@ -123,6 +123,9 @@ enum Commands {
 
         #[arg(long, help = "Run Factorio in headless mode")]
         headless: Option<bool>,
+
+        #[arg(long, help = "Record CPU frequency data during benchmark runs")]
+        record_cpu: Option<bool>,
     },
     Blueprint {
         /// Directory containing blueprint files
@@ -312,6 +315,7 @@ async fn main() -> Result<()> {
             verbose_metrics,
             strip_prefix,
             headless,
+            record_cpu,
         } => {
             let mut benchmark_config = BenchmarkConfig::from_figment(&figment).unwrap_or_default();
             benchmark_config.saves_dir = saves_dir;
@@ -344,6 +348,9 @@ async fn main() -> Result<()> {
             }
             if let Some(v) = headless {
                 benchmark_config.headless = Some(v);
+            }
+            if let Some(v) = record_cpu {
+                benchmark_config.record_cpu = v;
             }
             benchmark::run(global_config, benchmark_config, &running).await
         }

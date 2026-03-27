@@ -85,6 +85,7 @@ fn test_benchmark_config_default_values() {
     assert!(config.output.is_none(), "Default output should be None");
     assert!(config.mods_dir.is_none(), "Default mods_dir should be None");
     assert!(config.headless.is_none(), "Default headless should be None");
+    assert!(config.record_cpu, "Default record_cpu should be true");
 }
 
 #[test]
@@ -179,6 +180,7 @@ runs = 10
 pattern = "*.zip"
 run_order = "sequential"
 headless = true
+record_cpu = false
 "#;
 
     let config_file = create_config_file(config_content);
@@ -205,6 +207,10 @@ headless = true
         config.headless,
         Some(true),
         "headless should be loaded from config file"
+    );
+    assert!(
+        !config.record_cpu,
+        "record_cpu should be loaded from config file"
     );
 }
 
@@ -398,6 +404,7 @@ runs = 3
         unsafe {
             std::env::set_var("BELT_BENCHMARK__TICKS", "15000");
             std::env::set_var("BELT_BENCHMARK__RUNS", "7");
+            std::env::set_var("BELT_BENCHMARK__RECORD_CPU", "false");
         }
 
         let figment = create_figment_from_file(&config_file.path().to_path_buf())
@@ -411,6 +418,10 @@ runs = 3
         assert_eq!(
             config.runs, 7,
             "Environment variable should override config file for runs"
+        );
+        assert!(
+            !config.record_cpu,
+            "Environment variable should override config file for record_cpu"
         );
 
         clear_belt_env_vars();
@@ -675,6 +686,7 @@ runs = 3
 pattern = "bench_*.zip"
 run_order = "random"
 headless = true
+record_cpu = false
 
 [analyze]
 smooth_window = 15
@@ -715,6 +727,7 @@ bot_count = 50
     assert_eq!(benchmark.pattern, Some("bench_*.zip".to_string()));
     assert_eq!(benchmark.run_order, RunOrder::Random);
     assert_eq!(benchmark.headless, Some(true));
+    assert!(!benchmark.record_cpu);
 
     // Analyze assertions
     assert_eq!(analyze.smooth_window, 15);
@@ -802,12 +815,14 @@ fn test_optional_bool_presence_in_config() {
     let config_content_true = r#"
 [benchmark]
 headless = true
+record_cpu = false
 "#;
     let config_file = create_config_file(config_content_true);
     let figment = create_figment_from_file(&config_file.path().to_path_buf())
         .expect("Failed to create figment");
     let config = BenchmarkConfig::from_figment(&figment).expect("Failed to load config");
     assert_eq!(config.headless, Some(true));
+    assert!(!config.record_cpu);
 
     let config_content_false = r#"
 [benchmark]

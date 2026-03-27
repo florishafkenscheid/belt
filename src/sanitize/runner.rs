@@ -124,6 +124,7 @@ impl SanitizeRunner {
                     mods_dir: self.config.mods_dir.as_deref(),
                     verbose_all_metrics: false,
                     headless: self.config.headless,
+                    record_cpu: false,
                 })
                 .await?;
 

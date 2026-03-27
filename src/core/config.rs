@@ -37,6 +37,7 @@
 //! run_order = "grouped"
 //! pattern = "*.zip"
 //! headless = true
+//! record_cpu = true
 //!
 //! [analyze]
 //! smooth_window = 10
@@ -176,6 +177,9 @@ pub struct BenchmarkConfig {
     /// Run Factorio in headless mode
     #[serde(default)]
     pub headless: Option<bool>,
+    /// Record CPU frequency data during benchmark runs
+    #[serde(default = "default_record_cpu")]
+    pub record_cpu: bool,
 }
 
 impl Default for BenchmarkConfig {
@@ -192,6 +196,7 @@ impl Default for BenchmarkConfig {
             verbose_metrics: Vec::new(),
             strip_prefix: None,
             headless: None,
+            record_cpu: default_record_cpu(),
         }
     }
 }
@@ -202,6 +207,10 @@ fn default_ticks() -> u32 {
 
 fn default_runs() -> u32 {
     5
+}
+
+fn default_record_cpu() -> bool {
+    true
 }
 
 impl BenchmarkConfig {
@@ -412,6 +421,7 @@ pub fn init_config_dir() -> Result<PathBuf> {
 # run_order = "grouped"  # Options: "sequential", "random", "grouped"
 # pattern = "*.zip"
 # headless = true
+# record_cpu = true
 
 [analyze]
 # smooth_window = 0
