@@ -28,7 +28,6 @@ struct ExecutionJob {
 #[derive(Debug, Clone)]
 pub struct VerboseData {
     pub save_name: String,
-    pub run_index: u32,
     pub csv_data: String,
 }
 
@@ -227,7 +226,6 @@ impl BenchmarkRunner {
                     .unwrap()
                     .to_string_lossy()
                     .to_string(),
-                run_index: job.run_index,
                 csv_data,
             })
         } else {

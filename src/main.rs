@@ -2,7 +2,6 @@
 //!
 //! Parses CLI arguments, sets up logging, and dispatches to subcommands.
 
-mod analyze;
 mod benchmark;
 mod blueprint;
 mod core;
@@ -10,7 +9,7 @@ mod sanitize;
 
 use crate::core::{
     GlobalConfig, Result, RunOrder,
-    config::{self, AnalyzeConfig, BenchmarkConfig, BlueprintConfig, SanitizeConfig},
+    config::{self, BenchmarkConfig, BlueprintConfig, SanitizeConfig},
 };
 use clap::{Parser, Subcommand};
 use std::{
@@ -54,35 +53,6 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    Analyze {
-        /// Directory containing benchmark data files
-        data_dir: PathBuf,
-
-        #[arg(
-            long,
-            help = "Apply a simple moving average to per-tick data with the given window size. Set to 0 for no smoothing."
-        )]
-        smooth_window: Option<u32>,
-
-        #[arg(
-            long,
-            value_delimiter = ',',
-            help = "Generate per-tick charts for specified Factorio benchmark metrics (e.g., 'wholeUpdate,gameUpdate'). 'all' to chart all metrics."
-        )]
-        verbose_metrics: Option<Vec<String>>,
-
-        #[arg(long, help = "Chart height in pixels")]
-        height: Option<u32>,
-
-        #[arg(long, help = "Chart width in pixels")]
-        width: Option<u32>,
-
-        #[arg(
-            long,
-            help = "Max data points that the verbose charts can reach before being downsampled."
-        )]
-        max_points: Option<usize>,
-    },
     Benchmark {
         /// Directory containing save files to benchmark
         saves_dir: PathBuf,
@@ -114,7 +84,7 @@ enum Commands {
         #[arg(
             long,
             value_delimiter = ',',
-            help = "Generate per-tick charts for specified Factorio benchmark metrics (e.g., 'wholeUpdate,gameUpdate'). 'all' to chart all metrics."
+            help = "Export per-tick CSV data for specified Factorio benchmark metrics (e.g., 'wholeUpdate,gameUpdate'). Use 'all' to export all metrics."
         )]
         verbose_metrics: Option<Vec<String>>,
 
@@ -274,35 +244,6 @@ async fn main() -> Result<()> {
 
     // Capture the result of the benchmark
     let result = match cli.command {
-        Commands::Analyze {
-            data_dir,
-            smooth_window,
-            verbose_metrics,
-            height,
-            width,
-            max_points,
-        } => {
-            // Load config from file, then override with CLI args
-            let mut analyze_config = AnalyzeConfig::from_figment(&figment).unwrap_or_default();
-            analyze_config.data_dir = data_dir;
-            if let Some(v) = smooth_window {
-                analyze_config.smooth_window = v;
-            }
-            if let Some(v) = verbose_metrics {
-                analyze_config.verbose_metrics = v;
-            }
-            if let Some(v) = height {
-                analyze_config.height = v;
-            }
-            if let Some(v) = width {
-                analyze_config.width = v;
-            }
-            if let Some(v) = max_points {
-                analyze_config.max_points = Some(v);
-            }
-            analyze::run(global_config, analyze_config).await
-        }
-
         Commands::Benchmark {
             saves_dir,
             ticks,

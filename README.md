@@ -11,12 +11,12 @@ BELT is a comprehensive benchmarking and testing suite for Factorio, providing m
 - [x] **Benchmarking** - Benchmark a single save or a whole directory
 - [x] **Blueprint testing** - Automatically stamp and benchmark blueprints
 - [x] **Cross-platform** - Works on Windows, macOS, and Linux
-- [x] **Multiple output formats** - CSV, Markdown reports, and SVG charts
+- [x] **Multiple output formats** - CSV and Markdown reports
 - [x] **Pattern matching** - Filter save files by name patterns
 - [x] **Async execution** - Fast parallel processing
-- [x] **Verbose metrics support** - Per-tick charts and CSV exports for detailed Factorio metrics
+- [x] **Verbose metrics support** - Per-tick CSV exports for detailed Factorio metrics
 - [x] **Sanitizer** - Automatically parses and reports on [belt-sanitizer mod](https://mods.factorio.com/mod/belt-sanitizer) output
-- [x] **Smoothing and downsampling** - Configurable smoothing for charts to handle large datasets
+- [x] **Chart-friendly exports** - Clean benchmark artifacts that can be visualized by external tooling such as `belt-charts`
 
 ## Quick Start
 
@@ -79,23 +79,6 @@ belt benchmark /path/to/saves --pattern "benchmark*" --output /path/to/output/di
 
 ### Command Reference
 
-#### `belt analyze`
-
-Generate charts from existing benchmark CSV data.
-
-**Arguments:**
-
-- `<DATA_DIR>` - The location of the csv(s) to generate charts based off of.
-- `<HEIGHT>` - The height of the generated charts in pixels.
-- `<WIDTH>` - The width of the generated charts in pixels.
-
-**Options:**
-| Option | Description | Default |
-| ------ | ----------- | ------- |
-| `--smooth-window <SMOOTH_WINDOW>` | Add a smoothing effect to generated charts | `0` |
-| `--verbose-metrics <VERBOSE_METRICS>` | Generates more charts based on the `--benchmark-verbose` factorio argument | `none` |
-| `--max-points <MAX_POINTS>` | Max data points that the verbose charts can reach before being downsampled | `0` |
-
 #### `belt benchmark`
 
 Run benchmarks on one or more save files.
@@ -113,7 +96,7 @@ Run benchmarks on one or more save files.
 | `--output <OUTPUT_DIR>` | A directory to output the .csv and .md files to | `.` |
 | `--mods-dir <MODS_DIR>` | A directory containing mods to be used for the benchmark| `--sync-mods` on each save file |
 | `--run-order <RUN_ORDER>` | In which order to run the benchmarks. Available: `sequential`, `random`, `grouped` | `grouped` |
-| `--verbose-metrics <VERBOSE_METRICS>` | Generates more charts based on the `--benchmark-verbose` factorio argument | `none` |
+| `--verbose-metrics <VERBOSE_METRICS>` | Exports per-tick verbose metric CSVs for the selected metrics | `none` |
 | `--strip-prefix <PREFIX>` | Strip a given prefix off of the save names | `none` |
 | `--headless <HEADLESS>` | Whether or not to assume headless factorio | `false` |
 | `--record-cpu <RECORD_CPU>` | Whether or not to log CPU frequency samples during benchmark runs | `true` |
@@ -195,19 +178,16 @@ belt --factorio-path /path/to/factorio benchmark ./my-saves
 belt blueprint ./blueprints ./base-save.zip --count 100 --buffer-ticks 60
 ```
 
-#### Example 5: Analyzing Existing Data
-
-```bash
-# Generate charts from existing benchmark data
-belt analyze ./benchmark-results --height 600 --width 1200 --smooth-window 50
-```
-
-#### Example 6: Item/Fluid Tracking
+#### Example 5: Item/Fluid Tracking
 
 ```bash
 # Track specific items and fluids over 3600 ticks
 belt sanitize ./saves --items "iron-plate,copper-plate" --fluids "water,crude-oil"
 ```
+
+#### Charting Existing Data
+
+BELT 4.0 no longer renders charts directly. Use the exported benchmark and verbose CSV files with external tooling such as `belt-charts`.
 
 ### Advanced Usage
 

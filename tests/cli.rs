@@ -110,3 +110,23 @@ fn test_benchmark_command_accepts_record_cpu_toggle() -> Result<(), Box<dyn Erro
 
     Ok(())
 }
+
+#[test]
+fn test_analyze_subcommand_is_removed() -> Result<(), Box<dyn Error>> {
+    let mut cmd = cargo_bin_cmd!("belt");
+    cmd.arg("analyze").arg("--help");
+
+    let output = cmd.output()?;
+    assert!(
+        !output.status.success(),
+        "Analyze subcommand should be unavailable"
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("unrecognized subcommand") || stderr.contains("unknown subcommand"),
+        "Expected clap to reject removed subcommand. Stderr: {stderr}"
+    );
+
+    Ok(())
+}

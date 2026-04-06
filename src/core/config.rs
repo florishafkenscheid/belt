@@ -21,7 +21,6 @@
 //! Examples:
 //! - `BELT_BENCHMARK__TICKS` → `benchmark.ticks`
 //! - `BELT_BENCHMARK__RUNS` → `benchmark.runs`
-//! - `BELT_ANALYZE__SMOOTH_WINDOW` → `analyze.smooth_window`
 //! - `BELT_GLOBAL__VERBOSE` → `global.verbose`
 //!
 //! # Example Config File
@@ -38,11 +37,6 @@
 //! pattern = "*.zip"
 //! headless = true
 //! record_cpu = true
-//!
-//! [analyze]
-//! smooth_window = 10
-//! height = 800
-//! width = 1200
 //!
 //! [sanitize]
 //! ticks = 3600
@@ -90,57 +84,6 @@ impl GlobalConfig {
     }
 }
 
-/// Analyzation specific configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AnalyzeConfig {
-    /// Directory containing benchmark data files
-    #[serde(default)]
-    pub data_dir: PathBuf,
-    /// Window size for simple moving average smoothing (0 = no smoothing)
-    #[serde(default)]
-    pub smooth_window: u32,
-    /// Metrics to generate per-tick charts for
-    #[serde(default)]
-    pub verbose_metrics: Vec<String>,
-    /// Chart height in pixels
-    #[serde(default = "default_height")]
-    pub height: u32,
-    /// Chart width in pixels
-    #[serde(default = "default_width")]
-    pub width: u32,
-    /// Maximum data points before downsampling
-    #[serde(default)]
-    pub max_points: Option<usize>,
-}
-
-impl Default for AnalyzeConfig {
-    fn default() -> Self {
-        Self {
-            data_dir: PathBuf::new(),
-            smooth_window: 0,
-            verbose_metrics: Vec::new(),
-            height: default_height(),
-            width: default_width(),
-            max_points: None,
-        }
-    }
-}
-
-fn default_height() -> u32 {
-    800
-}
-
-fn default_width() -> u32 {
-    1200
-}
-
-impl AnalyzeConfig {
-    /// Load configuration from figment
-    pub fn from_figment(figment: &Figment) -> Result<Self> {
-        extract_config(figment, "analyze")
-    }
-}
-
 /// Benchmarking specific configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BenchmarkConfig {
@@ -168,7 +111,7 @@ pub struct BenchmarkConfig {
     /// Execution order for benchmark runs
     #[serde(default)]
     pub run_order: RunOrder,
-    /// Metrics to generate verbose charts for
+    /// Metrics to export as verbose CSV data
     #[serde(default)]
     pub verbose_metrics: Vec<String>,
     /// Prefix to strip from save file names in output
@@ -422,11 +365,6 @@ pub fn init_config_dir() -> Result<PathBuf> {
 # pattern = "*.zip"
 # headless = true
 # record_cpu = true
-
-[analyze]
-# smooth_window = 0
-# height = 800
-# width = 1200
 
 [sanitize]
 # ticks = 3600
