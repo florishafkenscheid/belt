@@ -138,7 +138,7 @@ fn write_report(results: &[BenchmarkRun], template_path: Option<&Path>, path: &P
         "factorio_version": results.first().map(|run| run.factorio_version.as_str()),
         "results": table_results,
         "ticks": results.first().map(|run| run.ticks).unwrap_or(0),
-        "runs": results.len(),
+        "runs": aggs.first().map(|aggregate| aggregate.runs).unwrap_or(0),
         "date": Local::now().date_naive().to_string(),
     });
 
@@ -211,4 +211,74 @@ fn aggregate_by_save_name(runs: &[BenchmarkRun]) -> Vec<Aggregate> {
     let mut aggs: Vec<Aggregate> = map.into_values().collect();
     aggs.sort_by(|a, b| a.save_name.cmp(&b.save_name));
     aggs
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_report_uses_runs_per_save_in_scenario() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let path = temp_dir.path();
+        let results = vec![
+            BenchmarkRun {
+                save_name: "alpha".to_string(),
+                platform: "linux-x86_64".to_string(),
+                factorio_version: "2.0".to_string(),
+                ticks: 6000,
+                index: 0,
+                execution_time_ms: 100.0,
+                avg_ms: 10.0,
+                min_ms: 9.0,
+                max_ms: 11.0,
+                effective_ups: 60000.0,
+                ..Default::default()
+            },
+            BenchmarkRun {
+                save_name: "alpha".to_string(),
+                platform: "linux-x86_64".to_string(),
+                factorio_version: "2.0".to_string(),
+                ticks: 6000,
+                index: 1,
+                execution_time_ms: 110.0,
+                avg_ms: 11.0,
+                min_ms: 10.0,
+                max_ms: 12.0,
+                effective_ups: 54545.0,
+                ..Default::default()
+            },
+            BenchmarkRun {
+                save_name: "beta".to_string(),
+                platform: "linux-x86_64".to_string(),
+                factorio_version: "2.0".to_string(),
+                ticks: 6000,
+                index: 0,
+                execution_time_ms: 120.0,
+                avg_ms: 12.0,
+                min_ms: 11.0,
+                max_ms: 13.0,
+                effective_ups: 50000.0,
+                ..Default::default()
+            },
+            BenchmarkRun {
+                save_name: "beta".to_string(),
+                platform: "linux-x86_64".to_string(),
+                factorio_version: "2.0".to_string(),
+                ticks: 6000,
+                index: 1,
+                execution_time_ms: 130.0,
+                avg_ms: 13.0,
+                min_ms: 12.0,
+                max_ms: 14.0,
+                effective_ups: 46153.0,
+                ..Default::default()
+            },
+        ];
+
+        write_report(&results, None, path).expect("write report");
+
+        let report = std::fs::read_to_string(path.join("results.md")).expect("read report");
+        assert!(report.contains("Each save was tested for 6000 tick(s) and 2 run(s)"));
+    }
 }

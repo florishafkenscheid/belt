@@ -163,7 +163,7 @@ fn write_cpu_freq_csv(data: &[BenchmarkRun], path: &Path) -> Result<()> {
         return Ok(());
     }
 
-    let csv_path = path.join(format!("{}_cpu_freq.csv", data[0].save_name));
+    let csv_path = path.join("cpu_freq.csv");
 
     let mut writer = csv::Writer::from_path(&csv_path)?;
 
@@ -190,4 +190,48 @@ fn write_cpu_freq_csv(data: &[BenchmarkRun], path: &Path) -> Result<()> {
     tracing::info!("CPU frequency results written to {}", csv_path.display());
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::benchmark::runner::CpuFrequencyData;
+
+    #[test]
+    fn test_cpu_freq_csv_uses_shared_filename_for_all_saves() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let path = temp_dir.path();
+
+        let data = vec![
+            BenchmarkRun {
+                save_name: "alpha".to_string(),
+                index: 0,
+                cpu_data: vec![CpuFrequencyData {
+                    frequency: 5000,
+                    timestamp: 1,
+                    core_index: 0,
+                }],
+                ..Default::default()
+            },
+            BenchmarkRun {
+                save_name: "beta".to_string(),
+                index: 1,
+                cpu_data: vec![CpuFrequencyData {
+                    frequency: 5100,
+                    timestamp: 2,
+                    core_index: 1,
+                }],
+                ..Default::default()
+            },
+        ];
+
+        write_cpu_freq_csv(&data, path).expect("write cpu csv");
+
+        let csv_path = path.join("cpu_freq.csv");
+        assert!(csv_path.exists(), "cpu_freq.csv should be created");
+
+        let csv = std::fs::read_to_string(csv_path).expect("read cpu csv");
+        assert!(csv.contains("alpha"));
+        assert!(csv.contains("beta"));
+    }
 }
