@@ -218,6 +218,15 @@ impl BenchmarkRunner {
             .execute_single_factorio_benchmark(&job.save_file)
             .await?;
 
+        let mut result =
+            parser::parse_benchmark_log(&factorio_output.summary, &job.save_file, &self.config)?;
+
+        if let Some(csv_data) = factorio_output.verbose_data.as_deref()
+            && let Some(max_ms) = parser::max_whole_update_excluding_first_tick(csv_data)?
+        {
+            result.max_ms = max_ms;
+        }
+
         let verbose_data_for_return = if !self.config.verbose_metrics.is_empty() {
             factorio_output.verbose_data.map(|csv_data| VerboseData {
                 save_name: job
@@ -232,8 +241,6 @@ impl BenchmarkRunner {
             None
         };
 
-        let mut result =
-            parser::parse_benchmark_log(&factorio_output.summary, &job.save_file, &self.config)?;
         result.index = job.run_index;
         result.cpu_data = factorio_output.cpu_data;
 

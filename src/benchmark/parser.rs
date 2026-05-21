@@ -142,6 +142,29 @@ pub fn parse_benchmark_log(
     Ok(run)
 }
 
+pub fn max_whole_update_excluding_first_tick(csv_data: &str) -> Result<Option<f64>> {
+    let mut reader = csv::Reader::from_reader(csv_data.as_bytes());
+    let headers = reader.headers()?;
+    let Some(whole_update_index) = headers.iter().position(|header| header == "wholeUpdate") else {
+        return Ok(None);
+    };
+
+    reader
+        .records()
+        .skip(1)
+        .try_fold(None, |max_update, record| {
+            let record = record?;
+            let Some(raw_update) = record.get(whole_update_index) else {
+                return Ok(max_update);
+            };
+
+            let update_time = raw_update.parse::<f64>()?;
+            Ok(Some(
+                max_update.map_or(update_time, |max: f64| max.max(update_time)),
+            ))
+        })
+}
+
 fn get_capture<T>(captures: &Captures, key: &str) -> Result<T>
 where
     T: std::str::FromStr,
@@ -273,5 +296,38 @@ mod tests {
         let expected_ups = 1000.0 * 1000.0 / 2138.223; // ~467.67
         let difference = (result.effective_ups - expected_ups).abs();
         assert!(difference < 0.001, "Effective UPS calculation is incorrect");
+    }
+
+    #[test]
+    fn test_max_whole_update_excluding_first_tick_ignores_first_row() {
+        let csv = "tick,timestamp,wholeUpdate,gameUpdate\n\
+                   t0,0.000,42.000,1.000\n\
+                   t1,0.017,2.500,1.000\n\
+                   t2,0.033,4.125,1.000\n";
+
+        let max_update = max_whole_update_excluding_first_tick(csv).unwrap();
+
+        assert_eq!(max_update, Some(4.125));
+    }
+
+    #[test]
+    fn test_max_whole_update_excluding_first_tick_returns_none_without_later_ticks() {
+        let csv = "tick,timestamp,wholeUpdate\n\
+                   t0,0.000,42.000\n";
+
+        let max_update = max_whole_update_excluding_first_tick(csv).unwrap();
+
+        assert_eq!(max_update, None);
+    }
+
+    #[test]
+    fn test_max_whole_update_excluding_first_tick_returns_none_without_metric() {
+        let csv = "tick,timestamp,gameUpdate\n\
+                   t0,0.000,42.000\n\
+                   t1,0.017,2.500\n";
+
+        let max_update = max_whole_update_excluding_first_tick(csv).unwrap();
+
+        assert_eq!(max_update, None);
     }
 }
