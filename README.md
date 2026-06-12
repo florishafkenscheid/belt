@@ -218,6 +218,50 @@ BELT 4.0 no longer renders charts directly. Use the exported benchmark and verbo
 While `belt benchmark` offers sensible defaults, optimizing `--ticks` and `--runs` can refine your results. `--ticks` sets the simulation duration per run, while `--runs` determines the number of repetitions. Through testing, I've found that **fewer runs with more ticks** generally offers the most consistent UPS results for the shortest overall benchmark time, by reducing overhead from repeated Factorio launches. Experiment with these values for your specific saevs to find the optimal balance for accuracy and speed.
 However, for prolonged and thorough benchmarks, I recommend more runs in total, per save. This is because Factorio is deterministic, and when running BELT with verbose metrics, a "min" chart is generated. This chart is meant to combat any random noise that could slow down the Factorio benchmark, by only taking the fastest ticks of every run of a save.
 
+#### AMD uProf Reports
+
+BELT can include AMD uProf data in `results.md`, but it does not run uProf itself. Use a wrapper script as your `--factorio-path`, let that script run `AMDuProfCLI collect` and `AMDuProfCLI report`, and BELT will detect these lines in the benchmark output:
+
+```text
+Generated data files path: /path/to/session
+Generated report file: /path/to/session/report.csv
+```
+
+If a report exists, BELT copies it to:
+
+```text
+<output>/uprof/<save_name>/run_<index>/report_<index>.csv
+```
+
+and renders the parsed tables in the Markdown report. If only a session path exists, BELT prints the session path and the `AMDuProfCLI report -i <session>` command to run manually.
+
+Minimal wrapper shape:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+FACTORIO_BIN="${HOME}/.factorio/bin/x64/factorio"
+UPROF_CONFIG="${UPROF_CONFIG:-data_access}"
+UPROF_VIEW="${UPROF_VIEW:-dc_focus}"
+UPROF_ROOT="${UPROF_ROOT:-/tmp/belt-amduprof}"
+
+mkdir -p "${UPROF_ROOT}"
+session_parent="$(mktemp -d "${UPROF_ROOT}/session.XXXXXX")"
+collect_log="$(mktemp "${session_parent}/collect.XXXXXX.log")"
+
+AMDuProfCLI collect --config "${UPROF_CONFIG}" -o "${session_parent}" \
+  "${FACTORIO_BIN}" "$@" 2>&1 | tee "${collect_log}"
+
+generated_session="$(
+  sed -n 's/^Generated data files path:[[:space:]]*//p' "${collect_log}" | tail -n 1
+)"
+
+AMDuProfCLI report -i "${generated_session:-${session_parent}}" --view "${UPROF_VIEW}"
+```
+
+For Factorio, `data_access` with `dc_focus` is a good starting point because it reports L1 data cache, DTLB, and refill-source counters. `hotspots` is useful for CPU time attribution, but it does not show cache misses. In the BELT report, start with the uProf summary row, then read the hottest functions/modules tables by the sort event and counter columns. The copied CSV remains the source of truth for deeper analysis or AMD uProf GUI use.
+
 #### Verbose Metrics
 
 Here are all the verbose-metrics that are available:

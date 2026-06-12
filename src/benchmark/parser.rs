@@ -6,6 +6,7 @@ use std::path::Path;
 use std::sync::LazyLock;
 
 use crate::benchmark::runner::CpuFrequencyData;
+use crate::benchmark::uprof::{AmdUprofReportArtifact, AmdUprofRun};
 use crate::core::config::BenchmarkConfig;
 use crate::core::error::BenchmarkError;
 use crate::core::error::BenchmarkErrorKind;
@@ -26,6 +27,7 @@ pub struct BenchmarkRun {
     pub effective_ups: f64,
     pub base_diff: f64,
     pub mimalloc_stats: Option<MimallocStats>,
+    pub amd_uprof: Option<AmdUprofRun>,
     pub cpu_data: Vec<CpuFrequencyData>,
 }
 
@@ -139,7 +141,31 @@ pub fn parse_benchmark_log(
         })
     }
 
+    run.amd_uprof = parse_amd_uprof_breadcrumbs(log);
+
     Ok(run)
+}
+
+fn parse_amd_uprof_breadcrumbs(log: &str) -> Option<AmdUprofRun> {
+    const SESSION_PREFIX: &str = "Generated data files path:";
+    const REPORT_PREFIX: &str = "Generated report file:";
+
+    let mut uprof = AmdUprofRun::default();
+
+    for line in log.lines() {
+        let line = line.trim();
+        if let Some(path) = line.strip_prefix(SESSION_PREFIX) {
+            uprof
+                .session_paths
+                .push(Path::new(path.trim()).to_path_buf());
+        } else if let Some(path) = line.strip_prefix(REPORT_PREFIX) {
+            uprof.reports.push(AmdUprofReportArtifact::new(
+                Path::new(path.trim()).to_path_buf(),
+            ));
+        }
+    }
+
+    (!uprof.session_paths.is_empty() || !uprof.reports.is_empty()).then_some(uprof)
 }
 
 pub fn max_whole_update_excluding_first_tick(csv_data: &str) -> Result<Option<f64>> {
@@ -296,6 +322,32 @@ mod tests {
         let expected_ups = 1000.0 * 1000.0 / 2138.223; // ~467.67
         let difference = (result.effective_ups - expected_ups).abs();
         assert!(difference < 0.001, "Effective UPS calculation is incorrect");
+    }
+
+    #[test]
+    fn test_parse_benchmark_log_extracts_amd_uprof_breadcrumbs() {
+        const FACTORIO_OUTPUT: &str = r#"Performed 10 updates in 100.000 ms
+avg: 10.000 ms, min: 10.000 ms, max: 10.000 ms
+Profiling (data collection) completed
+Generated data files path: /tmp/belt-amduprof-run/session
+Generated report file: /tmp/belt-amduprof-run/session/report.csv"#;
+
+        let result = parse_benchmark_log(
+            FACTORIO_OUTPUT,
+            Path::new("test_save.zip"),
+            &BenchmarkConfig::default(),
+        )
+        .expect("parse benchmark");
+
+        let uprof = result.amd_uprof.expect("uProf breadcrumbs");
+        assert_eq!(
+            uprof.session_paths,
+            [Path::new("/tmp/belt-amduprof-run/session")]
+        );
+        assert_eq!(
+            uprof.reports[0].original_path,
+            Path::new("/tmp/belt-amduprof-run/session/report.csv")
+        );
     }
 
     #[test]
