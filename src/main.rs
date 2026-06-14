@@ -102,7 +102,7 @@ enum Commands {
             help = "Append the results of this benchmark to existing belt data as specified by --output",
             long_help = "Append benchmark rows to existing output CSV files. Existing CSV headers must match the current output format and selected verbose metrics. Reports are regenerated from available CSV data, so details not stored in results.csv may not be preserved."
         )]
-        append: Option<bool>,
+        append: bool,
     },
     Blueprint {
         /// Directory containing blueprint files
@@ -274,6 +274,8 @@ async fn main() -> Result<()> {
         } => {
             let mut benchmark_config = BenchmarkConfig::from_figment(&figment).unwrap_or_default();
             benchmark_config.saves_dir = saves_dir;
+            benchmark_config.append = append;
+
             if let Some(v) = ticks {
                 benchmark_config.ticks = v;
             }
@@ -307,9 +309,7 @@ async fn main() -> Result<()> {
             if let Some(v) = record_cpu {
                 benchmark_config.record_cpu = v;
             }
-            if let Some(v) = append {
-                benchmark_config.append = v;
-            }
+
             benchmark::run(global_config, benchmark_config, &running).await
         }
 
