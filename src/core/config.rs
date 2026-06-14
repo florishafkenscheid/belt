@@ -123,6 +123,8 @@ pub struct BenchmarkConfig {
     /// Record CPU frequency data during benchmark runs
     #[serde(default = "default_record_cpu")]
     pub record_cpu: bool,
+    #[serde(default)]
+    pub append: bool,
 }
 
 impl Default for BenchmarkConfig {
@@ -140,6 +142,7 @@ impl Default for BenchmarkConfig {
             strip_prefix: None,
             headless: None,
             record_cpu: default_record_cpu(),
+            append: false,
         }
     }
 }

@@ -17,7 +17,7 @@ use crate::{
     core::{
         FactorioExecutor, GlobalConfig, Result,
         config::BenchmarkConfig,
-        output::{CsvWriter, ResultWriter, WriteData, ensure_output_dir, report::ReportWriter},
+        output::{CsvWriter, WriteData, ensure_output_dir, report::ReportWriter, write_result},
         utils,
     },
 };
@@ -68,22 +68,22 @@ pub async fn run(
                 .push(data);
         }
 
-        // First, write all CSV files to ensure they're created before potentially memory-intensive chart operations
         let csv_writer = CsvWriter::new();
-        for (save_name, save_verbose_data) in &verbose_data_by_save {
+        for save_verbose_data in verbose_data_by_save.values() {
             let data = WriteData::Verbose {
                 data: save_verbose_data.to_vec(),
                 metrics_to_export: benchmark_config.verbose_metrics.clone(),
             };
-            csv_writer.write(&data, output_dir)?;
-            tracing::debug!("Wrote verbose metrics for save: {save_name}");
+
+            write_result(&csv_writer, &data, output_dir, benchmark_config.append)?;
         }
     }
 
     // Write the csv's
     let csv_writer = CsvWriter::new();
     let data = WriteData::Benchmark(results.clone());
-    csv_writer.write(&data, output_dir)?;
+
+    write_result(&csv_writer, &data, output_dir, benchmark_config.append)?;
 
     // Write the report
     let report_writer = ReportWriter::new();
@@ -91,7 +91,8 @@ pub async fn run(
         data: results.clone(),
         template_path: benchmark_config.template_path.as_deref(),
     };
-    report_writer.write(&data, output_dir)?;
+
+    write_result(&report_writer, &data, output_dir, benchmark_config.append)?;
 
     tracing::info!("Benchmark complete!");
     tracing::info!("Total benchmarks run: {}", results.len());

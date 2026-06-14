@@ -100,6 +100,7 @@ Run benchmarks on one or more save files.
 | `--strip-prefix <PREFIX>` | Strip a given prefix off of the save names | `none` |
 | `--headless <HEADLESS>` | Whether or not to assume headless factorio | `false` |
 | `--record-cpu <RECORD_CPU>` | Whether or not to log CPU frequency samples during benchmark runs | `true` |
+| `--append <APPEND>` | Append benchmark rows to existing output CSV files. Existing CSV headers must match the current output format and selected verbose metrics. | `false` |
 
 #### `belt blueprint`
 
@@ -210,6 +211,19 @@ belt sanitize ./saves --items "iron-plate,copper-plate" --fluids "water,crude-oi
 #### Charting Existing Data
 
 BELT 4.0 no longer renders charts directly. Use the exported benchmark and verbose CSV files with external tooling such as `belt-charts`.
+
+#### Appending Benchmark Data
+
+Use `--append true` to add a benchmark run to existing CSV output in the target `--output`
+directory:
+
+```bash
+belt benchmark ./my-saves --output ./benchmark-results --append true
+```
+
+Append mode expects existing CSV headers to match the current BELT output format and the selected
+verbose metrics. Reports are regenerated from available CSV data, so details not stored in
+`results.csv` may not be preserved.
 
 ### Advanced Usage
 

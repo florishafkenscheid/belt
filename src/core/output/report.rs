@@ -13,6 +13,7 @@ use crate::{
         uprof,
     },
     core::{
+        calculate_base_differences,
         error::{BenchmarkErrorKind, Result},
         output::{self, ResultWriter, WriteData, ensure_output_dir},
     },
@@ -38,8 +39,18 @@ impl ResultWriter for ReportWriter {
             WriteData::Report {
                 data,
                 template_path,
-            } => write_report(data, template_path.as_deref(), path),
-            _ => Err(BenchmarkErrorKind::InvalidWriteData.into()), // TODO
+            } => write_report(data, *template_path, path),
+            _ => Err(BenchmarkErrorKind::InvalidWriteData.into()),
+        }
+    }
+
+    fn append(&self, data: &WriteData, path: &Path) -> Result<()> {
+        match data {
+            WriteData::Report {
+                data,
+                template_path,
+            } => append_report(data, *template_path, path),
+            _ => Err(BenchmarkErrorKind::InvalidWriteData.into()),
         }
     }
 }
@@ -158,6 +169,51 @@ fn write_report(results: &[BenchmarkRun], template_path: Option<&Path>, path: &P
 
     tracing::info!("Report written to {}", results_path.display());
     Ok(())
+}
+
+fn append_report(
+    results: &[BenchmarkRun],
+    template_path: Option<&Path>,
+    path: &Path,
+) -> Result<()> {
+    let results_csv = path.join("results.csv");
+
+    if !results_csv.exists() {
+        return write_report(results, template_path, path);
+    }
+
+    let mut combined = read_benchmark_runs_from_csv(&results_csv)?;
+    combined.extend_from_slice(results);
+
+    calculate_base_differences(&mut combined);
+
+    write_report(results, template_path, path)
+}
+
+fn read_benchmark_runs_from_csv(csv_path: &Path) -> Result<Vec<BenchmarkRun>> {
+    let mut reader = csv::Reader::from_path(csv_path)?;
+    let mut runs = Vec::new();
+
+    for record in reader.records() {
+        let record = record?;
+
+        runs.push(BenchmarkRun {
+            save_name: record.get(0).unwrap_or_default().to_string(),
+            index: record.get(1).unwrap_or("0").parse()?,
+            execution_time_ms: record.get(2).unwrap_or("0").parse()?,
+            avg_ms: record.get(3).unwrap_or("0").parse()?,
+            min_ms: record.get(4).unwrap_or("0").parse()?,
+            max_ms: record.get(5).unwrap_or("0").parse()?,
+            effective_ups: record.get(6).unwrap_or("0").parse()?,
+            base_diff: record.get(7).unwrap_or("0").parse()?,
+            ticks: record.get(8).unwrap_or("0").parse()?,
+            factorio_version: record.get(9).unwrap_or("unknown").to_string(),
+            platform: record.get(10).unwrap_or("unknown").to_string(),
+            ..Default::default()
+        });
+    }
+
+    Ok(runs)
 }
 
 #[derive(Debug, Clone)]

@@ -31,9 +31,23 @@ pub enum WriteData<'a> {
 
 pub trait ResultWriter {
     fn write(&self, data: &WriteData, path: &Path) -> Result<()>;
+    fn append(&self, data: &WriteData, path: &Path) -> Result<()>;
 }
 
 pub fn ensure_output_dir(path: &Path) -> Result<()> {
     std::fs::create_dir_all(path)?;
     Ok(())
+}
+
+pub fn write_result(
+    writer: &impl ResultWriter,
+    data: &WriteData,
+    output_dir: &Path,
+    append: bool,
+) -> Result<()> {
+    if append {
+        writer.append(data, output_dir)
+    } else {
+        writer.write(data, output_dir)
+    }
 }
