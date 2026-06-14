@@ -48,5 +48,76 @@
 {{/each}}
 
 {{/if}}
-{{{amd_uprof_markdown}}}
+{{#if amd_uprof.summary_rows}}
+## AMD uProf
+
+| Save | Run | Profile | View | Duration | Threads | Session | Report |
+|------|-----|---------|------|----------|---------|---------|--------|
+{{#each amd_uprof.summary_rows}}
+| {{{save}}} | {{run}} | {{{profile}}} | {{{view}}} | {{{duration}}} | {{{threads}}} | {{{session}}} | {{{report}}} |
+{{/each}}
+
+{{#each amd_uprof.reports}}
+### {{{title}}}
+
+{{#if copy_error}}
+Report archive warning: {{{copy_error}}}
+
+{{/if}}
+{{#if parse_error}}
+Report parse warning: {{{parse_error}}}. Full CSV: `{{{report_path}}}`
+
+{{/if}}
+{{#if metadata_rows}}
+| Field | Value |
+|-------|-------|
+{{#each metadata_rows}}
+| {{{field}}} | {{{value}}} |
+{{/each}}
+
+{{/if}}
+{{#if cache_rows}}
+#### Estimated L1 Data Cache Summary
+
+Estimated from `L1_DC_ACCESSES_ALL.USER` and demand refill source counters.
+
+| Table | Item | Accesses | Est Hits | Est Misses | Est Miss Rate | L2 Refills | Cache Refills | External Cache Refills | DRAM Refills |
+|-------|------|----------|----------|------------|---------------|------------|---------------|------------------------|--------------|
+{{#each cache_rows}}
+| {{{table}}} | {{{item}}} | {{{accesses}}} | {{{hits}}} | {{{misses}}} | {{{miss_rate}}} | {{{local_l2}}} | {{{local_cache}}} | {{{external_cache}}} | {{{local_dram}}} |
+{{/each}}
+
+{{/if}}
+{{#if ibs_load_rows}}
+#### IBS Load Cache Summary
+
+Reported by AMD IBS load views such as `ibs_op_ld` and `ibs_op_ld_lat`.
+
+| Table | Item | Loads | L1 Hit Rate | L1 Miss Rate | L2 Hit Rate | Local Cache Hit Rate | Peer Cache Hit Rate | Remote Cache Hit Rate | DRAM Hit Rate | Avg L1 Miss Latency |
+|-------|------|-------|-------------|--------------|-------------|----------------------|---------------------|-----------------------|---------------|---------------------|
+{{#each ibs_load_rows}}
+| {{{table}}} | {{{item}}} | {{{loads}}} | {{{l1_hit_rate}}} | {{{l1_miss_rate}}} | {{{l2_hit_rate}}} | {{{local_cache_hit_rate}}} | {{{peer_cache_hit_rate}}} | {{{remote_cache_hit_rate}}} | {{{dram_hit_rate}}} | {{{l1_miss_latency}}} |
+{{/each}}
+
+{{/if}}
+{{#each tables}}
+#### {{{title}}}
+
+|{{#each headers}} {{{this}}} |{{/each}}
+|{{#each headers}}------|{{/each}}
+{{#each rows}}
+|{{#each this}} {{{this}}} |{{/each}}
+{{/each}}
+
+{{#if truncated}}
+This AMD uProf table was truncated in Markdown. Full CSV: `{{{../report_path}}}`
+
+{{/if}}
+{{/each}}
+{{#if truncated}}
+This AMD uProf report was truncated in Markdown. Full CSV: `{{{report_path}}}`
+
+{{/if}}
+{{/each}}
+{{/if}}
 ## Conclusion

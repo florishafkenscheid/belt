@@ -10,11 +10,11 @@ use serde_json::json;
 use crate::{
     benchmark::{
         parser::{BenchmarkRun, MimallocStats},
-        uprof::{self, AmdUprofParsedReport, AmdUprofReportArtifact},
+        uprof,
     },
     core::{
         error::{BenchmarkErrorKind, Result},
-        output::{ResultWriter, WriteData, ensure_output_dir},
+        output::{self, ResultWriter, WriteData, ensure_output_dir},
     },
 };
 
@@ -46,7 +46,7 @@ impl ResultWriter for ReportWriter {
 
 /// Write the results to a Handlebars file
 fn write_report(results: &[BenchmarkRun], template_path: Option<&Path>, path: &Path) -> Result<()> {
-    const TPL_STR: &str = "# Factorio Benchmark Results\n\n**Platform:** {{platform}}\n**Factorio Version:** {{factorio_version}}\n**Date:** {{date}}\n\n## Scenario\n* Each save was tested for {{ticks}} tick(s) and {{runs}} run(s)\n\n## Results\n| Metric            | Description                           |\n| ----------------- | ------------------------------------- |\n| **Mean UPS**      | Updates per second – higher is better |\n| **Mean Avg (ms)** | Average frame time – lower is better  |\n| **Mean Min (ms)** | Minimum frame time – lower is better  |\n| **Mean Max (ms)** | Maximum frame time – lower is better  |\n\n| Save | Avg (ms) | Min (ms) | Max (ms) | UPS | Execution Time (ms) | % Difference from base |\n|------|----------|----------|----------|-----|---------------------|------------------------|\n{{#each results}}\n| {{save_name}} | {{avg_ms}} | {{min_ms}} | {{max_ms}} | {{{avg_effective_ups}}} | {{total_execution_time_ms}} | {{percentage_improvement}} |\n{{/each}}\n\n{{#if results.0.mimalloc}}\n## Memory (mimalloc)\n\n### What these numbers mean (practical interpretation)\n| Field | What it roughly indicates |\n|------|----------------------------|\n| **Committed (peak)** | Highest amount of memory backed by the OS during the run (best \"memory footprint\" trend metric). |\n| **Reserved (peak)** | Highest virtual address space reserved by the allocator. **If Committed > Reserved, the application uses direct `mmap`/`VirtualAlloc` outside the allocator** (e.g., for memory-mapped files or custom pools). |\n| **Peak RSS** | Highest resident set size (what was actually in RAM). Large gaps between Committed and RSS indicate sparse memory usage (hugepages, memory-mapped files, or reserved-but-untouched arenas). |\n| **Commit Efficiency** | `(Peak RSS / Committed Peak)` as percentage. <10% = sparse allocation (mostly reserved, not touched); >80% = dense working set. |\n| **Committed/Reserved (current)** | What the allocator still held at process exit. Not automatically a leak—mimalloc retains arenas for reuse. **Trend this across multiple runs; growth between identical runs indicates leaks.** |\n| **Pages / Abandoned (current + status)** | \"Not all freed\" is **normal**—the allocator caches pages for reuse. Abandoned blocks indicate thread-local heap fragments from terminated threads. Flag only if these numbers grow across benchmark iterations. |\n| **Thread Churn** | `(Threads Peak - Current)`. Values >0 indicate short-lived worker threads spawned during initialization (explains Abandoned blocks). |\n| **Threads (peak)** | Peak allocator thread count observed. If Peak > Current, expect elevated Abandoned blocks. |\n| **mmaps** | Number of OS allocation calls. Low counts (<50) with high memory usage indicate efficient arena reuse. High counts indicate frequent allocation pressure or fragmentation. |\n| **purges / resets** | Memory returned to OS. Usually 0 in benchmarks—non-zero indicates aggressive memory trimming or constrained environments. |\n\n### Summary (end-of-run heap stats)\n| Save | Committed Peak | Peak RSS | Commit Efficiency | Reserved Peak | Committed Current | Reserved Current | Pages Current | Pages Status | Abandoned Current | Abandoned Status | Thread Churn | Threads Peak | mmaps | purges | resets |\n|------|----------------|----------|-------------------|---------------|-------------------|------------------|---------------|-------------|-------------------|------------------|--------------|-------------|-------|--------|--------|\n{{#each results}}\n{{#each mimalloc}}\n| {{../save_name}} | {{committed_peak}} | {{peak_rss}} | {{commit_efficiency}} | {{reserved_peak}} | {{committed_current}} | {{reserved_current}} | {{pages_current}} | {{pages_status}} | {{abandoned_current}} | {{abandoned_status}} | {{thread_churn}} | {{threads_peak}} | {{mmaps}} | {{purges}} | {{resets}} |\n{{/each}}\n{{/each}}\n\n{{/if}}\n{{{amd_uprof_markdown}}}\n## Conclusion";
+    const TPL_STR: &str = "# Factorio Benchmark Results\n\n**Platform:** {{platform}}\n**Factorio Version:** {{factorio_version}}\n**Date:** {{date}}\n\n## Scenario\n* Each save was tested for {{ticks}} tick(s) and {{runs}} run(s)\n\n## Results\n| Metric            | Description                           |\n| ----------------- | ------------------------------------- |\n| **Mean UPS**      | Updates per second – higher is better |\n| **Mean Avg (ms)** | Average frame time – lower is better  |\n| **Mean Min (ms)** | Minimum frame time – lower is better  |\n| **Mean Max (ms)** | Maximum frame time – lower is better  |\n\n| Save | Avg (ms) | Min (ms) | Max (ms) | UPS | Execution Time (ms) | % Difference from base |\n|------|----------|----------|----------|-----|---------------------|------------------------|\n{{#each results}}\n| {{save_name}} | {{avg_ms}} | {{min_ms}} | {{max_ms}} | {{{avg_effective_ups}}} | {{total_execution_time_ms}} | {{percentage_improvement}} |\n{{/each}}\n\n{{#if results.0.mimalloc}}\n## Memory (mimalloc)\n\n### What these numbers mean (practical interpretation)\n| Field | What it roughly indicates |\n|------|----------------------------|\n| **Committed (peak)** | Highest amount of memory backed by the OS during the run (best \"memory footprint\" trend metric). |\n| **Reserved (peak)** | Highest virtual address space reserved by the allocator. **If Committed > Reserved, the application uses direct `mmap`/`VirtualAlloc` outside the allocator** (e.g., for memory-mapped files or custom pools). |\n| **Peak RSS** | Highest resident set size (what was actually in RAM). Large gaps between Committed and RSS indicate sparse memory usage (hugepages, memory-mapped files, or reserved-but-untouched arenas). |\n| **Commit Efficiency** | `(Peak RSS / Committed Peak)` as percentage. <10% = sparse allocation (mostly reserved, not touched); >80% = dense working set. |\n| **Committed/Reserved (current)** | What the allocator still held at process exit. Not automatically a leak—mimalloc retains arenas for reuse. **Trend this across multiple runs; growth between identical runs indicates leaks.** |\n| **Pages / Abandoned (current + status)** | \"Not all freed\" is **normal**—the allocator caches pages for reuse. Abandoned blocks indicate thread-local heap fragments from terminated threads. Flag only if these numbers grow across benchmark iterations. |\n| **Thread Churn** | `(Threads Peak - Current)`. Values >0 indicate short-lived worker threads spawned during initialization (explains Abandoned blocks). |\n| **Threads (peak)** | Peak allocator thread count observed. If Peak > Current, expect elevated Abandoned blocks. |\n| **mmaps** | Number of OS allocation calls. Low counts (<50) with high memory usage indicate efficient arena reuse. High counts indicate frequent allocation pressure or fragmentation. |\n| **purges / resets** | Memory returned to OS. Usually 0 in benchmarks—non-zero indicates aggressive memory trimming or constrained environments. |\n\n### Summary (end-of-run heap stats)\n| Save | Committed Peak | Peak RSS | Commit Efficiency | Reserved Peak | Committed Current | Reserved Current | Pages Current | Pages Status | Abandoned Current | Abandoned Status | Thread Churn | Threads Peak | mmaps | purges | resets |\n|------|----------------|----------|-------------------|---------------|-------------------|------------------|---------------|-------------|-------------------|------------------|--------------|-------------|-------|--------|--------|\n{{#each results}}\n{{#each mimalloc}}\n| {{../save_name}} | {{committed_peak}} | {{peak_rss}} | {{commit_efficiency}} | {{reserved_peak}} | {{committed_current}} | {{reserved_current}} | {{pages_current}} | {{pages_status}} | {{abandoned_current}} | {{abandoned_status}} | {{thread_churn}} | {{threads_peak}} | {{mmaps}} | {{purges}} | {{resets}} |\n{{/each}}\n{{/each}}\n\n{{/if}}\n{{#if amd_uprof.summary_rows}}\n## AMD uProf\n\n| Save | Run | Profile | View | Duration | Threads | Session | Report |\n|------|-----|---------|------|----------|---------|---------|--------|\n{{#each amd_uprof.summary_rows}}\n| {{{save}}} | {{run}} | {{{profile}}} | {{{view}}} | {{{duration}}} | {{{threads}}} | {{{session}}} | {{{report}}} |\n{{/each}}\n\n{{#each amd_uprof.reports}}\n### {{{title}}}\n\n{{#if copy_error}}\nReport archive warning: {{{copy_error}}}\n\n{{/if}}\n{{#if parse_error}}\nReport parse warning: {{{parse_error}}}. Full CSV: `{{{report_path}}}`\n\n{{/if}}\n{{#if metadata_rows}}\n| Field | Value |\n|-------|-------|\n{{#each metadata_rows}}\n| {{{field}}} | {{{value}}} |\n{{/each}}\n\n{{/if}}\n{{#if cache_rows}}\n#### Estimated L1 Data Cache Summary\n\nEstimated from `L1_DC_ACCESSES_ALL.USER` and demand refill source counters.\n\n| Table | Item | Accesses | Est Hits | Est Misses | Est Miss Rate | L2 Refills | Cache Refills | External Cache Refills | DRAM Refills |\n|-------|------|----------|----------|------------|---------------|------------|---------------|------------------------|--------------|\n{{#each cache_rows}}\n| {{{table}}} | {{{item}}} | {{{accesses}}} | {{{hits}}} | {{{misses}}} | {{{miss_rate}}} | {{{local_l2}}} | {{{local_cache}}} | {{{external_cache}}} | {{{local_dram}}} |\n{{/each}}\n\n{{/if}}\n{{#if ibs_load_rows}}\n#### IBS Load Cache Summary\n\nReported by AMD IBS load views such as `ibs_op_ld` and `ibs_op_ld_lat`.\n\n| Table | Item | Loads | L1 Hit Rate | L1 Miss Rate | L2 Hit Rate | Local Cache Hit Rate | Peer Cache Hit Rate | Remote Cache Hit Rate | DRAM Hit Rate | Avg L1 Miss Latency |\n|-------|------|-------|-------------|--------------|-------------|----------------------|---------------------|-----------------------|---------------|---------------------|\n{{#each ibs_load_rows}}\n| {{{table}}} | {{{item}}} | {{{loads}}} | {{{l1_hit_rate}}} | {{{l1_miss_rate}}} | {{{l2_hit_rate}}} | {{{local_cache_hit_rate}}} | {{{peer_cache_hit_rate}}} | {{{remote_cache_hit_rate}}} | {{{dram_hit_rate}}} | {{{l1_miss_latency}}} |\n{{/each}}\n\n{{/if}}\n{{#each tables}}\n#### {{{title}}}\n\n|{{#each headers}} {{{this}}} |{{/each}}\n|{{#each headers}}------|{{/each}}\n{{#each rows}}\n|{{#each this}} {{{this}}} |{{/each}}\n{{/each}}\n\n{{#if truncated}}\nThis AMD uProf table was truncated in Markdown. Full CSV: `{{{../report_path}}}`\n\n{{/if}}\n{{/each}}\n{{#if truncated}}\nThis AMD uProf report was truncated in Markdown. Full CSV: `{{{report_path}}}`\n\n{{/if}}\n{{/each}}\n{{/if}}\n## Conclusion";
     ensure_output_dir(path)?;
 
     let mut report_results = results.to_vec();
@@ -78,7 +78,7 @@ fn write_report(results: &[BenchmarkRun], template_path: Option<&Path>, path: &P
 
     // Calculate aggregated metrics for each benchmark result
     let aggs = aggregate_by_save_name(&report_results);
-    let amd_uprof_markdown = render_amd_uprof_markdown(&report_results, path);
+    let amd_uprof = output::uprof::build_section(&report_results, path);
 
     let mut table_results = Vec::new();
     for a in &aggs {
@@ -149,7 +149,7 @@ fn write_report(results: &[BenchmarkRun], template_path: Option<&Path>, path: &P
         "ticks": report_results.first().map(|run| run.ticks).unwrap_or(0),
         "runs": aggs.first().map(|aggregate| aggregate.runs).unwrap_or(0),
         "date": Local::now().date_naive().to_string(),
-        "amd_uprof_markdown": amd_uprof_markdown,
+        "amd_uprof": amd_uprof,
     });
 
     let rendered = handlebars.render("benchmark", &data)?;
@@ -158,320 +158,6 @@ fn write_report(results: &[BenchmarkRun], template_path: Option<&Path>, path: &P
 
     tracing::info!("Report written to {}", results_path.display());
     Ok(())
-}
-
-fn render_amd_uprof_markdown(results: &[BenchmarkRun], output_dir: &Path) -> String {
-    let detected = results
-        .iter()
-        .filter(|run| run.amd_uprof.is_some())
-        .collect::<Vec<_>>();
-
-    if detected.is_empty() {
-        return String::new();
-    }
-
-    let mut markdown = String::from("## AMD uProf\n\n");
-    markdown.push_str("| Save | Run | Profile | View | Duration | Threads | Session | Report |\n");
-    markdown.push_str("|------|-----|---------|------|----------|---------|---------|--------|\n");
-
-    for run in &detected {
-        let uprof = run.amd_uprof.as_ref().expect("checked above");
-
-        if uprof.reports.is_empty() {
-            for session in &uprof.session_paths {
-                markdown.push_str(&format!(
-                    "| {} | {} |  |  |  |  | {} | Run `{}` |\n",
-                    markdown_cell(&run.save_name),
-                    run.index,
-                    markdown_cell(&display_path(session, output_dir)),
-                    markdown_cell(&format!("AMDuProfCLI report -i {}", session.display())),
-                ));
-            }
-            continue;
-        }
-
-        for report in &uprof.reports {
-            let parsed = report.parsed.as_ref();
-            markdown.push_str(&format!(
-                "| {} | {} | {} | {} | {} | {} | {} | {} |\n",
-                markdown_cell(&run.save_name),
-                run.index,
-                markdown_cell(metadata_or_empty(parsed, "Profile Session Type")),
-                markdown_cell(metadata_or_empty(parsed, "Selected View")),
-                markdown_cell(metadata_or_empty(parsed, "Profile Duration")),
-                markdown_cell(metadata_or_empty(parsed, "Thread Count")),
-                markdown_cell(
-                    &uprof
-                        .session_paths
-                        .last()
-                        .map(|path| display_path(path, output_dir))
-                        .unwrap_or_default()
-                ),
-                markdown_cell(&report_path_cell(report, output_dir)),
-            ));
-        }
-    }
-
-    for run in detected {
-        let uprof = run.amd_uprof.as_ref().expect("checked above");
-        for (report_index, report) in uprof.reports.iter().enumerate() {
-            markdown.push_str(&format!(
-                "\n### {} / run_{} / report_{}\n\n",
-                run.save_name, run.index, report_index
-            ));
-
-            if let Some(error) = &report.copy_error {
-                markdown.push_str(&format!(
-                    "Report archive warning: {}\n\n",
-                    markdown_text(error)
-                ));
-            }
-
-            if let Some(error) = &report.parse_error {
-                markdown.push_str(&format!(
-                    "Report parse warning: {}. Full CSV: `{}`\n\n",
-                    markdown_text(error),
-                    markdown_text(&report_path_cell(report, output_dir))
-                ));
-            }
-
-            let Some(parsed) = &report.parsed else {
-                continue;
-            };
-
-            render_report_metadata(&mut markdown, parsed);
-            render_cache_summary(&mut markdown, parsed);
-
-            for table in &parsed.tables {
-                markdown.push_str(&format!("#### {}\n\n", markdown_text(&table.title)));
-                render_markdown_table(&mut markdown, &table.headers, &table.rows);
-                if table.truncated {
-                    markdown.push_str(&format!(
-                        "This AMD uProf table was truncated in Markdown. Full CSV: `{}`\n\n",
-                        markdown_text(&report_path_cell(report, output_dir))
-                    ));
-                }
-            }
-
-            if parsed.truncated {
-                markdown.push_str(&format!(
-                    "This AMD uProf report was truncated in Markdown. Full CSV: `{}`\n\n",
-                    markdown_text(&report_path_cell(report, output_dir))
-                ));
-            }
-        }
-    }
-
-    markdown.push('\n');
-    markdown
-}
-
-fn render_report_metadata(markdown: &mut String, parsed: &AmdUprofParsedReport) {
-    let promoted = [
-        "Profile Session Type",
-        "Selected View",
-        "Profile Duration",
-        "Thread Count",
-        "Data Folder",
-    ];
-
-    let rows = promoted
-        .iter()
-        .filter_map(|key| parsed.metadata_value(key).map(|value| (*key, value)))
-        .collect::<Vec<_>>();
-
-    if rows.is_empty() {
-        return;
-    }
-
-    markdown.push_str("| Field | Value |\n");
-    markdown.push_str("|-------|-------|\n");
-    for (key, value) in rows {
-        markdown.push_str(&format!(
-            "| {} | {} |\n",
-            markdown_cell(key),
-            markdown_cell(value)
-        ));
-    }
-    markdown.push('\n');
-}
-
-fn render_markdown_table(markdown: &mut String, headers: &[String], rows: &[Vec<String>]) {
-    if headers.is_empty() {
-        return;
-    }
-
-    markdown.push('|');
-    for header in headers {
-        markdown.push(' ');
-        markdown.push_str(&markdown_cell(header));
-        markdown.push_str(" |");
-    }
-    markdown.push('\n');
-
-    markdown.push('|');
-    for _ in headers {
-        markdown.push_str("------|");
-    }
-    markdown.push('\n');
-
-    for row in rows {
-        markdown.push('|');
-        for index in 0..headers.len() {
-            markdown.push(' ');
-            markdown.push_str(&markdown_cell(
-                row.get(index).map(String::as_str).unwrap_or(""),
-            ));
-            markdown.push_str(" |");
-        }
-        markdown.push('\n');
-    }
-    markdown.push('\n');
-}
-
-fn render_cache_summary(markdown: &mut String, parsed: &AmdUprofParsedReport) {
-    let rows = parsed
-        .tables
-        .iter()
-        .filter_map(|table| cache_table_indexes(table).map(|indexes| (table, indexes)))
-        .flat_map(|(table, indexes)| {
-            table.rows.iter().filter_map(move |row| {
-                let accesses = parse_metric(row.get(indexes.accesses)?)?;
-                let local_l2 = parse_metric(row.get(indexes.local_l2)?)?;
-                let local_cache = parse_metric(row.get(indexes.local_cache)?)?;
-                let external_cache = parse_metric(row.get(indexes.external_cache)?)?;
-                let local_dram = parse_metric(row.get(indexes.local_dram)?)?;
-                let misses = local_l2 + local_cache + external_cache + local_dram;
-                let hits = (accesses - misses).max(0.0);
-                let miss_rate = if accesses > 0.0 {
-                    misses / accesses * 100.0
-                } else {
-                    0.0
-                };
-
-                Some(CacheSummaryRow {
-                    table: table.title.clone(),
-                    item: row.first().cloned().unwrap_or_default(),
-                    accesses,
-                    hits,
-                    misses,
-                    miss_rate,
-                    local_l2,
-                    local_cache,
-                    external_cache,
-                    local_dram,
-                })
-            })
-        })
-        .collect::<Vec<_>>();
-
-    if rows.is_empty() {
-        return;
-    }
-
-    markdown.push_str("#### Estimated L1 Data Cache Summary\n\n");
-    markdown.push_str(
-        "Estimated from `L1_DC_ACCESSES_ALL.USER` and demand refill source counters.\n\n",
-    );
-    markdown.push_str("| Table | Item | Accesses | Est Hits | Est Misses | Est Miss Rate | L2 Refills | Cache Refills | External Cache Refills | DRAM Refills |\n");
-    markdown.push_str("|-------|------|----------|----------|------------|---------------|------------|---------------|------------------------|--------------|\n");
-
-    for row in rows {
-        markdown.push_str(&format!(
-            "| {} | {} | {} | {} | {} | {:.2}% | {} | {} | {} | {} |\n",
-            markdown_cell(&row.table),
-            markdown_cell(&row.item),
-            format_metric(row.accesses),
-            format_metric(row.hits),
-            format_metric(row.misses),
-            row.miss_rate,
-            format_metric(row.local_l2),
-            format_metric(row.local_cache),
-            format_metric(row.external_cache),
-            format_metric(row.local_dram),
-        ));
-    }
-    markdown.push('\n');
-}
-
-fn metadata_or_empty<'a>(parsed: Option<&'a AmdUprofParsedReport>, key: &str) -> &'a str {
-    parsed
-        .and_then(|parsed| parsed.metadata_value(key))
-        .unwrap_or("")
-}
-
-fn report_path_cell(report: &AmdUprofReportArtifact, output_dir: &Path) -> String {
-    let path = report.copied_path.as_ref().unwrap_or(&report.original_path);
-    display_path(path, output_dir)
-}
-
-fn display_path(path: &Path, output_dir: &Path) -> String {
-    path.strip_prefix(output_dir)
-        .unwrap_or(path)
-        .display()
-        .to_string()
-}
-
-fn markdown_cell(text: &str) -> String {
-    markdown_text(text).replace('|', "\\|")
-}
-
-fn markdown_text(text: &str) -> String {
-    text.replace(['\n', '\r'], " ")
-}
-
-#[derive(Debug)]
-struct CacheTableIndexes {
-    accesses: usize,
-    local_l2: usize,
-    local_cache: usize,
-    external_cache: usize,
-    local_dram: usize,
-}
-
-#[derive(Debug)]
-struct CacheSummaryRow {
-    table: String,
-    item: String,
-    accesses: f64,
-    hits: f64,
-    misses: f64,
-    miss_rate: f64,
-    local_l2: f64,
-    local_cache: f64,
-    external_cache: f64,
-    local_dram: f64,
-}
-
-fn cache_table_indexes(
-    table: &crate::benchmark::uprof::AmdUprofTable,
-) -> Option<CacheTableIndexes> {
-    Some(CacheTableIndexes {
-        accesses: header_index(table, "L1_DC_ACCESSES_ALL.USER")?,
-        local_l2: header_index(table, "L1_DEMAND_DC_REFILLS_LOCAL_L2.USER")?,
-        local_cache: header_index(table, "L1_DEMAND_DC_REFILLS_LOCAL_CACHE.USER")?,
-        external_cache: header_index(table, "L1_DEMAND_DC_REFILLS_EXTERNAL_CACHE_LOCAL.USER")?,
-        local_dram: header_index(table, "L1_DEMAND_DC_REFILLS_LOCAL_DRAM.USER")?,
-    })
-}
-
-fn header_index(table: &crate::benchmark::uprof::AmdUprofTable, header: &str) -> Option<usize> {
-    table
-        .headers
-        .iter()
-        .position(|candidate| candidate == header)
-}
-
-fn parse_metric(value: &str) -> Option<f64> {
-    value.parse().ok()
-}
-
-fn format_metric(value: f64) -> String {
-    if value.fract() == 0.0 {
-        format!("{value:.0}")
-    } else {
-        format!("{value:.4}")
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -629,6 +315,10 @@ Thread Count,24
 10 HOTTEST FUNCTIONS (Sort Event - CPU_TIME)
 FUNCTION,CPU_TIME,L1_DC_ACCESSES_ALL.USER,L1_DEMAND_DC_REFILLS_LOCAL_L2.USER,L1_DEMAND_DC_REFILLS_LOCAL_CACHE.USER,L1_DEMAND_DC_REFILLS_EXTERNAL_CACHE_LOCAL.USER,L1_DEMAND_DC_REFILLS_LOCAL_DRAM.USER,Module
 foo,1.230,100.0000,10.0000,5.0000,0.0000,5.0000,libfoo.so
+
+10 HOTTEST FUNCTIONS (Sort Event - IBS_LOAD)
+FUNCTION,IBS_LOAD,IBS_LD_L1_DC_HIT_RATE_%,IBS_LD_L1_DC_MISS_RATE_%,IBS_LD_L2_HIT_RATE_%,IBS_LD_LOCAL_CACHE_HIT_RATE_%,IBS_LD_PEER_CACHE_HIT_RATE_%,IBS_LD_RMT_CACHE_HIT_RATE_%,IBS_LD_DRAM_HIT_RATE_%,IBS_LD_L1_DC_MISS_LAT_AVE,Module
+foo,200.0000,80.0000,20.0000,10.0000,7.0000,1.0000,0.0000,2.0000,42.5000,libfoo.so
 "#,
         )
         .expect("write source report");
@@ -667,6 +357,8 @@ foo,1.230,100.0000,10.0000,5.0000,0.0000,5.0000,libfoo.so
         assert!(report.contains("10 HOTTEST FUNCTIONS"));
         assert!(report.contains("Estimated L1 Data Cache Summary"));
         assert!(report.contains("20.00%"));
+        assert!(report.contains("IBS Load Cache Summary"));
+        assert!(report.contains("42.5000"));
         assert!(report.contains("foo"));
         assert!(report.contains("uprof/alpha/run_0/report_0.csv"));
     }

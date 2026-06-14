@@ -242,25 +242,39 @@ Minimal wrapper shape:
 set -euo pipefail
 
 FACTORIO_BIN="${HOME}/.factorio/bin/x64/factorio"
-UPROF_CONFIG="${UPROF_CONFIG:-data_access}"
-UPROF_VIEW="${UPROF_VIEW:-dc_focus}"
-UPROF_ROOT="${UPROF_ROOT:-/tmp/belt-amduprof}"
+AMD_UPROF_CONFIG="${AMD_UPROF_CONFIG:-data_access}"
+AMD_UPROF_VIEW="${AMD_UPROF_VIEW:-dc_focus}"
+AMD_UPROF_ROOT="${AMD_UPROF_ROOT:-/tmp/belt-amduprof}"
 
-mkdir -p "${UPROF_ROOT}"
-session_parent="$(mktemp -d "${UPROF_ROOT}/session.XXXXXX")"
+mkdir -p "${AMD_UPROF_ROOT}"
+session_parent="$(mktemp -d "${AMD_UPROF_ROOT}/session.XXXXXX")"
 collect_log="$(mktemp "${session_parent}/collect.XXXXXX.log")"
 
-AMDuProfCLI collect --config "${UPROF_CONFIG}" -o "${session_parent}" \
+AMDuProfCLI collect --config "${AMD_UPROF_CONFIG}" -o "${session_parent}" \
   "${FACTORIO_BIN}" "$@" 2>&1 | tee "${collect_log}"
 
 generated_session="$(
   sed -n 's/^Generated data files path:[[:space:]]*//p' "${collect_log}" | tail -n 1
 )"
 
-AMDuProfCLI report -i "${generated_session:-${session_parent}}" --view "${UPROF_VIEW}"
+AMDuProfCLI report -i "${generated_session:-${session_parent}}" --view "${AMD_UPROF_VIEW}"
 ```
 
-For Factorio, `data_access` with `dc_focus` is a good starting point because it reports L1 data cache, DTLB, and refill-source counters. `hotspots` is useful for CPU time attribution, but it does not show cache misses. In the BELT report, start with the uProf summary row, then read the estimated L1 data cache summary for hit/miss rates derived from `L1_DC_ACCESSES_ALL.USER` and the demand refill source counters. The hottest functions/modules tables preserve AMD's raw counter columns. The copied CSV remains the source of truth for deeper analysis or AMD uProf GUI use.
+For Factorio, `data_access` with `dc_focus` is a good starting point because it reports L1 data cache, DTLB, and refill-source counters. `hotspots` is useful for CPU time attribution, but it does not show cache misses. In the BELT report, start with the uProf summary row, then read the estimated L1 data cache summary for hit/miss rates derived from `L1_DC_ACCESSES_ALL.USER` and the demand refill source counters.
+
+For deeper load-cache analysis, run your wrapper with:
+
+```bash
+AMD_UPROF_CONFIG=ibs AMD_UPROF_VIEW=ibs_op_ld belt benchmark ./saves --factorio-path ~/.local/bin/factorio
+```
+
+or use `AMD_UPROF_VIEW=ibs_op_ld_lat` for load miss latency. IBS collection usually requires `kernel.perf_event_paranoid <= 1` for non-root users:
+
+```bash
+sudo sysctl kernel.perf_event_paranoid=1
+```
+
+BELT renders IBS load reports as an `IBS Load Cache Summary` with L1 hit/miss rate, L2 hit rate, local/peer/remote cache hit rates, DRAM hit rate, and average L1 miss latency when those columns exist. The hottest functions/modules tables preserve AMD's raw counter columns. The copied CSV remains the source of truth for deeper analysis or AMD uProf GUI use.
 
 #### Verbose Metrics
 

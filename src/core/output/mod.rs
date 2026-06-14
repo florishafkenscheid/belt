@@ -10,6 +10,7 @@ use crate::{
 // Re-export submodules
 pub mod csv;
 pub mod report;
+mod uprof;
 pub use csv::CsvWriter;
 
 // Simple data holder
