@@ -260,7 +260,7 @@ generated_session="$(
 AMDuProfCLI report -i "${generated_session:-${session_parent}}" --view "${UPROF_VIEW}"
 ```
 
-For Factorio, `data_access` with `dc_focus` is a good starting point because it reports L1 data cache, DTLB, and refill-source counters. `hotspots` is useful for CPU time attribution, but it does not show cache misses. In the BELT report, start with the uProf summary row, then read the hottest functions/modules tables by the sort event and counter columns. The copied CSV remains the source of truth for deeper analysis or AMD uProf GUI use.
+For Factorio, `data_access` with `dc_focus` is a good starting point because it reports L1 data cache, DTLB, and refill-source counters. `hotspots` is useful for CPU time attribution, but it does not show cache misses. In the BELT report, start with the uProf summary row, then read the estimated L1 data cache summary for hit/miss rates derived from `L1_DC_ACCESSES_ALL.USER` and the demand refill source counters. The hottest functions/modules tables preserve AMD's raw counter columns. The copied CSV remains the source of truth for deeper analysis or AMD uProf GUI use.
 
 #### Verbose Metrics
 

@@ -240,6 +240,7 @@ fn render_amd_uprof_markdown(results: &[BenchmarkRun], output_dir: &Path) -> Str
             };
 
             render_report_metadata(&mut markdown, parsed);
+            render_cache_summary(&mut markdown, parsed);
 
             for table in &parsed.tables {
                 markdown.push_str(&format!("#### {}\n\n", markdown_text(&table.title)));
@@ -328,6 +329,71 @@ fn render_markdown_table(markdown: &mut String, headers: &[String], rows: &[Vec<
     markdown.push('\n');
 }
 
+fn render_cache_summary(markdown: &mut String, parsed: &AmdUprofParsedReport) {
+    let rows = parsed
+        .tables
+        .iter()
+        .filter_map(|table| cache_table_indexes(table).map(|indexes| (table, indexes)))
+        .flat_map(|(table, indexes)| {
+            table.rows.iter().filter_map(move |row| {
+                let accesses = parse_metric(row.get(indexes.accesses)?)?;
+                let local_l2 = parse_metric(row.get(indexes.local_l2)?)?;
+                let local_cache = parse_metric(row.get(indexes.local_cache)?)?;
+                let external_cache = parse_metric(row.get(indexes.external_cache)?)?;
+                let local_dram = parse_metric(row.get(indexes.local_dram)?)?;
+                let misses = local_l2 + local_cache + external_cache + local_dram;
+                let hits = (accesses - misses).max(0.0);
+                let miss_rate = if accesses > 0.0 {
+                    misses / accesses * 100.0
+                } else {
+                    0.0
+                };
+
+                Some(CacheSummaryRow {
+                    table: table.title.clone(),
+                    item: row.first().cloned().unwrap_or_default(),
+                    accesses,
+                    hits,
+                    misses,
+                    miss_rate,
+                    local_l2,
+                    local_cache,
+                    external_cache,
+                    local_dram,
+                })
+            })
+        })
+        .collect::<Vec<_>>();
+
+    if rows.is_empty() {
+        return;
+    }
+
+    markdown.push_str("#### Estimated L1 Data Cache Summary\n\n");
+    markdown.push_str(
+        "Estimated from `L1_DC_ACCESSES_ALL.USER` and demand refill source counters.\n\n",
+    );
+    markdown.push_str("| Table | Item | Accesses | Est Hits | Est Misses | Est Miss Rate | L2 Refills | Cache Refills | External Cache Refills | DRAM Refills |\n");
+    markdown.push_str("|-------|------|----------|----------|------------|---------------|------------|---------------|------------------------|--------------|\n");
+
+    for row in rows {
+        markdown.push_str(&format!(
+            "| {} | {} | {} | {} | {} | {:.2}% | {} | {} | {} | {} |\n",
+            markdown_cell(&row.table),
+            markdown_cell(&row.item),
+            format_metric(row.accesses),
+            format_metric(row.hits),
+            format_metric(row.misses),
+            row.miss_rate,
+            format_metric(row.local_l2),
+            format_metric(row.local_cache),
+            format_metric(row.external_cache),
+            format_metric(row.local_dram),
+        ));
+    }
+    markdown.push('\n');
+}
+
 fn metadata_or_empty<'a>(parsed: Option<&'a AmdUprofParsedReport>, key: &str) -> &'a str {
     parsed
         .and_then(|parsed| parsed.metadata_value(key))
@@ -352,6 +418,60 @@ fn markdown_cell(text: &str) -> String {
 
 fn markdown_text(text: &str) -> String {
     text.replace(['\n', '\r'], " ")
+}
+
+#[derive(Debug)]
+struct CacheTableIndexes {
+    accesses: usize,
+    local_l2: usize,
+    local_cache: usize,
+    external_cache: usize,
+    local_dram: usize,
+}
+
+#[derive(Debug)]
+struct CacheSummaryRow {
+    table: String,
+    item: String,
+    accesses: f64,
+    hits: f64,
+    misses: f64,
+    miss_rate: f64,
+    local_l2: f64,
+    local_cache: f64,
+    external_cache: f64,
+    local_dram: f64,
+}
+
+fn cache_table_indexes(
+    table: &crate::benchmark::uprof::AmdUprofTable,
+) -> Option<CacheTableIndexes> {
+    Some(CacheTableIndexes {
+        accesses: header_index(table, "L1_DC_ACCESSES_ALL.USER")?,
+        local_l2: header_index(table, "L1_DEMAND_DC_REFILLS_LOCAL_L2.USER")?,
+        local_cache: header_index(table, "L1_DEMAND_DC_REFILLS_LOCAL_CACHE.USER")?,
+        external_cache: header_index(table, "L1_DEMAND_DC_REFILLS_EXTERNAL_CACHE_LOCAL.USER")?,
+        local_dram: header_index(table, "L1_DEMAND_DC_REFILLS_LOCAL_DRAM.USER")?,
+    })
+}
+
+fn header_index(table: &crate::benchmark::uprof::AmdUprofTable, header: &str) -> Option<usize> {
+    table
+        .headers
+        .iter()
+        .position(|candidate| candidate == header)
+}
+
+fn parse_metric(value: &str) -> Option<f64> {
+    value.parse().ok()
+}
+
+fn format_metric(value: f64) -> String {
+    if value.fract() == 0.0 {
+        format!("{value:.0}")
+    } else {
+        format!("{value:.4}")
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -507,8 +627,8 @@ APPLICATION PERFORMANCE SNAPSHOT
 Thread Count,24
 
 10 HOTTEST FUNCTIONS (Sort Event - CPU_TIME)
-FUNCTION,CPU_TIME,Module
-foo,1.230,libfoo.so
+FUNCTION,CPU_TIME,L1_DC_ACCESSES_ALL.USER,L1_DEMAND_DC_REFILLS_LOCAL_L2.USER,L1_DEMAND_DC_REFILLS_LOCAL_CACHE.USER,L1_DEMAND_DC_REFILLS_EXTERNAL_CACHE_LOCAL.USER,L1_DEMAND_DC_REFILLS_LOCAL_DRAM.USER,Module
+foo,1.230,100.0000,10.0000,5.0000,0.0000,5.0000,libfoo.so
 "#,
         )
         .expect("write source report");
@@ -545,6 +665,8 @@ foo,1.230,libfoo.so
         );
         assert!(report.contains("Hotspots"));
         assert!(report.contains("10 HOTTEST FUNCTIONS"));
+        assert!(report.contains("Estimated L1 Data Cache Summary"));
+        assert!(report.contains("20.00%"));
         assert!(report.contains("foo"));
         assert!(report.contains("uprof/alpha/run_0/report_0.csv"));
     }
