@@ -380,14 +380,14 @@ pub fn init_config_dir() -> Result<PathBuf> {
 [benchmark]
 # ticks = 6000
 # runs = 5
-# run_order = "grouped"  # Options: "sequential", "random", "grouped"
+# run_order = "sequential"  # Options: "sequential", "random", "grouped"
 # pattern = "*.zip"
-# headless = true
+# headless = false
 # record_cpu = true
 
 [sanitize]
 # ticks = 3600
-# headless = true
+# headless = false
 
 [blueprint]
 # count = 10
