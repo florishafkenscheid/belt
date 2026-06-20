@@ -50,7 +50,7 @@ fn test_benchmark_config_default_values() {
 
         assert_eq!(config.ticks, 6000);
         assert_eq!(config.runs, 5);
-        assert_eq!(config.run_order, RunOrder::Grouped);
+        assert_eq!(config.run_order, RunOrder::Sequential);
         assert!(config.pattern.is_none());
         assert!(config.output.is_none());
         assert!(config.mods_dir.is_none());
@@ -242,7 +242,7 @@ ticks = 7000
 
         assert_eq!(config.ticks, 7000);
         assert_eq!(config.runs, 8);
-        assert_eq!(config.run_order, RunOrder::Grouped);
+        assert_eq!(config.run_order, RunOrder::Sequential);
         assert!(config.pattern.is_none());
     });
 }

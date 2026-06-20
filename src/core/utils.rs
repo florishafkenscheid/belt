@@ -16,11 +16,11 @@ use std::{path::Path, time::Duration};
 #[serde(rename_all = "lowercase")]
 pub enum RunOrder {
     /// Run benchmarks in sequential order (A, B, A, B)
+    #[default]
     Sequential,
     /// Run benchmarks in random order
     Random,
     /// Run benchmarks in grouped order (A, A, B, B) - default
-    #[default]
     Grouped,
 }
 
