@@ -268,15 +268,10 @@ impl FactorioExecutor {
 
         if let Some(index) = summary.find(VERBOSE_HEADER) {
             let (summary, verbose_part) = summary.split_at(index);
-
-            let cleaned_verbose_data: String = verbose_part
-                .lines()
-                .filter(|line| line.starts_with("tick,") || line.starts_with('t'))
-                .collect::<Vec<&str>>()
-                .join("\n");
+            let (summary, cleaned_verbose_data) = split_verbose_output(summary, verbose_part);
 
             Ok(FactorioOutput {
-                summary: summary.to_string(),
+                summary,
                 verbose_data: Some(cleaned_verbose_data),
                 cpu_data: cpu_frequency_data,
             })
@@ -384,5 +379,47 @@ impl FactorioExecutor {
         }
 
         Ok(())
+    }
+}
+
+fn split_verbose_output(summary: &str, verbose_part: &str) -> (String, String) {
+    let cleaned_verbose_data = verbose_part
+        .lines()
+        .filter(|line| line.starts_with("tick,") || line.starts_with('t'))
+        .collect::<Vec<&str>>()
+        .join("\n");
+
+    let uprof_breadcrumbs = verbose_part
+        .lines()
+        .filter(|line| {
+            line.trim_start().starts_with("Generated data files path:")
+                || line.trim_start().starts_with("Generated report file:")
+        })
+        .collect::<Vec<&str>>()
+        .join("\n");
+
+    let summary = if uprof_breadcrumbs.is_empty() {
+        summary.to_string()
+    } else {
+        format!("{summary}\n{uprof_breadcrumbs}")
+    };
+
+    (summary, cleaned_verbose_data)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn split_verbose_output_keeps_uprof_breadcrumbs_after_csv() {
+        let (summary, verbose_data) = split_verbose_output(
+            "Performed 60 updates in 500 ms\n",
+            "tick,timestamp,wholeUpdate\n0,0,1\nGenerated report file: /tmp/session/report.csv\n",
+        );
+
+        assert!(summary.contains("Performed 60 updates"));
+        assert!(summary.contains("Generated report file: /tmp/session/report.csv"));
+        assert_eq!(verbose_data, "tick,timestamp,wholeUpdate");
     }
 }
