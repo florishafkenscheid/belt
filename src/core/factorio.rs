@@ -137,6 +137,7 @@ impl FactorioExecutor {
                 BenchmarkError::from(BenchmarkErrorKind::FactorioProcessFailed {
                     code: output.status.code().unwrap_or(-1),
                 })
+                .with_process_output(&stdout_str, &stderr_str)
                 .with_hint(hint),
             );
         }
@@ -255,6 +256,7 @@ impl FactorioExecutor {
                 BenchmarkError::from(BenchmarkErrorKind::FactorioProcessFailed {
                     code: output.status.code().unwrap_or(-1),
                 })
+                .with_process_output(&stdout_str, &stderr_str)
                 .with_hint(hint),
             );
         }
@@ -376,6 +378,7 @@ impl FactorioExecutor {
                 BenchmarkError::from(BenchmarkErrorKind::FactorioProcessFailed {
                     code: output.status.code().unwrap_or(-1),
                 })
+                .with_process_output(&stdout_str, &stderr_str)
                 .with_hint(hint),
             );
         }

@@ -13,6 +13,7 @@ use thiserror::Error;
 pub struct BenchmarkError {
     kind: Box<BenchmarkErrorKind>,
     hint: Option<String>,
+    process_output: Option<String>,
 }
 
 /// All types of errors than can occur in BELT.
@@ -127,6 +128,15 @@ impl BenchmarkError {
         }
         self
     }
+
+    /// Attaches captured child-process output to the error.
+    pub fn with_process_output(mut self, stdout: &str, stderr: &str) -> Self {
+        let output = format_process_output(stdout, stderr);
+        if !output.is_empty() {
+            self.process_output = Some(output);
+        }
+        self
+    }
 }
 
 impl fmt::Display for BenchmarkError {
@@ -134,6 +144,9 @@ impl fmt::Display for BenchmarkError {
         write!(f, "{}", self.kind)?;
         if let Some(hint_text) = &self.hint {
             write!(f, " ({hint_text})")?;
+        }
+        if let Some(output) = &self.process_output {
+            write!(f, "\n\n{output}")?;
         }
 
         Ok(())
@@ -156,9 +169,59 @@ where
         BenchmarkError {
             kind: Box::new(BenchmarkErrorKind::from(error)),
             hint: None,
+            process_output: None,
         }
     }
 }
 
 /// A convenient result type for BELT
 pub type Result<T> = std::result::Result<T, BenchmarkError>;
+
+fn format_process_output(stdout: &str, stderr: &str) -> String {
+    let mut sections = Vec::new();
+
+    if !stderr.trim().is_empty() {
+        sections.push(format!("Factorio stderr:\n{}", tail_lines(stderr, 40)));
+    }
+
+    if !stdout.trim().is_empty() {
+        sections.push(format!("Factorio stdout:\n{}", tail_lines(stdout, 40)));
+    }
+
+    sections.join("\n\n")
+}
+
+fn tail_lines(text: &str, max_lines: usize) -> String {
+    let lines: Vec<&str> = text.lines().collect();
+    let skipped = lines.len().saturating_sub(max_lines);
+    let mut output = String::new();
+
+    if skipped > 0 {
+        output.push_str(&format!("... omitted {skipped} earlier line(s)\n"));
+    }
+
+    output.push_str(&lines[skipped..].join("\n"));
+    output
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn process_output_is_bounded() {
+        let stderr = (0..45)
+            .map(|i| format!("err {i}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let error = BenchmarkError::from(BenchmarkErrorKind::FactorioProcessFailed { code: 1 })
+            .with_process_output("", &stderr)
+            .to_string();
+
+        assert!(error.contains("Factorio stderr:"));
+        assert!(error.contains("omitted 5 earlier line(s)"));
+        assert!(!error.contains("err 4\n"));
+        assert!(error.contains("err 44"));
+    }
+}

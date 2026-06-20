@@ -121,7 +121,13 @@ impl BenchmarkRunner {
             progress.set_message(eta_message);
 
             // Run a single benchmark and get the run data and version
-            let (result_for_run, verbose_data) = self.run_single_benchmark(job).await?;
+            let (result_for_run, verbose_data) = match self.run_single_benchmark(job).await {
+                Ok(result) => result,
+                Err(error) => {
+                    progress.abandon();
+                    return Err(error);
+                }
+            };
 
             results_map
                 .entry(result_for_run.save_name.clone())
