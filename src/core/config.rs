@@ -119,7 +119,7 @@ pub struct BenchmarkConfig {
     pub strip_prefix: Option<String>,
     /// Run Factorio in headless mode
     #[serde(default)]
-    pub headless: Option<bool>,
+    pub headless: bool,
     /// Record CPU frequency data during benchmark runs
     #[serde(default = "default_record_cpu")]
     pub record_cpu: bool,
@@ -140,7 +140,7 @@ impl Default for BenchmarkConfig {
             run_order: RunOrder::default(),
             verbose_metrics: Vec::new(),
             strip_prefix: None,
-            headless: None,
+            headless: false,
             record_cpu: default_record_cpu(),
             append: false,
         }
@@ -192,7 +192,7 @@ pub struct SanitizeConfig {
     pub fluids: Option<String>,
     /// Run Factorio in headless mode
     #[serde(default)]
-    pub headless: Option<bool>,
+    pub headless: bool,
 }
 
 fn default_sanitize_ticks() -> u32 {
@@ -209,7 +209,7 @@ impl Default for SanitizeConfig {
             data_dir: None,
             items: None,
             fluids: None,
-            headless: None,
+            headless: false,
         }
     }
 }
@@ -256,7 +256,7 @@ pub struct BlueprintConfig {
     pub prefix: Option<String>,
     /// Run Factorio in headless mode
     #[serde(default)]
-    pub headless: Option<bool>,
+    pub headless: bool,
     /// Number of construction bots to use
     #[serde(default)]
     pub bot_count: Option<u32>,
@@ -275,7 +275,7 @@ impl Default for BlueprintConfig {
             pattern: None,
             output: None,
             prefix: None,
-            headless: None,
+            headless: false,
             bot_count: None,
         }
     }
@@ -392,6 +392,7 @@ pub fn init_config_dir() -> Result<PathBuf> {
 [blueprint]
 # count = 10
 # buffer_ticks = 120
+# headless = false
 "#;
         std::fs::write(&config_file, example_config)
             .map_err(|e| BenchmarkErrorKind::ConfigLoadError(e.to_string()))?;

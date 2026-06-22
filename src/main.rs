@@ -12,7 +12,7 @@ use crate::core::{
     config::{self, BenchmarkConfig, BlueprintConfig, SanitizeConfig},
     error::BenchmarkErrorKind,
 };
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 use std::{
     path::{Path, PathBuf},
     sync::{
@@ -26,34 +26,58 @@ use std::{
 #[command(about = "Factorio benchmarking tool")]
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 
-    #[arg(long, global = true, help = "Path to Factorio executable")]
+    #[arg(
+        long,
+        global = true,
+        help_heading = "Global Options",
+        help = "Path to Factorio executable"
+    )]
     factorio_path: Option<PathBuf>,
 
-    #[arg(long, global = true, help = "Enable verbose logging")]
+    #[arg(
+        long,
+        global = true,
+        help_heading = "Global Options",
+        help = "Enable verbose logging"
+    )]
     verbose: bool,
 
     #[arg(
         long,
         global = true,
+        help_heading = "Global Options",
         help = "Path to config file (default: ~/.config/belt/config.toml)"
     )]
     config: Option<PathBuf>,
 
     #[arg(
         long,
-        global = true,
+        help_heading = "Global Options",
         help = "Initialize config directory with example config"
     )]
     init_config: bool,
 
-    #[arg(long, global = true, help = "Prints the BELT binary's version")]
+    #[arg(
+        long,
+        help_heading = "Global Options",
+        help = "Prints the BELT binary's version"
+    )]
     version: bool,
+
+    #[arg(
+        long,
+        global = true,
+        help_heading = "Global Options",
+        help = "Run Factorio in headless mode"
+    )]
+    headless: bool,
 }
 
 #[derive(Subcommand)]
 enum Commands {
+    #[command(next_help_heading = "Benchmark Options")]
     Benchmark {
         /// Directory containing save files to benchmark
         #[arg(value_name = "SAVES_DIR")]
@@ -93,11 +117,8 @@ enum Commands {
         #[arg(long, help = "Prefix to strip from save file names in output")]
         strip_prefix: Option<String>,
 
-        #[arg(long, help = "Run Factorio in headless mode")]
-        headless: Option<bool>,
-
         #[arg(long, help = "Record CPU frequency data during benchmark runs")]
-        record_cpu: Option<bool>,
+        record_cpu: bool,
 
         #[arg(
             long,
@@ -106,6 +127,7 @@ enum Commands {
         )]
         append: bool,
     },
+    #[command(next_help_heading = "Blueprint Options")]
     Blueprint {
         /// Directory containing blueprint files
         blueprints_dir: PathBuf,
@@ -137,12 +159,10 @@ enum Commands {
         #[arg(long, help = "Output directory or file path")]
         output: Option<PathBuf>,
 
-        #[arg(long, help = "Run Factorio in headless mode")]
-        headless: Option<bool>,
-
         #[arg(long, help = "Number of construction bots to use")]
         bot_count: Option<u32>,
     },
+    #[command(next_help_heading = "Sanitize Options")]
     Sanitize {
         /// Directory containing save files to sanitize
         #[arg(value_name = "SAVES_DIR")]
@@ -168,17 +188,15 @@ enum Commands {
             help = "Fluids to preserve during sanitization (comma-separated)"
         )]
         fluids: Option<String>,
-
-        #[arg(long, help = "Run Factorio in headless mode")]
-        headless: Option<bool>,
     },
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Handle --init-config before CLI parsing (since subcommand is required)
-    let args: Vec<String> = std::env::args().collect();
-    if args.contains(&"--init-config".to_string()) {
+    // Parse input
+    let cli = Cli::parse();
+
+    if cli.init_config {
         match config::init_config_dir() {
             Ok(path) => {
                 println!("Initialized config directory at: {}", path.display());
@@ -191,8 +209,7 @@ async fn main() -> Result<()> {
         }
     }
 
-    // Also handle before CLI parsing, same reason.
-    if args.contains(&"--version".to_string()) {
+    if cli.version {
         let version = env!("CARGO_PKG_VERSION");
         let bin = env!("CARGO_BIN_NAME");
         println!("{bin} v{version}");
@@ -200,8 +217,11 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    // Parse input
-    let cli = Cli::parse();
+    let Some(command) = cli.command else {
+        Cli::command().print_help()?;
+        println!();
+        return Ok(());
+    };
 
     // Create figment from config file and environment variables
     let figment = if let Some(config_path) = &cli.config {
@@ -241,7 +261,7 @@ async fn main() -> Result<()> {
 
     // Listen to CTRL+C
     let needs_shutdown = matches!(
-        cli.command,
+        &command,
         Commands::Benchmark { .. } | Commands::Sanitize { .. } | Commands::Blueprint { .. }
     );
     let running = Arc::new(AtomicBool::new(true));
@@ -259,7 +279,7 @@ async fn main() -> Result<()> {
     };
 
     // Capture the result of the benchmark
-    let result = match cli.command {
+    let result = match command {
         Commands::Benchmark {
             saves_dir,
             ticks,
@@ -271,53 +291,56 @@ async fn main() -> Result<()> {
             run_order,
             verbose_metrics,
             strip_prefix,
-            headless,
             record_cpu,
             append,
         } => {
-            let mut benchmark_config = BenchmarkConfig::from_figment(&figment).unwrap_or_default();
-            benchmark_config.append = append;
+            async {
+                let mut benchmark_config =
+                    BenchmarkConfig::from_figment(&figment).unwrap_or_default();
+                benchmark_config.append = append;
 
-            if let Some(v) = saves_dir {
-                benchmark_config.saves_dir = v;
-            }
-            require_saves_dir(&benchmark_config.saves_dir, "benchmark")?;
+                if let Some(v) = saves_dir {
+                    benchmark_config.saves_dir = v;
+                }
+                require_saves_dir(&benchmark_config.saves_dir, "benchmark")?;
 
-            if let Some(v) = ticks {
-                benchmark_config.ticks = v;
-            }
-            if let Some(v) = runs {
-                benchmark_config.runs = v;
-            }
-            if let Some(v) = pattern {
-                benchmark_config.pattern = Some(v);
-            }
-            if let Some(v) = output {
-                benchmark_config.output = Some(v);
-            }
-            if let Some(v) = template_path {
-                benchmark_config.template_path = Some(v);
-            }
-            if let Some(v) = mods_dir {
-                benchmark_config.mods_dir = Some(v);
-            }
-            if let Some(v) = run_order {
-                benchmark_config.run_order = v;
-            }
-            if let Some(v) = verbose_metrics {
-                benchmark_config.verbose_metrics = v;
-            }
-            if let Some(v) = strip_prefix {
-                benchmark_config.strip_prefix = Some(v);
-            }
-            if let Some(v) = headless {
-                benchmark_config.headless = Some(v);
-            }
-            if let Some(v) = record_cpu {
-                benchmark_config.record_cpu = v;
-            }
+                if let Some(v) = ticks {
+                    benchmark_config.ticks = v;
+                }
+                if let Some(v) = runs {
+                    benchmark_config.runs = v;
+                }
+                if let Some(v) = pattern {
+                    benchmark_config.pattern = Some(v);
+                }
+                if let Some(v) = output {
+                    benchmark_config.output = Some(v);
+                }
+                if let Some(v) = template_path {
+                    benchmark_config.template_path = Some(v);
+                }
+                if let Some(v) = mods_dir {
+                    benchmark_config.mods_dir = Some(v);
+                }
+                if let Some(v) = run_order {
+                    benchmark_config.run_order = v;
+                }
+                if let Some(v) = verbose_metrics {
+                    benchmark_config.verbose_metrics = v;
+                }
+                if let Some(v) = strip_prefix {
+                    benchmark_config.strip_prefix = Some(v);
+                }
+                if cli.headless {
+                    benchmark_config.headless = true;
+                }
+                if record_cpu {
+                    benchmark_config.record_cpu = true;
+                }
 
-            benchmark::run(global_config, benchmark_config, &running).await
+                benchmark::run(global_config, benchmark_config, &running).await
+            }
+            .await
         }
 
         Commands::Blueprint {
@@ -331,7 +354,6 @@ async fn main() -> Result<()> {
             pattern,
             output,
             prefix,
-            headless,
             bot_count,
         } => {
             let mut blueprint_config = BlueprintConfig::from_figment(&figment).unwrap_or_default();
@@ -357,8 +379,8 @@ async fn main() -> Result<()> {
             if let Some(v) = prefix {
                 blueprint_config.prefix = Some(v);
             }
-            if let Some(v) = headless {
-                blueprint_config.headless = Some(v);
+            if cli.headless {
+                blueprint_config.headless = true;
             }
             if let Some(v) = bot_count {
                 blueprint_config.bot_count = Some(v);
@@ -374,36 +396,39 @@ async fn main() -> Result<()> {
             data_dir,
             items,
             fluids,
-            headless,
         } => {
-            let mut sanitize_config = SanitizeConfig::from_figment(&figment).unwrap_or_default();
-            if let Some(v) = saves_dir {
-                sanitize_config.saves_dir = v;
-            }
-            require_saves_dir(&sanitize_config.saves_dir, "sanitize")?;
+            async {
+                let mut sanitize_config =
+                    SanitizeConfig::from_figment(&figment).unwrap_or_default();
+                if let Some(v) = saves_dir {
+                    sanitize_config.saves_dir = v;
+                }
+                require_saves_dir(&sanitize_config.saves_dir, "sanitize")?;
 
-            if let Some(v) = pattern {
-                sanitize_config.pattern = Some(v);
+                if let Some(v) = pattern {
+                    sanitize_config.pattern = Some(v);
+                }
+                if let Some(v) = ticks {
+                    sanitize_config.ticks = v;
+                }
+                if let Some(v) = mods_dir {
+                    sanitize_config.mods_dir = Some(v);
+                }
+                if let Some(v) = data_dir {
+                    sanitize_config.data_dir = Some(v);
+                }
+                if let Some(v) = items {
+                    sanitize_config.items = Some(v);
+                }
+                if let Some(v) = fluids {
+                    sanitize_config.fluids = Some(v);
+                }
+                if cli.headless {
+                    sanitize_config.headless = true;
+                }
+                sanitize::run(global_config, sanitize_config, &running).await
             }
-            if let Some(v) = ticks {
-                sanitize_config.ticks = v;
-            }
-            if let Some(v) = mods_dir {
-                sanitize_config.mods_dir = Some(v);
-            }
-            if let Some(v) = data_dir {
-                sanitize_config.data_dir = Some(v);
-            }
-            if let Some(v) = items {
-                sanitize_config.items = Some(v);
-            }
-            if let Some(v) = fluids {
-                sanitize_config.fluids = Some(v);
-            }
-            if let Some(v) = headless {
-                sanitize_config.headless = Some(v);
-            }
-            sanitize::run(global_config, sanitize_config, &running).await
+            .await
         }
     };
 

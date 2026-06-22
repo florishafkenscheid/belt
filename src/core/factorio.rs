@@ -32,7 +32,7 @@ pub struct FactorioTickRunSpec<'a> {
     pub ticks: u32,
     pub mods_dir: Option<&'a Path>,
     pub verbose_all_metrics: bool,
-    pub headless: Option<bool>,
+    pub headless: bool,
     pub record_cpu: bool,
 }
 
@@ -40,7 +40,7 @@ pub struct FactorioSaveRunSpec<'a> {
     pub base_save_file: &'a Path,
     pub new_save_name: String,
     pub mods_dir: Option<&'a Path>,
-    pub headless: Option<bool>,
+    pub headless: bool,
 }
 
 impl FactorioExecutor {
@@ -162,9 +162,7 @@ impl FactorioExecutor {
             "1", // Always run single benchmark
         ]);
 
-        if let Some(headless) = spec.headless
-            && headless
-        {
+        if spec.headless {
             tracing::debug!("Running headless mode, not disabling audio");
         } else {
             cmd.arg("--disable-audio");
@@ -301,9 +299,7 @@ impl FactorioExecutor {
             "--disable-migration-window",
         ]);
 
-        if let Some(headless) = spec.headless
-            && headless
-        {
+        if spec.headless {
             tracing::debug!("Running headless mode, not disabling audio");
         } else {
             cmd.arg("--disable-audio");

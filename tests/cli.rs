@@ -1,7 +1,31 @@
-use std::{error::Error, fs::File};
+use std::{
+    error::Error,
+    fs::File,
+    path::{Path, PathBuf},
+};
 
 use assert_cmd::cargo::cargo_bin_cmd;
 use tempfile::tempdir;
+
+fn create_fake_factorio(temp_path: &Path) -> Result<PathBuf, Box<dyn Error>> {
+    let fake_factorio_exe = temp_path.join("factorio");
+    let fake_output =
+        "Performed 10 updates in 100.000 ms\navg: 10.000 ms, min: 10.000 ms, max: 10.000 ms";
+    std::fs::write(
+        &fake_factorio_exe,
+        format!("#!/bin/sh\necho '{fake_output}'"),
+    )?;
+
+    #[cfg(unix)]
+    {
+        use std::{fs::Permissions, os::unix::fs::PermissionsExt};
+
+        let perms = Permissions::from_mode(0o755);
+        std::fs::set_permissions(&fake_factorio_exe, perms)?;
+    }
+
+    Ok(fake_factorio_exe)
+}
 
 #[test]
 fn test_blueprint_help_includes_mining_module_replacement_options() -> Result<(), Box<dyn Error>> {
@@ -31,9 +55,13 @@ fn test_benchmark_help_lists_saves_dir_as_argument() -> Result<(), Box<dyn Error
     assert!(output.status.success());
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let arguments = stdout.find("Arguments:").expect("missing arguments");
-    let options = stdout.find("Options:").expect("missing options");
-    assert!(stdout[arguments..options].contains("[SAVES_DIR]"));
+    assert!(stdout.contains("[SAVES_DIR]"));
+    assert!(stdout.contains("Benchmark Options:"));
+    assert!(stdout.contains("Global Options:"));
+    assert!(stdout.contains("--record-cpu"));
+    assert!(!stdout.contains("--record-cpu <"));
+    assert!(stdout.contains("--headless"));
+    assert!(!stdout.contains("--init-config"));
 
     Ok(())
 }
@@ -46,21 +74,7 @@ fn test_benchmark_command_accepts_saves_dir_from_config() -> Result<(), Box<dyn 
     let save_file_path = temp_path.join("test_save.zip");
     File::create(&save_file_path)?;
 
-    let fake_factorio_exe = temp_path.join("factorio");
-    let fake_output =
-        "Performed 10 updates in 100.000 ms\navg: 10.000 ms, min: 10.000 ms, max: 10.000 ms";
-    std::fs::write(
-        &fake_factorio_exe,
-        format!("#!/bin/sh\necho '{fake_output}'"),
-    )?;
-
-    #[cfg(unix)]
-    {
-        use std::{fs::Permissions, os::unix::fs::PermissionsExt};
-
-        let perms = Permissions::from_mode(0o755);
-        std::fs::set_permissions(&fake_factorio_exe, perms)?;
-    }
+    let fake_factorio_exe = create_fake_factorio(temp_path)?;
 
     let config_path = temp_path.join("config.toml");
     std::fs::write(
@@ -106,21 +120,7 @@ fn test_benchmark_command_creates_output_files() -> Result<(), Box<dyn Error>> {
     let save_file_path = temp_path.join("test_save.zip");
     File::create(&save_file_path)?;
 
-    let fake_factorio_exe = temp_path.join("factorio");
-    let fake_output =
-        "Performed 10 updates in 100.000 ms\navg: 10.000 ms, min: 10.000 ms, max: 10.000 ms";
-    std::fs::write(
-        &fake_factorio_exe,
-        format!("#!/bin/sh\necho '{fake_output}'"),
-    )?;
-
-    #[cfg(unix)]
-    {
-        use std::{fs::Permissions, os::unix::fs::PermissionsExt};
-
-        let perms = Permissions::from_mode(0o755);
-        std::fs::set_permissions(&fake_factorio_exe, perms)?;
-    }
+    let fake_factorio_exe = create_fake_factorio(temp_path)?;
 
     let mut cmd = cargo_bin_cmd!("belt");
 
@@ -165,21 +165,7 @@ fn test_benchmark_command_accepts_record_cpu_toggle() -> Result<(), Box<dyn Erro
     let save_file_path = temp_path.join("test_save.zip");
     File::create(&save_file_path)?;
 
-    let fake_factorio_exe = temp_path.join("factorio");
-    let fake_output =
-        "Performed 10 updates in 100.000 ms\navg: 10.000 ms, min: 10.000 ms, max: 10.000 ms";
-    std::fs::write(
-        &fake_factorio_exe,
-        format!("#!/bin/sh\necho '{fake_output}'"),
-    )?;
-
-    #[cfg(unix)]
-    {
-        use std::{fs::Permissions, os::unix::fs::PermissionsExt};
-
-        let perms = Permissions::from_mode(0o755);
-        std::fs::set_permissions(&fake_factorio_exe, perms)?;
-    }
+    let fake_factorio_exe = create_fake_factorio(temp_path)?;
 
     let mut cmd = cargo_bin_cmd!("belt");
 
@@ -193,8 +179,7 @@ fn test_benchmark_command_accepts_record_cpu_toggle() -> Result<(), Box<dyn Erro
         .arg("1")
         .arg("--ticks")
         .arg("10")
-        .arg("--record-cpu")
-        .arg("false");
+        .arg("--record-cpu");
 
     let output = cmd.output()?;
     assert!(

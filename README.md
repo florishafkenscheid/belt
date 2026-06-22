@@ -98,9 +98,8 @@ Run benchmarks on one or more save files.
 | `--run-order <RUN_ORDER>` | In which order to run the benchmarks. Available: `sequential`, `random`, `grouped` | `grouped` |
 | `--verbose-metrics <VERBOSE_METRICS>` | Exports per-tick verbose metric CSVs for the selected metrics | `none` |
 | `--strip-prefix <PREFIX>` | Strip a given prefix off of the save names | `none` |
-| `--headless <HEADLESS>` | Whether or not to assume headless factorio | `false` |
-| `--record-cpu <RECORD_CPU>` | Whether or not to log CPU frequency samples during benchmark runs | `true` |
-| `--append <APPEND>` | Append benchmark rows to existing output CSV files. Existing CSV headers must match the current output format and selected verbose metrics. | `false` |
+| `--record-cpu` | Record CPU frequency samples during benchmark runs | `true` |
+| `--append` | Append benchmark rows to existing output CSV files. Existing CSV headers must match the current output format and selected verbose metrics. | `false` |
 
 #### `belt blueprint`
 
@@ -123,7 +122,6 @@ Stamp blueprints into a base save.
 | `--pattern <PATTERN>` | Pattern to match against when searching for blueprint files. | `*` |
 | `--output <OUTPUT_DIR>` | Directory to output generated saves. | `.` |
 | `--mods-dir <MODS_DIR>` | Directory containing mods to use. | `--sync-mods` on each save file |
-| `--headless <HEADLESS>` | Whether or not to assume headless factorio | `false` |
 
 `belt blueprint` passes each blueprint string to the belt-sanitizer mod, which stamps it into the
 base save before generating the benchmark save. For mining setups, the sanitizer creates ore patches
@@ -162,14 +160,17 @@ Run the belt-sanitizer mod on save files to track item/fluid production and cons
 | `--data-dir <DATA_DIR>` | If B.E.L.T. can't find your user data directory, pass it explicitely here. | `none` |
 | `--items <ITEMS>` | A comma separated list of items to track. | `none` |
 | `--fluids <FLUIDS>` | A comma separated list of fluids to track. | `none` |
-| `--headless` | Whether or not to assume headless factorio | `false` |
 
 ### Global Options
 
 | Option                   | Description                             | Default       |
 | ------------------------ | --------------------------------------- | ------------- |
-| `--factorio-path <PATH>` | An explicit path to the factorio binary | Auto-detected |
+| `--factorio-path <PATH>` | An explicit path to the Factorio binary | Auto-detected |
+| `--config <CONFIG>`      | Path to config file                     | `~/.config/belt/config.toml` |
+| `--headless`             | Run Factorio in headless mode           | `false`       |
 | `--verbose`              | Shows all debug statements              | `false`       |
+| `--init-config`          | Initialize config directory             | n/a           |
+| `--version`              | Print version                           | n/a           |
 
 ### Examples
 

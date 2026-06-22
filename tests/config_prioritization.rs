@@ -54,7 +54,7 @@ fn test_benchmark_config_default_values() {
         assert!(config.pattern.is_none());
         assert!(config.output.is_none());
         assert!(config.mods_dir.is_none());
-        assert!(config.headless.is_none());
+        assert!(!config.headless);
         assert!(config.record_cpu);
         assert!(config.verbose_metrics.is_empty());
     });
@@ -73,7 +73,7 @@ fn test_sanitize_config_default_values() {
         assert_eq!(config.ticks, 3600);
         assert!(config.pattern.is_none());
         assert!(config.mods_dir.is_none());
-        assert!(config.headless.is_none());
+        assert!(!config.headless);
     });
 }
 
@@ -91,7 +91,7 @@ fn test_blueprint_config_default_values() {
         assert_eq!(config.buffer_ticks, 0);
         assert!(config.pattern.is_none());
         assert!(config.mods_dir.is_none());
-        assert!(config.headless.is_none());
+        assert!(!config.headless);
     });
 }
 
@@ -132,7 +132,7 @@ record_cpu = false
         assert_eq!(config.runs, 10);
         assert_eq!(config.pattern, Some("*.zip".to_string()));
         assert_eq!(config.run_order, RunOrder::Sequential);
-        assert_eq!(config.headless, Some(true));
+        assert!(config.headless);
         assert!(!config.record_cpu);
     });
 }
@@ -179,7 +179,7 @@ fn test_sanitize_environment_variables() {
         let config = SanitizeConfig::from_figment(&figment).expect("Failed to load config");
 
         assert_eq!(config.ticks, 5000);
-        assert_eq!(config.headless, Some(false));
+        assert!(!config.headless);
     });
 }
 
@@ -294,16 +294,16 @@ bot_count = 50
         assert_eq!(benchmark.runs, 3);
         assert_eq!(benchmark.pattern, Some("bench_*.zip".to_string()));
         assert_eq!(benchmark.run_order, RunOrder::Random);
-        assert_eq!(benchmark.headless, Some(true));
+        assert!(benchmark.headless);
         assert!(!benchmark.record_cpu);
 
         assert_eq!(sanitize.ticks, 1800);
         assert_eq!(sanitize.items, Some("iron-plate".to_string()));
-        assert_eq!(sanitize.headless, Some(false));
+        assert!(!sanitize.headless);
 
         assert_eq!(blueprint.count, 5);
         assert_eq!(blueprint.buffer_ticks, 60);
-        assert_eq!(blueprint.headless, Some(true));
+        assert!(blueprint.headless);
         assert_eq!(blueprint.bot_count, Some(50));
     });
 }
@@ -359,7 +359,7 @@ template_path = "/home/user/templates/report.html"
 }
 
 #[test]
-fn test_optional_bool_presence_in_config() {
+fn test_bool_presence_in_config() {
     with_env_lock(|| {
         let config_content = r#"
 [benchmark]
@@ -371,7 +371,7 @@ record_cpu = false
             .expect("Failed to create figment");
         let config = BenchmarkConfig::from_figment(&figment).expect("Failed to load config");
 
-        assert_eq!(config.headless, Some(true));
+        assert!(config.headless);
         assert!(!config.record_cpu);
     });
 }
