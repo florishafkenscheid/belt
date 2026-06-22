@@ -85,7 +85,7 @@ Run benchmarks on one or more save files.
 
 **Arguments:**
 
-- `<SAVES_DIR>` - The location of the save(s) to be benchmarked.
+- `[SAVES_DIR]` - The location of the save(s) to be benchmarked. Required unless `benchmark.saves_dir` is set in config.
 
 **Options:**
 | Option | Description | Default |
@@ -151,7 +151,7 @@ Run the belt-sanitizer mod on save files to track item/fluid production and cons
 
 **Arguments:**
 
-- `<SAVES_DIR>` - The location of the save(s) to be sanitized.
+- `[SAVES_DIR]` - The location of the save(s) to be sanitized. Required unless `sanitize.saves_dir` is set in config.
 
 **Options:**
 | Option | Description | Default |

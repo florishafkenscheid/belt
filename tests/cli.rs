@@ -24,6 +24,81 @@ fn test_blueprint_help_includes_mining_module_replacement_options() -> Result<()
 }
 
 #[test]
+fn test_benchmark_help_lists_saves_dir_as_argument() -> Result<(), Box<dyn Error>> {
+    let mut cmd = cargo_bin_cmd!("belt");
+
+    let output = cmd.arg("benchmark").arg("--help").output()?;
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let arguments = stdout.find("Arguments:").expect("missing arguments");
+    let options = stdout.find("Options:").expect("missing options");
+    assert!(stdout[arguments..options].contains("[SAVES_DIR]"));
+
+    Ok(())
+}
+
+#[test]
+fn test_benchmark_command_accepts_saves_dir_from_config() -> Result<(), Box<dyn Error>> {
+    let temp_dir = tempdir()?;
+    let temp_path = temp_dir.path();
+
+    let save_file_path = temp_path.join("test_save.zip");
+    File::create(&save_file_path)?;
+
+    let fake_factorio_exe = temp_path.join("factorio");
+    let fake_output =
+        "Performed 10 updates in 100.000 ms\navg: 10.000 ms, min: 10.000 ms, max: 10.000 ms";
+    std::fs::write(
+        &fake_factorio_exe,
+        format!("#!/bin/sh\necho '{fake_output}'"),
+    )?;
+
+    #[cfg(unix)]
+    {
+        use std::{fs::Permissions, os::unix::fs::PermissionsExt};
+
+        let perms = Permissions::from_mode(0o755);
+        std::fs::set_permissions(&fake_factorio_exe, perms)?;
+    }
+
+    let config_path = temp_path.join("config.toml");
+    std::fs::write(
+        &config_path,
+        format!(
+            r#"
+[benchmark]
+saves_dir = "{}"
+"#,
+            save_file_path.display()
+        ),
+    )?;
+
+    let mut cmd = cargo_bin_cmd!("belt");
+
+    cmd.arg("benchmark")
+        .arg("--config")
+        .arg(config_path)
+        .arg("--output")
+        .arg(temp_path)
+        .arg("--factorio-path")
+        .arg(&fake_factorio_exe)
+        .arg("--runs")
+        .arg("1")
+        .arg("--ticks")
+        .arg("10");
+
+    let output = cmd.output()?;
+    assert!(
+        output.status.success(),
+        "Command should succeed. Stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    Ok(())
+}
+
+#[test]
 fn test_benchmark_command_creates_output_files() -> Result<(), Box<dyn Error>> {
     let temp_dir = tempdir()?;
     let temp_path = temp_dir.path();

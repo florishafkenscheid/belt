@@ -10,10 +10,11 @@ mod sanitize;
 use crate::core::{
     GlobalConfig, Result, RunOrder,
     config::{self, BenchmarkConfig, BlueprintConfig, SanitizeConfig},
+    error::BenchmarkErrorKind,
 };
 use clap::{Parser, Subcommand};
 use std::{
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -55,7 +56,8 @@ struct Cli {
 enum Commands {
     Benchmark {
         /// Directory containing save files to benchmark
-        saves_dir: PathBuf,
+        #[arg(value_name = "SAVES_DIR")]
+        saves_dir: Option<PathBuf>,
 
         #[arg(long, help = "Number of ticks to run each benchmark")]
         ticks: Option<u32>,
@@ -143,7 +145,8 @@ enum Commands {
     },
     Sanitize {
         /// Directory containing save files to sanitize
-        saves_dir: PathBuf,
+        #[arg(value_name = "SAVES_DIR")]
+        saves_dir: Option<PathBuf>,
 
         #[arg(long, help = "Pattern to filter save files")]
         pattern: Option<String>,
@@ -273,8 +276,12 @@ async fn main() -> Result<()> {
             append,
         } => {
             let mut benchmark_config = BenchmarkConfig::from_figment(&figment).unwrap_or_default();
-            benchmark_config.saves_dir = saves_dir;
             benchmark_config.append = append;
+
+            if let Some(v) = saves_dir {
+                benchmark_config.saves_dir = v;
+            }
+            require_saves_dir(&benchmark_config.saves_dir, "benchmark")?;
 
             if let Some(v) = ticks {
                 benchmark_config.ticks = v;
@@ -370,7 +377,11 @@ async fn main() -> Result<()> {
             headless,
         } => {
             let mut sanitize_config = SanitizeConfig::from_figment(&figment).unwrap_or_default();
-            sanitize_config.saves_dir = saves_dir;
+            if let Some(v) = saves_dir {
+                sanitize_config.saves_dir = v;
+            }
+            require_saves_dir(&sanitize_config.saves_dir, "sanitize")?;
+
             if let Some(v) = pattern {
                 sanitize_config.pattern = Some(v);
             }
@@ -412,6 +423,17 @@ async fn main() -> Result<()> {
         tracing::error!("{e}");
 
         std::process::exit(1);
+    }
+
+    Ok(())
+}
+
+fn require_saves_dir(saves_dir: &Path, section: &str) -> Result<()> {
+    if saves_dir.as_os_str().is_empty() {
+        return Err(BenchmarkErrorKind::ConfigLoadError(format!(
+            "SAVES_DIR is required unless {section}.saves_dir is set in config"
+        ))
+        .into());
     }
 
     Ok(())
