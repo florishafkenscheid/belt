@@ -168,7 +168,7 @@ fn parse_amd_uprof_breadcrumbs(log: &str) -> Option<AmdUprofRun> {
     (!uprof.session_paths.is_empty() || !uprof.reports.is_empty()).then_some(uprof)
 }
 
-pub fn max_whole_update_excluding_first_tick(csv_data: &str) -> Result<Option<f64>> {
+pub fn max_whole_update_ms_excluding_first_tick(csv_data: &str) -> Result<Option<f64>> {
     let mut reader = csv::Reader::from_reader(csv_data.as_bytes());
     let headers = reader.headers()?;
     let Some(whole_update_index) = headers.iter().position(|header| header == "wholeUpdate") else {
@@ -184,7 +184,8 @@ pub fn max_whole_update_excluding_first_tick(csv_data: &str) -> Result<Option<f6
                 return Ok(max_update);
             };
 
-            let update_time = raw_update.parse::<f64>()?;
+            let update_time = raw_update.parse::<f64>()? / 1_000_000.0;
+
             Ok(Some(
                 max_update.map_or(update_time, |max: f64| max.max(update_time)),
             ))
@@ -351,34 +352,46 @@ Generated report file: /tmp/belt-amduprof-run/session/report.csv"#;
     }
 
     #[test]
-    fn test_max_whole_update_excluding_first_tick_ignores_first_row() {
+    fn test_max_whole_update_ms_excluding_first_tick_ignores_first_row() {
         let csv = "tick,timestamp,wholeUpdate,gameUpdate\n\
-                   t0,0.000,42.000,1.000\n\
-                   t1,0.017,2.500,1.000\n\
-                   t2,0.033,4.125,1.000\n";
+                   t0,0.000,42000000,1.000\n\
+                   t1,0.017,2500000,1.000\n\
+                   t2,0.033,4125000,1.000\n";
 
-        let max_update = max_whole_update_excluding_first_tick(csv).unwrap();
+        let max_update = max_whole_update_ms_excluding_first_tick(csv).unwrap();
 
         assert_eq!(max_update, Some(4.125));
     }
 
     #[test]
-    fn test_max_whole_update_excluding_first_tick_returns_none_without_later_ticks() {
+    fn test_max_whole_update_ms_excluding_first_tick_converts_ns_to_ms() {
+        let csv = "tick,timestamp,wholeUpdate\n\
+                   t0,0.000,42\n\
+                   t1,0.017,19363456.000\n\
+                   t2,0.033,12.500\n";
+
+        let max_update = max_whole_update_ms_excluding_first_tick(csv).unwrap();
+
+        assert_eq!(max_update, Some(19.363456));
+    }
+
+    #[test]
+    fn test_max_whole_update_ms_excluding_first_tick_returns_none_without_later_ticks() {
         let csv = "tick,timestamp,wholeUpdate\n\
                    t0,0.000,42.000\n";
 
-        let max_update = max_whole_update_excluding_first_tick(csv).unwrap();
+        let max_update = max_whole_update_ms_excluding_first_tick(csv).unwrap();
 
         assert_eq!(max_update, None);
     }
 
     #[test]
-    fn test_max_whole_update_excluding_first_tick_returns_none_without_metric() {
+    fn test_max_whole_update_ms_excluding_first_tick_returns_none_without_metric() {
         let csv = "tick,timestamp,gameUpdate\n\
                    t0,0.000,42.000\n\
                    t1,0.017,2.500\n";
 
-        let max_update = max_whole_update_excluding_first_tick(csv).unwrap();
+        let max_update = max_whole_update_ms_excluding_first_tick(csv).unwrap();
 
         assert_eq!(max_update, None);
     }

@@ -228,7 +228,7 @@ impl BenchmarkRunner {
             parser::parse_benchmark_log(&factorio_output.summary, &job.save_file, &self.config)?;
 
         if let Some(csv_data) = factorio_output.verbose_data.as_deref()
-            && let Some(max_ms) = parser::max_whole_update_excluding_first_tick(csv_data)?
+            && let Some(max_ms) = parser::max_whole_update_ms_excluding_first_tick(csv_data)?
         {
             result.max_ms = max_ms;
         }
