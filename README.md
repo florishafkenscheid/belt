@@ -128,15 +128,15 @@ base save before generating the benchmark save. For mining setups, the sanitizer
 before reviving ghosts so drills can be built immediately. Ore selection is controlled by blueprint
 markers in this order:
 
-| Marker | Resource |
-| ------ | -------- |
-| `stone-path` tile | `stone` |
-| `concrete` tile | `iron-ore` |
-| `hazard-concrete` tile | `coal` |
-| `refined-concrete` tile | `copper-ore` |
-| `refined-hazard-concrete` tile | `scrap` |
-| `efficiency-module` request | `stone`, `iron-ore`, `copper-ore`, `coal`, or `uranium-ore` for `normal`, `uncommon`, `rare`, `epic`, or `legendary` quality |
-| `efficiency-module-2` request | `calcite`, `tungsten-ore`, or `scrap` for `normal`, `uncommon`, or `rare` quality |
+| Marker                         | Resource                                                                                                                     |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `stone-path` tile              | `stone`                                                                                                                      |
+| `concrete` tile                | `iron-ore`                                                                                                                   |
+| `hazard-concrete` tile         | `coal`                                                                                                                       |
+| `refined-concrete` tile        | `copper-ore`                                                                                                                 |
+| `refined-hazard-concrete` tile | `scrap`                                                                                                                      |
+| `efficiency-module` request    | `stone`, `iron-ore`, `copper-ore`, `coal`, or `uranium-ore` for `normal`, `uncommon`, `rare`, `epic`, or `legendary` quality |
+| `efficiency-module-2` request  | `calcite`, `tungsten-ore`, or `scrap` for `normal`, `uncommon`, or `rare` quality                                            |
 
 Tile markers near a drill take precedence over module markers. After the resource is selected,
 mining-drill module requests are replaced with `--mining-module-replacement` and
@@ -163,14 +163,14 @@ Run the belt-sanitizer mod on save files to track item/fluid production and cons
 
 ### Global Options
 
-| Option                   | Description                             | Default       |
-| ------------------------ | --------------------------------------- | ------------- |
-| `--factorio-path <PATH>` | An explicit path to the Factorio binary | Auto-detected |
+| Option                   | Description                             | Default                      |
+| ------------------------ | --------------------------------------- | ---------------------------- |
+| `--factorio-path <PATH>` | An explicit path to the Factorio binary | Auto-detected                |
 | `--config <CONFIG>`      | Path to config file                     | `~/.config/belt/config.toml` |
-| `--headless`             | Run Factorio in headless mode           | `false`       |
-| `--verbose`              | Shows all debug statements              | `false`       |
-| `--init-config`          | Initialize config directory             | n/a           |
-| `--version`              | Print version                           | n/a           |
+| `--headless`             | Run Factorio in headless mode           | `false`                      |
+| `--verbose`              | Shows all debug statements              | `false`                      |
+| `--init-config`          | Initialize config directory             | n/a                          |
+| `--version`              | Print version                           | n/a                          |
 
 ### Examples
 
@@ -293,8 +293,11 @@ BELT renders IBS load reports as an `IBS Load Cache Summary` with L1 hit/miss ra
 
 #### Verbose Metrics
 
-Here are all the verbose-metrics that are available:
+Here are all the verbose-metrics that are available **PRE 2.1**:
 `wholeUpdate,latencyUpdate,gameUpdate,planetsUpdate,controlBehaviorUpdate,transportLinesUpdate,electricHeatFluidCircuitUpdate,electricNetworkUpdate,heatNetworkUpdate,fluidFlowUpdate,entityUpdate,lightningUpdate,tileHeatingUpdate,particleUpdate,mapGenerator,mapGeneratorBasicTilesSupportCompute,mapGeneratorBasicTilesSupportApply,mapGeneratorCorrectedTilesPrepare,mapGeneratorCorrectedTilesCompute,mapGeneratorCorrectedTilesApply,mapGeneratorVariations,mapGeneratorEntitiesPrepare,mapGeneratorEntitiesCompute,mapGeneratorEntitiesApply,spacePlatforms,collectorNavMesh,collectorNavMeshPathfinding,collectorNavMeshRaycast,crcComputation,consistencyScraper,logisticManagerUpdate,constructionManagerUpdate,pathFinder,trains,trainPathFinder,commander,chartRefresh,luaGarbageIncremental,chartUpdate,scriptUpdate`
+
+Here are all the verbose-metrics that are available **POST 2.1**:
+`wholeUpdate,latencyUpdate,gameUpdate,planetsUpdate,controlBehaviorUpdate,transportLinesUpdate,electricHeatFluidCircuitUpdate,electricNetworkUpdate,heatNetworkUpdate,fluidFlowUpdate,entityUpdate,turretTargetAcquisition,lightningUpdate,tileHeatingUpdate,pollutionUpdate,particleUpdate,mapGenerator,mapGeneratorBasicTilesSupportCompute,mapGeneratorBasicTilesSupportApply,mapGeneratorCorrectedTilesPrepare,mapGeneratorCorrectedTilesCompute,mapGeneratorCorrectedTilesApply,mapGeneratorVariations,mapGeneratorEntitiesPrepare,mapGeneratorEntitiesCompute,mapGeneratorEntitiesApply,spacePlatforms,collectorNavMesh,collectorNavMeshPathfinding,collectorNavMeshRaycast,crcComputation,consistencyScraper,logisticManagerUpdate,constructionManagerUpdate,pathFinder,trains,trainPathFinder,commander,chartRefresh,luaGarbageIncremental,chartUpdate,scriptUpdate,LogisticRobot,ConstructionRobot,Inserter,Roboport,Loader,AssemblingMachine,AgriculturalTower,OldAgriculturalTower,Furnace,MiningDrill,FluidWagon,ArtilleryWagon,InfinityCargoWagon,CargoWagon,Locomotive,Character,Boiler,Generator,BurnerGenerator,Reactor,Lab,LandMine,ArtilleryFlare,ArtilleryProjectile,ArtilleryTurret,Beam,Car,SpiderVehicle,TemporaryContainer,CharacterCorpse,CombatRobot,CaptureRobot,Corpse,ElectricEnergyInterface,EnemySpawner,Explosion,FlameThrowerExplosion,FluidStream,FluidTurret,FlyingTextEntity,FusionGenerator,FusionReactor,Gate,HeatInterface,HighlightBoxEntity,InfinityContainer,InfinityPipe,ItemRequestProxy,OffshorePump,ParticleSource,PowerSwitch,Projectile,Pump,Valve,Radar,ProgrammableSpeaker,RocketSilo,RocketSiloRocket,CargoPod,SmokeWithTrigger,SpeechBubble,Sticker,Turret,AsteroidCollector,Asteroid,Thruster,SpiderUnit,Unit,`
 
 ## Contributing
 
