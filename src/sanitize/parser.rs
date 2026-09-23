@@ -53,6 +53,10 @@ fn report_detection_warnings(json: &Value) -> Result<()> {
         warnings.push("Enemy expansion is enabled".to_string());
     }
 
+    let report_infinity_entities = json["settings"]["report_infinity_entities"]
+        .as_bool()
+        .unwrap_or(true);
+
     if let Some(surfaces) = snapshot["surfaces"].as_array() {
         for surface in surfaces {
             let enemies = surface["enemy_units"].as_u64().unwrap_or(0)
@@ -71,6 +75,22 @@ fn report_detection_warnings(json: &Value) -> Result<()> {
                     if count_value.as_u64().unwrap_or(0) > 0 {
                         warnings.push(format!(
                             "Active {} found on surface '{}'",
+                            entity_type,
+                            surface["name"].as_str().unwrap_or("unknown")
+                        ));
+                    }
+                }
+            }
+
+            if report_infinity_entities
+                && let Some(infinity_entities_map) = surface["infinity_entity_counts"].as_object()
+            {
+                for (entity_type, count_value) in infinity_entities_map {
+                    let count = count_value.as_u64().unwrap_or(0);
+                    if count > 0 {
+                        warnings.push(format!(
+                            "Found {} {} on surface '{}'",
+                            count,
                             entity_type,
                             surface["name"].as_str().unwrap_or("unknown")
                         ));
