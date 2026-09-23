@@ -156,11 +156,11 @@ impl BlueprintRunner {
                 .await?;
 
             // check existance
-            if let Some(save_file) = utils::check_save_file(format!("_autosave-{}", &filestem)) {
+            if let Some(save_file) = utils::check_save_file(format!("_autosave-{}", filestem)) {
                 tracing::debug!("Found generated save file at: {}", save_file.display());
 
                 if let Some(output_dir) = &self.config.output {
-                    std::fs::rename(&save_file, output_dir.join(format!("{}.zip", &filestem)))?;
+                    std::fs::rename(&save_file, output_dir.join(format!("{}.zip", filestem)))?;
                     tracing::info!(
                         "Moved generated save from: {}, to: {}",
                         save_file.display(),
