@@ -203,6 +203,7 @@ fn write_cpu_freq_csv(data: &[BenchmarkRun], path: &Path) -> Result<()> {
         }
     }
 
+    writer.flush()?;
     tracing::info!("CPU frequency results written to {}", csv_path.display());
 
     Ok(())
@@ -363,7 +364,7 @@ fn append_cpu_freq_csv(data: &[BenchmarkRun], path: &Path) -> Result<()> {
         return Ok(());
     }
 
-    let csv_path = path.join("cpu_req.csv");
+    let csv_path = path.join("cpu_freq.csv");
     if !csv_path.exists() {
         return write_cpu_freq_csv(data, path);
     }
@@ -508,5 +509,28 @@ mod tests {
         let csv = std::fs::read_to_string(csv_path).expect("read cpu csv");
         assert!(csv.contains("alpha"));
         assert!(csv.contains("beta"));
+    }
+
+    #[test]
+    fn test_cpu_freq_append_keeps_existing_rows() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let path = temp_dir.path();
+        let run = |save_name: &str| BenchmarkRun {
+            save_name: save_name.to_string(),
+            cpu_data: vec![CpuFrequencyData {
+                frequency: 5000,
+                timestamp: 1,
+                core_index: 0,
+            }],
+            ..Default::default()
+        };
+
+        write_cpu_freq_csv(&[run("alpha")], path).expect("write");
+        append_cpu_freq_csv(&[run("beta")], path).expect("append");
+
+        let csv = std::fs::read_to_string(path.join("cpu_freq.csv")).expect("read");
+        assert!(csv.contains("alpha"));
+        assert!(csv.contains("beta"));
+        assert!(!path.join("cpu_req.csv").exists());
     }
 }
