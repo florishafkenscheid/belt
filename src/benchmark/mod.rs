@@ -17,7 +17,9 @@ use crate::{
     core::{
         FactorioExecutor, GlobalConfig, Result,
         config::BenchmarkConfig,
-        output::{CsvWriter, WriteData, ensure_output_dir, report::ReportWriter, write_result},
+        output::{
+            CsvWriter, WriteData, csv, ensure_output_dir, report::ReportWriter, write_result,
+        },
         utils,
     },
 };
@@ -52,9 +54,20 @@ pub async fn run(
     ensure_output_dir(output_dir)?;
     tracing::debug!("Output directory: {}", output_dir.display());
 
+    // Fail on anything that would stop the results being written before spending hours running
+    let verbose_save_names = save_files
+        .iter()
+        .map(|save_file| runner::save_file_stem(save_file))
+        .collect::<Result<Vec<_>>>()?;
+    csv::preflight(&benchmark_config, output_dir, &verbose_save_names)?;
+
     // Run the benchmarks
     let runner = runner::BenchmarkRunner::new(benchmark_config.clone(), factorio);
-    let (mut results, all_runs_verbose_data) = runner.run_all(save_files, running).await?;
+    let (mut results, all_runs_verbose_data) = runner
+        .run_all(save_files, running, |run| {
+            csv::check_verbose_run(run, &benchmark_config, output_dir)
+        })
+        .await?;
     // Calculate the percentage difference from the worst performer
     utils::calculate_base_differences(&mut results);
 
@@ -73,6 +86,7 @@ pub async fn run(
             let data = WriteData::Verbose {
                 data: save_verbose_data.to_vec(),
                 metrics_to_export: benchmark_config.verbose_metrics.clone(),
+                compress: benchmark_config.compress,
             };
 
             write_result(&csv_writer, &data, output_dir, benchmark_config.append)?;

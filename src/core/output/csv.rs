@@ -1,13 +1,16 @@
 use std::{
     collections::HashMap,
-    fs::OpenOptions,
-    io::{Error, ErrorKind},
-    path::Path,
+    fs::{File, OpenOptions},
+    io::{self, Error, ErrorKind, Read, Write},
+    path::{Path, PathBuf},
 };
+
+use csv::StringRecord;
 
 use crate::{
     benchmark::{parser::BenchmarkRun, runner::VerboseData},
     core::{
+        config::BenchmarkConfig,
         error::{BenchmarkErrorKind, Result},
         output::{ResultWriter, WriteData, ensure_output_dir},
     },
@@ -34,7 +37,8 @@ impl ResultWriter for CsvWriter {
             WriteData::Verbose {
                 data,
                 metrics_to_export,
-            } => write_verbose_csv(data, metrics_to_export, path),
+                compress,
+            } => write_verbose_csv(data, metrics_to_export, *compress, false, path),
             _ => Err(BenchmarkErrorKind::InvalidWriteData.into()),
         }
     }
@@ -45,7 +49,8 @@ impl ResultWriter for CsvWriter {
             WriteData::Verbose {
                 data,
                 metrics_to_export,
-            } => append_verbose_csv(data, metrics_to_export, path),
+                compress,
+            } => write_verbose_csv(data, metrics_to_export, *compress, true, path),
             _ => Err(BenchmarkErrorKind::InvalidWriteData.into()),
         }
     }
@@ -97,45 +102,42 @@ fn write_benchmark_csv(results: &[BenchmarkRun], path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Write factorio's verbose output to a CSV file
-fn write_verbose_csv(data: &[VerboseData], metrics: &[String], path: &Path) -> Result<()> {
+/// Write or append factorio's verbose output to the save's verbose metrics CSV
+fn write_verbose_csv(
+    data: &[VerboseData],
+    metrics: &[String],
+    compress: bool,
+    append: bool,
+    path: &Path,
+) -> Result<()> {
     ensure_output_dir(path)?;
 
-    if data.is_empty() {
+    let Some(first_run) = data.first() else {
         return Ok(());
-    }
-
-    let csv_path = path.join(format!("{}_verbose_metrics.csv", data[0].save_name));
-    let mut writer = csv::Writer::from_path(&csv_path)?;
-
-    let first_run_csv_data = &data[0].csv_data;
-    let mut reader = csv::Reader::from_reader(first_run_csv_data.as_bytes());
-    let headers_from_factorio: Vec<String> =
-        reader.headers()?.iter().map(|s| s.to_string()).collect();
-    let header_map: HashMap<String, usize> = headers_from_factorio
-        .clone()
-        .into_iter()
-        .enumerate()
-        .map(|(i, h)| (h, i))
-        .collect();
-
-    let metrics_to_export: Vec<String> = if metrics.contains(&"all".to_string()) {
-        headers_from_factorio
-            .into_iter()
-            .filter(|h| h != "tick" && h != "timestamp")
-            .collect()
-    } else {
-        metrics.to_vec()
     };
 
-    let mut header_row = vec!["tick".to_string(), "run".to_string()];
-    header_row.extend(metrics_to_export.iter().cloned());
-    writer.write_record(header_row)?;
+    let mut reader = csv::Reader::from_reader(first_run.csv_data.as_bytes());
+    let metrics_to_export = resolve_verbose_metrics(reader.headers()?, metrics)?;
+    let header = verbose_header(&metrics_to_export);
 
-    for (run_idx, run_data) in data.iter().enumerate() {
+    let csv_path = verbose_metrics_path(path, &first_run.save_name, compress);
+    let append = append && csv_path.exists();
+    let first_run_index = if append {
+        validate_csv_header(&csv_path, &header)?;
+        next_verbose_run_index(&csv_path)?
+    } else {
+        0
+    };
+
+    let mut writer = csv::Writer::from_writer(CsvSink::open(&csv_path, append)?);
+    if !append {
+        writer.write_record(&header)?;
+    }
+
+    for (offset, run_data) in data.iter().enumerate() {
         let mut inner_reader = csv::Reader::from_reader(run_data.csv_data.as_bytes());
-        // Skip headers
-        let _ = inner_reader.headers()?;
+        let columns = metric_indexes(inner_reader.headers()?, &metrics_to_export)?;
+        let run_index = first_run_index + offset as u32;
 
         for record_result in inner_reader.records() {
             let record = record_result?;
@@ -143,25 +145,208 @@ fn write_verbose_csv(data: &[VerboseData], metrics: &[String], path: &Path) -> R
             let tick_str = record.get(0).unwrap_or("t0");
             let tick_value = tick_str.trim_start_matches('t');
 
-            let mut data_row = vec![tick_value.to_string(), run_idx.to_string()];
+            let mut data_row = vec![tick_value.to_string(), run_index.to_string()];
+            // The csv reader rejects rows that don't match the header length, so every index exists
+            data_row.extend(columns.iter().map(|&index| record[index].to_string()));
 
-            for metric_name in &metrics_to_export {
-                if let Some(&colum_index) = header_map.get(metric_name) {
-                    let value = record.get(colum_index).unwrap_or("0");
-                    data_row.push(value.to_string());
-                } else {
-                    data_row.push("N/A".to_string());
-                }
-            }
             writer.write_record(data_row)?;
         }
     }
-    writer.flush()?;
+
+    finish_csv(writer)?;
     tracing::debug!(
-        "Verbose metrics for {} exported to {}",
-        data[0].save_name,
+        "Verbose metrics for {} {} {}",
+        first_run.save_name,
+        if append { "appended to" } else { "exported to" },
         csv_path.display()
     );
+    Ok(())
+}
+
+/// Checks a single run's verbose output against the requested metrics and, when appending, the
+/// existing CSV. Called as each run finishes, so a bad metric name or header fails after one run
+/// instead of after the whole benchmark.
+pub fn check_verbose_run(
+    run: &VerboseData,
+    config: &BenchmarkConfig,
+    output_dir: &Path,
+) -> Result<()> {
+    let mut reader = csv::Reader::from_reader(run.csv_data.as_bytes());
+    let metrics = resolve_verbose_metrics(reader.headers()?, &config.verbose_metrics)?;
+
+    let csv_path = verbose_metrics_path(output_dir, &run.save_name, config.compress);
+    if config.append && csv_path.exists() {
+        validate_csv_header(&csv_path, &verbose_header(&metrics))?;
+    }
+
+    Ok(())
+}
+
+/// Checks, before anything runs, that every CSV this benchmark writes can be written, so a
+/// format conflict or malformed existing file can't fail a benchmark after hours of running.
+pub fn preflight(
+    config: &BenchmarkConfig,
+    output_dir: &Path,
+    verbose_save_names: &[String],
+) -> Result<()> {
+    if !config.verbose_metrics.is_empty() {
+        // With "all" the header comes from Factorio, so check_verbose_run validates it instead
+        let explicit_header = (!config.verbose_metrics.iter().any(|m| m == "all"))
+            .then(|| verbose_header(&config.verbose_metrics));
+
+        for save_name in verbose_save_names {
+            let target = verbose_metrics_path(output_dir, save_name, config.compress);
+            let other = verbose_metrics_path(output_dir, save_name, !config.compress);
+            if other.exists() {
+                return Err(BenchmarkErrorKind::CompressionConflict {
+                    existing: other,
+                    target,
+                }
+                .into());
+            }
+
+            if config.append && target.exists() {
+                if let Some(header) = &explicit_header {
+                    validate_csv_header(&target, header)?;
+                }
+                // Reads the whole file, so a truncated or corrupt one fails now
+                next_verbose_run_index(&target)?;
+            }
+        }
+    }
+
+    if config.append {
+        let results_path = output_dir.join("results.csv");
+        if results_path.exists() {
+            validate_csv_header(&results_path, &BENCHMARK_HEADER)?;
+            next_benchmark_run_indexes(&results_path)?;
+        }
+
+        let cpu_freq_path = output_dir.join("cpu_freq.csv");
+        if config.record_cpu && cpu_freq_path.exists() {
+            validate_csv_header(&cpu_freq_path, &CPU_FREQ_HEADER)?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Path of a save's verbose metrics CSV, `.csv.zst` when compressed
+pub fn verbose_metrics_path(output_dir: &Path, save_name: &str, compress: bool) -> PathBuf {
+    let extension = if compress { "csv.zst" } else { "csv" };
+    output_dir.join(format!("{save_name}_verbose_metrics.{extension}"))
+}
+
+/// Resolves `--verbose-metrics` against the header of factorio's verbose output
+fn resolve_verbose_metrics(
+    factorio_header: &StringRecord,
+    metrics: &[String],
+) -> Result<Vec<String>> {
+    if metrics.iter().any(|m| m == "all") {
+        return Ok(factorio_header
+            .iter()
+            .filter(|h| *h != "tick" && *h != "timestamp")
+            .map(str::to_string)
+            .collect());
+    }
+
+    metric_indexes(factorio_header, metrics)?;
+    Ok(metrics.to_vec())
+}
+
+fn metric_indexes(factorio_header: &StringRecord, metrics: &[String]) -> Result<Vec<usize>> {
+    metrics
+        .iter()
+        .map(|metric| {
+            factorio_header
+                .iter()
+                .position(|h| h == metric)
+                .ok_or_else(|| {
+                    BenchmarkErrorKind::UnknownVerboseMetric {
+                        metric: metric.clone(),
+                        available: factorio_header
+                            .iter()
+                            .filter(|h| !h.is_empty())
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    }
+                    .into()
+                })
+        })
+        .collect()
+}
+
+fn verbose_header(metrics: &[String]) -> Vec<String> {
+    let mut header = vec!["tick".to_string(), "run".to_string()];
+    header.extend(metrics.iter().cloned());
+    header
+}
+
+fn is_zstd(path: &Path) -> bool {
+    path.extension().is_some_and(|extension| extension == "zst")
+}
+
+fn csv_reader(path: &Path) -> Result<csv::Reader<Box<dyn Read>>> {
+    let file = File::open(path)?;
+    let source: Box<dyn Read> = if is_zstd(path) {
+        Box::new(zstd::Decoder::new(file)?)
+    } else {
+        Box::new(file)
+    };
+    Ok(csv::Reader::from_reader(source))
+}
+
+/// File a CSV is written to. A zstd sink must be finished, or its last frame is left truncated.
+enum CsvSink {
+    Plain(File),
+    Zstd(zstd::Encoder<'static, File>),
+}
+
+impl CsvSink {
+    /// Appending to a zstd file adds a new frame, which decoders read as a continuation
+    fn open(path: &Path, append: bool) -> Result<Self> {
+        let file = if append {
+            OpenOptions::new().append(true).open(path)?
+        } else {
+            File::create(path)?
+        };
+
+        Ok(if is_zstd(path) {
+            Self::Zstd(zstd::Encoder::new(file, 0)?)
+        } else {
+            Self::Plain(file)
+        })
+    }
+
+    fn finish(self) -> io::Result<()> {
+        match self {
+            Self::Plain(mut file) => file.flush(),
+            Self::Zstd(encoder) => encoder.finish()?.flush(),
+        }
+    }
+}
+
+impl Write for CsvSink {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match self {
+            Self::Plain(file) => file.write(buf),
+            Self::Zstd(encoder) => encoder.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        match self {
+            Self::Plain(file) => file.flush(),
+            Self::Zstd(encoder) => encoder.flush(),
+        }
+    }
+}
+
+fn finish_csv(writer: csv::Writer<CsvSink>) -> Result<()> {
+    writer
+        .into_inner()
+        .map_err(|error| error.into_error())?
+        .finish()?;
     Ok(())
 }
 
@@ -273,88 +458,6 @@ fn append_benchmark_csv(results: &[BenchmarkRun], path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn append_verbose_csv(data: &[VerboseData], metrics: &[String], path: &Path) -> Result<()> {
-    ensure_output_dir(path)?;
-
-    if data.is_empty() {
-        return Ok(());
-    }
-
-    let csv_path = path.join(format!("{}_verbose_metrics.csv", data[0].save_name));
-    if !csv_path.exists() {
-        return write_verbose_csv(data, metrics, path);
-    }
-
-    let first_run_csv_data = &data[0].csv_data;
-    let mut reader = csv::Reader::from_reader(first_run_csv_data.as_bytes());
-    let headers_from_factorio: Vec<String> =
-        reader.headers()?.iter().map(|s| s.to_string()).collect();
-
-    let header_map: HashMap<String, usize> = headers_from_factorio
-        .clone()
-        .into_iter()
-        .enumerate()
-        .map(|(i, h)| (h, i))
-        .collect();
-
-    let metrics_to_export: Vec<String> = if metrics.contains(&"all".to_string()) {
-        headers_from_factorio
-            .into_iter()
-            .filter(|h| h != "tick" && h != "timestamp")
-            .collect()
-    } else {
-        metrics.to_vec()
-    };
-
-    let mut expected_header = vec!["tick".to_string(), "run".to_string()];
-    expected_header.extend(metrics_to_export.iter().cloned());
-
-    validate_csv_header(&csv_path, &expected_header)?;
-
-    let next_run_index = next_verbose_run_index(&csv_path)?;
-
-    let file = OpenOptions::new().append(true).open(&csv_path)?;
-    let mut writer = csv::WriterBuilder::new()
-        .has_headers(false)
-        .from_writer(file);
-
-    for (local_run_idx, run_data) in data.iter().enumerate() {
-        let mut inner_reader = csv::Reader::from_reader(run_data.csv_data.as_bytes());
-        let _ = inner_reader.headers()?;
-
-        let run_index = next_run_index + local_run_idx as u32;
-
-        for record_result in inner_reader.records() {
-            let record = record_result?;
-
-            let tick_str = record.get(0).unwrap_or("t0");
-            let tick_value = tick_str.trim_start_matches('t');
-
-            let mut data_row = vec![tick_value.to_string(), run_index.to_string()];
-
-            for metric_name in &metrics_to_export {
-                if let Some(&column_index) = header_map.get(metric_name) {
-                    let value = record.get(column_index).unwrap_or("0");
-                    data_row.push(value.to_string());
-                } else {
-                    data_row.push("N/A".to_string());
-                }
-            }
-
-            writer.write_record(data_row)?;
-        }
-    }
-
-    writer.flush()?;
-    tracing::debug!(
-        "Verbose metrics for {} appended to {}",
-        data[0].save_name,
-        csv_path.display()
-    );
-
-    Ok(())
-}
-
 fn append_cpu_freq_csv(data: &[BenchmarkRun], path: &Path) -> Result<()> {
     if data.is_empty() {
         return Ok(());
@@ -398,7 +501,7 @@ fn validate_csv_header<S>(csv_path: &Path, expected: &[S]) -> Result<()>
 where
     S: AsRef<str>,
 {
-    let mut reader = csv::Reader::from_path(csv_path)?;
+    let mut reader = csv_reader(csv_path)?;
     let actual = reader.headers()?;
 
     let expected: Vec<&str> = expected.iter().map(AsRef::as_ref).collect();
@@ -456,7 +559,7 @@ fn offset_benchmark_run_indexes(
 }
 
 fn next_verbose_run_index(csv_path: &Path) -> Result<u32> {
-    let mut reader = csv::Reader::from_path(csv_path)?;
+    let mut reader = csv_reader(csv_path)?;
     let mut max_run: Option<u32> = None;
 
     for record in reader.records() {
@@ -509,6 +612,141 @@ mod tests {
         let csv = std::fs::read_to_string(csv_path).expect("read cpu csv");
         assert!(csv.contains("alpha"));
         assert!(csv.contains("beta"));
+    }
+
+    // Header and rows as factorio prints them, including the trailing comma
+    const FACTORIO_VERBOSE: &str = "tick,timestamp,wholeUpdate,gameUpdate,\n\
+        t0,100,822461,524723,\n\
+        t1,827590,208671,121719,";
+
+    fn verbose_run(save_name: &str) -> VerboseData {
+        VerboseData {
+            save_name: save_name.to_string(),
+            csv_data: FACTORIO_VERBOSE.to_string(),
+        }
+    }
+
+    fn config(metrics: &[&str], compress: bool, append: bool) -> BenchmarkConfig {
+        BenchmarkConfig {
+            verbose_metrics: metrics.iter().map(|m| m.to_string()).collect(),
+            compress,
+            append,
+            ..Default::default()
+        }
+    }
+
+    fn decompress(path: &Path) -> String {
+        let mut text = String::new();
+        zstd::Decoder::new(File::open(path).expect("open zst"))
+            .expect("decoder")
+            .read_to_string(&mut text)
+            .expect("decompress");
+        text
+    }
+
+    #[test]
+    fn test_compressed_verbose_append_continues_run_index() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let path = temp_dir.path();
+        let metrics = vec!["wholeUpdate".to_string()];
+
+        write_verbose_csv(&[verbose_run("alpha")], &metrics, true, false, path).expect("write");
+        write_verbose_csv(&[verbose_run("alpha")], &metrics, true, true, path).expect("append");
+
+        let csv_path = path.join("alpha_verbose_metrics.csv.zst");
+        assert!(!path.join("alpha_verbose_metrics.csv").exists());
+        assert_eq!(
+            decompress(&csv_path),
+            "tick,run,wholeUpdate\n0,0,822461\n1,0,208671\n0,1,822461\n1,1,208671\n"
+        );
+    }
+
+    #[test]
+    fn test_verbose_all_keeps_factorio_columns() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let path = temp_dir.path();
+
+        write_verbose_csv(
+            &[verbose_run("alpha")],
+            &["all".to_string()],
+            false,
+            false,
+            path,
+        )
+        .expect("write");
+
+        let csv = std::fs::read_to_string(path.join("alpha_verbose_metrics.csv")).expect("read");
+        assert_eq!(
+            csv,
+            "tick,run,wholeUpdate,gameUpdate,\n0,0,822461,524723,\n1,0,208671,121719,\n"
+        );
+    }
+
+    #[test]
+    fn test_unknown_verbose_metric_fails_the_run_check() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+
+        let error = check_verbose_run(
+            &verbose_run("alpha"),
+            &config(&["wholeUpdate", "wholeUpdat"], false, false),
+            temp_dir.path(),
+        )
+        .expect_err("unknown metric");
+        assert!(error.to_string().contains("'wholeUpdat'"));
+    }
+
+    #[test]
+    fn test_verbose_run_check_rejects_append_header_mismatch() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let path = temp_dir.path();
+        write_verbose_csv(
+            &[verbose_run("alpha")],
+            &["wholeUpdate".to_string()],
+            false,
+            false,
+            path,
+        )
+        .expect("write");
+
+        check_verbose_run(&verbose_run("alpha"), &config(&["all"], false, true), path)
+            .expect_err("header mismatch");
+    }
+
+    #[test]
+    fn test_preflight_rejects_mismatched_compression() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let path = temp_dir.path();
+        let saves = vec!["alpha".to_string()];
+
+        std::fs::write(path.join("alpha_verbose_metrics.csv.zst"), b"").expect("write zst");
+        for append in [false, true] {
+            preflight(&config(&["all"], false, append), path, &saves).expect_err("plain over zst");
+        }
+        preflight(&config(&["all"], true, false), path, &saves).expect("zst over zst");
+
+        std::fs::write(path.join("alpha_verbose_metrics.csv"), b"").expect("write csv");
+        for append in [false, true] {
+            preflight(&config(&["all"], true, append), path, &saves).expect_err("zst over plain");
+        }
+    }
+
+    #[test]
+    fn test_preflight_rejects_truncated_compressed_file() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let path = temp_dir.path();
+        let metrics = vec!["wholeUpdate".to_string()];
+        write_verbose_csv(&[verbose_run("alpha")], &metrics, true, false, path).expect("write");
+
+        let csv_path = path.join("alpha_verbose_metrics.csv.zst");
+        let bytes = std::fs::read(&csv_path).expect("read");
+        std::fs::write(&csv_path, &bytes[..bytes.len() - 4]).expect("truncate");
+
+        preflight(
+            &config(&["wholeUpdate"], true, true),
+            path,
+            &["alpha".to_string()],
+        )
+        .expect_err("truncated file");
     }
 
     #[test]

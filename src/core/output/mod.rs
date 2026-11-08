@@ -21,6 +21,7 @@ pub enum WriteData<'a> {
     Verbose {
         data: Vec<VerboseData>,
         metrics_to_export: Vec<String>,
+        compress: bool,
     },
 
     Report {

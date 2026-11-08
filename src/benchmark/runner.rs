@@ -44,6 +44,17 @@ pub struct FactorioOutput {
     pub cpu_data: Vec<CpuFrequencyData>,
 }
 
+/// The save's file name without extension, as used for verbose metric file names
+pub fn save_file_stem(save_file: &Path) -> Result<String> {
+    Ok(save_file
+        .file_stem()
+        .ok_or_else(|| BenchmarkErrorKind::InvalidSaveFileName {
+            path: save_file.to_path_buf(),
+        })?
+        .to_string_lossy()
+        .to_string())
+}
+
 pub struct BenchmarkRunner {
     config: BenchmarkConfig,
     factorio: FactorioExecutor,
@@ -55,11 +66,13 @@ impl BenchmarkRunner {
         Self { config, factorio }
     }
 
-    /// Run benchmarks for all save files
+    /// Run benchmarks for all save files. `check_verbose_run` validates each run's verbose data as
+    /// it arrives, so a problem stops the benchmark early instead of at the end.
     pub async fn run_all(
         &self,
         save_files: Vec<PathBuf>,
         running: &Arc<AtomicBool>,
+        check_verbose_run: impl Fn(&VerboseData) -> Result<()>,
     ) -> Result<(Vec<BenchmarkRun>, Vec<VerboseData>)> {
         let execution_schedule = self.create_execution_schedule(&save_files);
         let total_jobs = execution_schedule.len();
@@ -83,14 +96,7 @@ impl BenchmarkRunner {
                 break;
             }
 
-            let save_name = job
-                .save_file
-                .file_stem()
-                .ok_or_else(|| BenchmarkErrorKind::InvalidSaveFileName {
-                    path: job.save_file.clone(),
-                })?
-                .to_string_lossy()
-                .to_string();
+            let save_name = save_file_stem(&job.save_file)?;
 
             let save_name = match self.config.strip_prefix.as_deref() {
                 Some(prefix) => save_name
@@ -135,6 +141,10 @@ impl BenchmarkRunner {
                 .push(result_for_run);
 
             if let Some(data) = verbose_data {
+                if let Err(error) = check_verbose_run(&data) {
+                    progress.abandon();
+                    return Err(error);
+                }
                 all_verbose_data.push(data);
             }
         }
@@ -234,15 +244,13 @@ impl BenchmarkRunner {
         }
 
         let verbose_data_for_return = if !self.config.verbose_metrics.is_empty() {
-            factorio_output.verbose_data.map(|csv_data| VerboseData {
-                save_name: job
-                    .save_file
-                    .file_stem()
-                    .unwrap()
-                    .to_string_lossy()
-                    .to_string(),
-                csv_data,
-            })
+            match factorio_output.verbose_data {
+                Some(csv_data) => Some(VerboseData {
+                    save_name: save_file_stem(&job.save_file)?,
+                    csv_data,
+                }),
+                None => None,
+            }
         } else {
             None
         };

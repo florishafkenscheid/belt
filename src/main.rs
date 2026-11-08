@@ -126,6 +126,9 @@ enum Commands {
             long_help = "Append benchmark rows to existing output CSV files. Existing CSV headers must match the current output format and selected verbose metrics. Reports are regenerated from available CSV data, so details not stored in results.csv may not be preserved."
         )]
         append: bool,
+
+        #[arg(long, help = "Write verbose metric CSVs zstd-compressed (.csv.zst)")]
+        compress: bool,
     },
     #[command(next_help_heading = "Blueprint Options")]
     Blueprint {
@@ -293,6 +296,7 @@ async fn main() -> Result<()> {
             strip_prefix,
             record_cpu,
             append,
+            compress,
         } => {
             async {
                 let mut benchmark_config =
@@ -336,6 +340,9 @@ async fn main() -> Result<()> {
                 }
                 if record_cpu {
                     benchmark_config.record_cpu = true;
+                }
+                if compress {
+                    benchmark_config.compress = true;
                 }
 
                 benchmark::run(global_config, benchmark_config, &running).await

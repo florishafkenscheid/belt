@@ -125,6 +125,9 @@ pub struct BenchmarkConfig {
     pub record_cpu: bool,
     #[serde(default)]
     pub append: bool,
+    /// Write verbose metric CSVs zstd-compressed (.csv.zst)
+    #[serde(default)]
+    pub compress: bool,
 }
 
 impl Default for BenchmarkConfig {
@@ -143,6 +146,7 @@ impl Default for BenchmarkConfig {
             headless: false,
             record_cpu: default_record_cpu(),
             append: false,
+            compress: false,
         }
     }
 }
@@ -384,6 +388,7 @@ pub fn init_config_dir() -> Result<PathBuf> {
 # pattern = "*.zip"
 # headless = false
 # record_cpu = true
+# compress = false
 
 [sanitize]
 # ticks = 3600

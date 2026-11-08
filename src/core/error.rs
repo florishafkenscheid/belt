@@ -117,6 +117,14 @@ pub enum BenchmarkErrorKind {
 
     #[error("Configuration file not found: {0}")]
     ConfigNotFound(PathBuf),
+
+    #[error(
+        "Found {existing}, but this benchmark would write {target}. Match the existing file's format (--compress writes .csv.zst) or move it out of the output directory"
+    )]
+    CompressionConflict { existing: PathBuf, target: PathBuf },
+
+    #[error("Unknown verbose metric '{metric}'. Factorio reports: {available}")]
+    UnknownVerboseMetric { metric: String, available: String },
 }
 
 /// Get a hint for the FactorioProcessFailed error, if it exists

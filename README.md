@@ -100,6 +100,7 @@ Run benchmarks on one or more save files.
 | `--strip-prefix <PREFIX>` | Strip a given prefix off of the save names | `none` |
 | `--record-cpu` | Record CPU frequency samples during benchmark runs | `true` |
 | `--append` | Append benchmark rows to existing output CSV files. Existing CSV headers must match the current output format and selected verbose metrics. | `false` |
+| `--compress` | Write verbose metric CSVs zstd-compressed as `<save>_verbose_metrics.csv.zst`. `results.csv` and `cpu_freq.csv` stay plain. | `false` |
 
 #### `belt blueprint`
 
@@ -225,6 +226,12 @@ belt benchmark ./my-saves --output ./benchmark-results --append true
 Append mode expects existing CSV headers to match the current BELT output format and the selected
 verbose metrics. Reports are regenerated from available CSV data, so details not stored in
 `results.csv` may not be preserved.
+
+Existing files are checked before the first benchmark run starts, so a mismatch fails immediately
+instead of after the benchmark. Verbose metric names, and headers for `--verbose-metrics all`, are
+checked as each run finishes. Use the same `--compress` setting as the existing output: BELT refuses
+to write `<save>_verbose_metrics.csv` next to an existing `.csv.zst`, or the other way around.
+Appending to a `.csv.zst` adds a new zstd frame, so the existing data is never recompressed.
 
 ### Advanced Usage
 
