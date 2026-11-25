@@ -85,7 +85,7 @@ Every Factorio launch gets its own temporary configuration, so Factorio's log, s
 By default each save runs with the mods it was saved with, at the versions it recorded, using Factorio's own mod syncing. Mods you have installed are copied into BELT's mod folder; mods you don't have are downloaded from the mod portal. If a save recorded a mod version made for an older Factorio (a 2.0 mod on 2.1, say), BELT uses the newest version that works with your Factorio instead and prints a warning for every swap:
 
 ```text
-WARNING red_science: EditorExtensions 2.4.2 → 2.6.1 (2.4.2 is for Factorio 2.0)
+ WARN belt::factorio: red_science: EditorExtensions 2.4.2 → 2.6.1 (2.4.2 is for Factorio 2.0)
 ```
 
 A mod with no version that works with your Factorio fails that save, naming the mod. Pass `--mods-dir` to use one directory of mods for every save instead: each enabled mod then runs at the version that directory's `mod-list.json` pins, or else the newest one in it.
@@ -186,7 +186,7 @@ The report warns about pollution (enabled or present), enemy expansion, enemies 
 | `--config <CONFIG>`      | Path to config file (also `BELT_CONFIG`) | `~/.config/belt/config.toml` |
 | `--workspace-dir <DIR>`  | Where BELT keeps its mod folder and temporary run folders | OS data directory |
 | `--sanitizer-mod <DIR>`  | Use a local belt-sanitizer mod folder instead of the mod portal release | mod portal |
-| `--verbose`              | Shows every Factorio launch and its output | `false`                      |
+| `--verbose`              | Debug logging, including every Factorio launch and its output | `false`                      |
 | `--init-config`          | Initialize config directory             | n/a                          |
 | `--version`              | Print version                           | n/a                          |
 

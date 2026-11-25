@@ -13,6 +13,7 @@ use std::path::PathBuf;
 use crate::config::BenchmarkSettings;
 use crate::failure::{FailureReason, Failures, RunFailure};
 use crate::saves::Save;
+use crate::terminal::Progress;
 use output::{
     Compression, CpuRow, Existing, OutputError, RunRecord, Selection, VerboseFiles, VerboseTable,
 };
@@ -412,6 +413,7 @@ pub fn run(
         verbose: files.verbose.wanted(),
     };
     let plan = schedule::schedule(saves.len(), settings.runs, settings.run_order, rng);
+    let progress = Progress::new(plan.len());
     for (position, scheduled) in plan.iter().enumerate() {
         if outcome.interrupted {
             break;
@@ -424,12 +426,10 @@ pub fn run(
             name: &names[scheduled.save],
             run_index: first_indexes[scheduled.save] + scheduled.nth,
         };
-        eprintln!(
-            "[{}/{}] {} run {}",
-            position + 1,
-            plan.len(),
-            run.name,
-            run.run_index
+        // Counted from 1, as 4.3.1 showed it; results.csv's run_index counts from 0.
+        progress.start(
+            position,
+            &format!("{} (run {})", run.name, run.run_index + 1),
         );
         match timed_run(&run, runner, cpu, &request, &mut files)? {
             RunEnd::Recorded => {}
@@ -439,6 +439,11 @@ pub fn run(
             }
             RunEnd::Interrupted => outcome.interrupted = true,
         }
+    }
+    if outcome.interrupted {
+        progress.stop("Benchmarking interrupted.");
+    } else {
+        progress.finish("Benchmarking complete!");
     }
     files.finish(date)?;
     Ok(outcome)

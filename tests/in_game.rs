@@ -6,7 +6,7 @@ mod common;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-use common::{Sandbox, blueprint_file, built, encode_blueprint, fixture, text};
+use common::{Sandbox, blueprint_file, built, encode_blueprint, fixture};
 use serde_json::{Value, json};
 
 fn blueprint_dir(sandbox: &Sandbox, files: &[(&str, String)]) -> PathBuf {
@@ -42,7 +42,7 @@ fn stamp(
     assert!(
         output.status.success(),
         "belt failed:\n{}",
-        text(&output.stderr)
+        common::log(&output)
     );
     (out, output)
 }
@@ -297,14 +297,15 @@ fn a_space_age_marker_without_space_age_is_a_warning_not_ore() {
         ],
     );
 
-    let warned =
-        text(&output.stderr).contains("drill: resource calcite doesn't exist in this save");
+    let warned = common::log_entries(&common::log(&output))
+        .iter()
+        .any(|entry| entry.starts_with("WARN drill: resource calcite doesn't exist in this save"));
     let resource = sandbox.inspect(&out.join("drill.zip"), &[])["drills"][0]["resource"].clone();
     assert_eq!(
         (warned, resource),
         (true, json!("none")),
         "{}",
-        text(&output.stderr)
+        common::log(&output)
     );
 }
 
@@ -395,10 +396,10 @@ fn a_recorded_mod_missing_at_its_version_everywhere_fails_naming_it() {
         "10",
     ]);
 
-    let stderr = text(&output.stderr);
+    let log = common::log(&output);
     let named =
-        stderr.contains("belt-test-ore 0.1.0 isn't installed, and the mod portal doesn't have it");
-    assert!(output.status.code() == Some(1) && named, "{stderr}");
+        log.contains("belt-test-ore 0.1.0 isn't installed, and the mod portal doesn't have it");
+    assert!(output.status.code() == Some(1) && named, "{log}");
 }
 
 #[test]
@@ -421,17 +422,15 @@ fn the_mod_sync_runs_as_the_users_mod_portal_identity() {
         "10",
     ]);
 
-    let printed = format!("{}{}", text(&output.stdout), text(&output.stderr));
-    assert!(
-        printed.contains("Local player-data.json available"),
-        "{printed}"
-    );
+    let log = common::log(&output);
+    assert!(log.contains("Local player-data.json available"), "{log}");
 }
 
 /// One sanitize run of the world fixture, shared by the sanitize tests.
 struct World {
     _sandbox: Sandbox,
     report: String,
+    entries: Vec<String>,
 }
 
 fn world() -> &'static World {
@@ -454,24 +453,25 @@ fn world() -> &'static World {
             "--mods-dir",
             mods.to_str().unwrap(),
         ]);
-        assert!(output.status.success(), "{}", text(&output.stderr));
+        let report = common::log(&output);
+        assert!(output.status.success(), "{report}");
         World {
-            report: text(&output.stdout),
+            entries: common::log_entries(&report),
+            report,
             _sandbox: sandbox,
         }
     })
 }
 
-fn report_has(line: &str) -> bool {
-    world().report.lines().any(|reported| reported == line)
+fn report_has(entry: &str) -> bool {
+    world().entries.iter().any(|logged| logged == entry)
 }
 
 #[test]
 #[ignore = "runs Factorio"]
 fn reports_pollution_enabled_or_present() {
     assert!(
-        report_has("WARNING pollution is enabled")
-            && world().report.contains("pollution on the map"),
+        report_has("WARN pollution is enabled") && world().report.contains("pollution on the map"),
         "{}",
         world().report
     );
@@ -481,7 +481,7 @@ fn reports_pollution_enabled_or_present() {
 #[ignore = "runs Factorio"]
 fn reports_enemy_expansion_enabled() {
     assert!(
-        report_has("WARNING enemy expansion is enabled"),
+        report_has("WARN enemy expansion is enabled"),
         "{}",
         world().report
     );
@@ -492,9 +492,9 @@ fn reports_enemy_expansion_enabled() {
 fn reports_enemies_per_surface() {
     assert!(
         world()
-            .report
-            .lines()
-            .any(|line| line.starts_with("WARNING nauvis: enemies: ")),
+            .entries
+            .iter()
+            .any(|entry| entry.starts_with("WARN nauvis: enemies: ")),
         "{}",
         world().report
     );
@@ -504,9 +504,9 @@ fn reports_enemies_per_surface() {
 #[ignore = "runs Factorio"]
 fn reports_active_silos_cars_and_tanks_per_surface_and_type() {
     let lines = [
-        "WARNING nauvis: 1 active car",
-        "WARNING nauvis: 1 active rocket-silo",
-        "WARNING nauvis: 1 active tank",
+        "WARN nauvis: 1 active car",
+        "WARN nauvis: 1 active rocket-silo",
+        "WARN nauvis: 1 active tank",
     ];
 
     assert!(
@@ -520,8 +520,8 @@ fn reports_active_silos_cars_and_tanks_per_surface_and_type() {
 #[ignore = "runs Factorio"]
 fn reports_infinity_entities_per_surface_and_type() {
     let lines = [
-        "WARNING nauvis: 1 electric-energy-interface (infinity/test entity)",
-        "WARNING nauvis: 1 infinity-pipe (infinity/test entity)",
+        "WARN nauvis: 1 electric-energy-interface (infinity/test entity)",
+        "WARN nauvis: 1 infinity-pipe (infinity/test entity)",
     ];
 
     assert!(
@@ -536,7 +536,7 @@ fn reports_infinity_entities_per_surface_and_type() {
 fn counts_editor_extensions_infinity_entities_but_not_hidden_ones() {
     // infinity-chest and the shown ee-infinity-chest; the hidden ee-infinity-helper doesn't count.
     assert!(
-        report_has("WARNING nauvis: 2 infinity-container (infinity/test entity)"),
+        report_has("WARN nauvis: 2 infinity-container (infinity/test entity)"),
         "{}",
         world().report
     );
@@ -546,10 +546,10 @@ fn counts_editor_extensions_infinity_entities_but_not_hidden_ones() {
 #[ignore = "runs Factorio"]
 fn reports_tracked_production_and_consumption_from_the_game() {
     let lines = [
-        "iron-plate (normal): produced 300, consumed 120",
-        "iron-plate (rare): produced 120",
-        "iron-plate (all qualities): produced 420, consumed 120",
-        "water: produced 6000",
+        "INFO iron-plate (normal): produced 300, consumed 120",
+        "INFO iron-plate (rare): produced 120",
+        "INFO iron-plate (all qualities): produced 420, consumed 120",
+        "INFO water: produced 6000",
     ];
 
     assert!(
@@ -591,10 +591,10 @@ fn an_unknown_tracked_item_fails_the_save_with_the_mods_message() {
         "unobtainium",
     ]);
 
-    let stderr = text(&output.stderr);
+    let log = common::log(&output);
     assert!(
-        output.status.code() == Some(1) && stderr.contains("unknown item \"unobtainium\""),
-        "{stderr}"
+        output.status.code() == Some(1) && log.contains("unknown item \"unobtainium\""),
+        "{log}"
     );
 }
 
@@ -616,9 +616,9 @@ fn failed_saves_are_listed_with_their_log_tail_and_the_exit_code_is_non_zero() {
         sandbox.path("bench").to_str().unwrap(),
     ]);
 
-    let stderr = text(&output.stderr);
-    let listed = stderr.contains("\nbroken: ") && stderr.contains("  | ");
-    assert!(output.status.code() == Some(1) && listed, "{stderr}");
+    let log = common::log(&output);
+    let listed = log.contains("\nbroken: ") && log.contains("  | ");
+    assert!(output.status.code() == Some(1) && listed, "{log}");
 }
 
 #[test]
@@ -631,12 +631,12 @@ fn a_failed_sync_without_a_portal_token_says_so_with_its_exit_code() {
 
     let output = sandbox.belt(&["sanitize", broken.to_str().unwrap(), "--ticks", "10"]);
 
-    let stderr = text(&output.stderr);
+    let log = common::log(&output);
     assert!(
-        stderr.contains(
+        log.contains(
             "(exit code 1); it ran without a mod portal identity, as there is no mod portal token"
         ),
-        "{stderr}"
+        "{log}"
     );
 }
 
@@ -649,6 +649,7 @@ fn an_interrupt_stops_factorio_and_keeps_completed_runs() {
     let out = sandbox.path("bench");
     let mut child = sandbox
         .belt_command(&[
+            "--verbose",
             "benchmark",
             save.parent().unwrap().to_str().unwrap(),
             "--ticks",
@@ -658,16 +659,16 @@ fn an_interrupt_stops_factorio_and_keeps_completed_runs() {
             "--output",
             out.to_str().unwrap(),
         ])
-        .stderr(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
         .spawn()
         .unwrap();
-    let stderr = std::io::BufReader::new(child.stderr.take().unwrap());
-    let mut lines = stderr.lines();
+    let stdout = std::io::BufReader::new(child.stdout.take().unwrap());
+    let mut lines = stdout.lines();
     // The first run completes; interrupt once the second has started.
     let mut seen = Vec::new();
     for line in lines.by_ref() {
         let line = line.unwrap();
-        let started_second = line.starts_with("[2/3]");
+        let started_second = line.contains("[2/3]");
         seen.push(line);
         if started_second {
             break;

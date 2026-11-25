@@ -8,6 +8,7 @@ mod failure;
 mod protocol;
 mod sanitize;
 mod saves;
+mod terminal;
 mod version;
 
 use std::path::{Path, PathBuf};
@@ -35,10 +36,11 @@ const COMMAND_FAILED: u8 = 2;
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    match run(&cli) {
+    let logger = terminal::Logger::install(cli.verbose);
+    match run(&cli, &logger) {
         Ok(code) => ExitCode::from(code),
         Err(error) => {
-            eprintln!("error: {error}");
+            tracing::error!("{error}");
             ExitCode::from(COMMAND_FAILED)
         }
     }
@@ -51,7 +53,7 @@ fn config_dir(base_dirs: &BaseDirs) -> PathBuf {
     base_dirs.config_dir().join("belt")
 }
 
-fn run(cli: &Cli) -> Result<u8, BoxError> {
+fn run(cli: &Cli, logger: &terminal::Logger) -> Result<u8, BoxError> {
     let base_dirs = BaseDirs::new().ok_or("cannot determine the home directory")?;
     if cli.version {
         println!("{} v{}", env!("CARGO_BIN_NAME"), env!("CARGO_PKG_VERSION"));
@@ -70,6 +72,7 @@ fn run(cli: &Cli) -> Result<u8, BoxError> {
         None => ConfigFile::Default(config_dir(&base_dirs).join("config.toml")),
     };
     let settings = config::resolve(cli.flags(), |name| std::env::var(name).ok(), &file)?;
+    logger.set_verbose(settings.global.verbose);
     let root = PathBuf::from(if std::env::consts::OS == "windows" {
         r"C:\"
     } else {
@@ -204,10 +207,15 @@ fn select_saves(
     file: &ConfigFile,
 ) -> Result<Vec<Save>, BoxError> {
     let dir = required(dir, section, "saves_dir", "the SAVES_DIR argument", file)?;
-    Ok(saves::select(&dir, pattern, Kind::Saves)?
+    let saves: Vec<Save> = saves::select(&dir, pattern, Kind::Saves)?
         .into_iter()
         .map(Save::new)
-        .collect())
+        .collect();
+    tracing::info!("Found {} save files", saves.len());
+    for save in &saves {
+        tracing::debug!("  - {}", save.name);
+    }
+    Ok(saves)
 }
 
 /// A command's mod settings: an explicit mods directory, and Factorio's user data directory.
@@ -262,7 +270,6 @@ impl Context<'_> {
             sanitizer,
             portal: Portal::official(),
             command,
-            verbose: global.verbose,
         };
         Ok(Factorio::new(options)?)
     }
@@ -271,10 +278,10 @@ impl Context<'_> {
 /// Prints the failure summary and picks the exit code.
 fn finish(failures: &Failures, interrupted: bool) -> u8 {
     if interrupted {
-        eprintln!("interrupted; completed runs were written");
+        tracing::warn!("interrupted; completed runs were written");
     }
     if !failures.is_empty() {
-        eprint!("{}", failures.summary());
+        tracing::error!("{}", failures.summary());
     }
     if failures.is_empty() && !interrupted {
         SUCCESS

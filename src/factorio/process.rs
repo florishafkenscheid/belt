@@ -75,20 +75,13 @@ static SHARED: OnceLock<Result<Shared, String>> = OnceLock::new();
 
 /// Runs Factorio processes, one per call. On Ctrl-C every running Factorio is killed; in a
 /// terminal Factorio also receives the Ctrl-C itself.
-/// Whether Factorio's launches and output are also shown (`--verbose`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Echo {
-    Quiet,
-    Verbose,
-}
-
+/// Each launch and every line Factorio prints are logged at debug level (`--verbose`).
 pub struct Supervisor {
     shared: &'static Shared,
-    echo: Echo,
 }
 
 impl Supervisor {
-    pub fn new(echo: Echo) -> Result<Self, String> {
+    pub fn new() -> Result<Self, String> {
         let shared = SHARED.get_or_init(|| {
             ctrlc::set_handler(|| {
                 let Some(Ok(shared)) = SHARED.get() else {
@@ -106,7 +99,7 @@ impl Supervisor {
             })
         });
         match shared {
-            Ok(shared) => Ok(Self { shared, echo }),
+            Ok(shared) => Ok(Self { shared }),
             Err(error) => Err(error.clone()),
         }
     }
@@ -130,9 +123,7 @@ impl Supervisor {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        if self.echo == Echo::Verbose {
-            eprintln!("running {command:?}");
-        }
+        tracing::debug!("running {command:?}");
         let mut child = command.spawn().map_err(|error| {
             RunFailure::new(FailureReason::Setup(format!(
                 "cannot start Factorio: {error}"
@@ -140,7 +131,7 @@ impl Supervisor {
         })?;
         let pid = child.id();
         if let Err(error) = run.record_process(pid) {
-            eprintln!("cannot record Factorio's process for crash cleanup: {error}");
+            tracing::warn!("cannot record Factorio's process for crash cleanup: {error}");
         }
         let stdout = child.stdout.take().expect("piped");
         let stderr = child.stderr.take().expect("piped");
@@ -158,9 +149,7 @@ impl Supervisor {
                 for_each_line(stderr, |line| stderr_tail.lock().expect("lock").push(line));
             });
             for_each_line(stdout, |line| {
-                if self.echo == Echo::Verbose {
-                    eprintln!("factorio: {line}");
-                }
+                tracing::debug!("factorio: {line}");
                 tail.lock().expect("lock").push(line);
                 on_line(line, &mut stdin);
             });
@@ -238,7 +227,7 @@ mod tests {
         command.args(["-c", "sleep 60 & echo $!"]);
         let mut leftover = String::new();
 
-        Supervisor::new(Echo::Quiet)
+        Supervisor::new()
             .unwrap()
             .run(command, &run, |line, _| leftover = line.to_string())
             .unwrap();

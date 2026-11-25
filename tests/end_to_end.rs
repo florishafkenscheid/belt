@@ -5,7 +5,7 @@ mod common;
 
 use std::collections::BTreeMap;
 
-use common::{Sandbox, blueprint_file, built, text};
+use common::{Sandbox, blueprint_file, built};
 
 #[test]
 #[ignore = "runs Factorio"]
@@ -52,7 +52,7 @@ fn benchmark_of_a_generated_save_writes_all_contract_files() {
             "# Factorio Benchmark Results",
         ],
         "{}",
-        text(&output.stderr)
+        common::log(&output)
     );
 }
 
@@ -101,7 +101,7 @@ fn blueprint_then_benchmark_produces_a_running_design() {
         (placed, benchmark.status.code()),
         (343, Some(0)),
         "{}",
-        text(&benchmark.stderr)
+        common::log(&benchmark)
     );
 }
 
@@ -195,13 +195,14 @@ fn sanitize_reports_a_save_with_enemies_and_pollution() {
         "60",
     ]);
 
-    let report = text(&output.stdout);
+    let report = common::log(&output);
+    let entries = common::log_entries(&report);
     // The spawner may already have spawned a biter by the end of the run.
-    let enemies = report.lines().any(|line| {
-        line.starts_with("WARNING nauvis: enemies: ") && line.ends_with("1 spawners, 1 worms")
+    let enemies = entries.iter().any(|entry| {
+        entry.starts_with("WARN nauvis: enemies: ") && entry.ends_with("1 spawners, 1 worms")
     });
-    let pollution = report.lines().any(|line| {
-        line.starts_with("WARNING nauvis: ") && line.ends_with(" pollution on the map")
+    let pollution = entries.iter().any(|entry| {
+        entry.starts_with("WARN nauvis: ") && entry.ends_with(" pollution on the map")
     });
     assert!(enemies && pollution, "{report}");
 }

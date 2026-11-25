@@ -84,7 +84,6 @@ pub struct FactorioOptions {
     pub sanitizer: SanitizerMod,
     pub portal: Portal,
     pub command: launch::Command,
-    pub verbose: bool,
 }
 
 pub struct Factorio {
@@ -116,7 +115,6 @@ impl Factorio {
             sanitizer,
             portal,
             command,
-            verbose,
         } = options;
         let install_data = discovery::install_data_dir(&executable)
             .ok_or_else(|| FactorioError::NoInstallData(executable.clone()))?;
@@ -140,11 +138,6 @@ impl Factorio {
         if let Some(sanitizer) = &sanitizer {
             mods::check_sanitizer(sanitizer)?;
         }
-        let echo = if verbose {
-            process::Echo::Verbose
-        } else {
-            process::Echo::Quiet
-        };
         Ok(Self {
             builtins: mods::builtins(&install_data)?,
             executable,
@@ -155,7 +148,7 @@ impl Factorio {
             sanitizer,
             player_data,
             portal,
-            supervisor: Supervisor::new(echo).map_err(FactorioError::Supervisor)?,
+            supervisor: Supervisor::new().map_err(FactorioError::Supervisor)?,
             resolved: HashMap::new(),
             version,
         })
@@ -250,7 +243,7 @@ impl Factorio {
                     .portal
                     .download(release, &credentials, &self.cache)
                     .map_err(mods_failure)?;
-                eprintln!("downloaded {}", path.display());
+                tracing::info!("downloaded {}", path.display());
             }
         }
         let cached = self.cached()?;
@@ -265,7 +258,7 @@ impl Factorio {
         }
         let name = crate::saves::file_stem(save);
         for swap in &resolution.swaps {
-            eprintln!("WARNING {name}: {swap}");
+            tracing::warn!("{name}: {swap}");
         }
         set.mods = resolution.chosen;
         set.settings = mods::read_settings(&self.cache).map_err(setup)?;
@@ -351,7 +344,7 @@ impl Factorio {
             if answered && ending == Ending::Quit && !quit_sent {
                 quit_sent = true;
                 if let Err(error) = stdin.send("/quit") {
-                    eprintln!("cannot tell Factorio to quit: {error}");
+                    tracing::error!("cannot tell Factorio to quit: {error}");
                 }
             }
         })?;
@@ -454,7 +447,7 @@ fn fetch_sanitizer(
         portal
             .download(release, &credentials, downloads)
             .map_err(failed)?;
-        eprintln!("downloaded {} {}", release.name, release.version);
+        tracing::info!("downloaded {} {}", release.name, release.version);
     }
     Ok(mods::SanitizerSource::Zip(path))
 }
@@ -503,7 +496,7 @@ impl ModRun {
                 false
             }
             Ok(Line::Message(Message::Warning { text })) => {
-                eprintln!("WARNING {text}");
+                tracing::warn!("{text}");
                 false
             }
             Ok(Line::Message(Message::Error { message })) => {

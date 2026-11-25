@@ -188,6 +188,26 @@ pub fn text(bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes).into_owned()
 }
 
+/// belt's log, which it prints on stdout, without colours.
+pub fn log(output: &Output) -> String {
+    let colour = regex::Regex::new("\x1b\\[[0-9;]*m").unwrap();
+    colour.replace_all(&text(&output.stdout), "").into_owned()
+}
+
+/// The log's entries as `LEVEL message`, without timestamps and targets: `WARN pollution is
+/// enabled`. Further lines of a multi-line message are left out.
+pub fn log_entries(log: &str) -> Vec<String> {
+    log.lines()
+        .filter(|line| line.starts_with(|first: char| first.is_ascii_digit()))
+        .filter_map(|line| {
+            let (_timestamp, rest) = line.split_once(' ')?;
+            let (level, rest) = rest.trim_start().split_once(' ')?;
+            let (_target, message) = rest.split_once(": ")?;
+            Some(format!("{level} {message}"))
+        })
+        .collect()
+}
+
 /// A blueprint string from blueprint JSON.
 pub fn encode_blueprint(value: &Value) -> String {
     use base64::Engine;
