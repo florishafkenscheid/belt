@@ -6,6 +6,7 @@
 //! cache's `mod-list.json` and `mod-settings.dat` are written for exactly that run.
 
 use std::collections::BTreeSet;
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
@@ -74,6 +75,11 @@ pub enum ModsError {
     },
     #[error("{path}: {message}")]
     Malformed { path: PathBuf, message: String },
+    #[error("cannot link {path} into the mod sync's folder: {source}{LINK_HINT}")]
+    Link {
+        path: PathBuf,
+        source: std::io::Error,
+    },
     #[error(
         "{path} speaks interface {found}, this belt needs {expected}; install a matching belt-sanitizer"
     )]
@@ -382,6 +388,100 @@ pub fn resolve(
     resolution
 }
 
+/// Fills `dir` with links to every installed mod in `sources` that loads on `factorio`, so
+/// `--sync-mods` there finds what is installed instead of downloading it, as 4.3.1's sync in the
+/// user's own mods directory did. Versions made for another Factorio are left out: Factorio
+/// enables everything in a folder without a `mod-list.json` and would refuse to start. Each mod
+/// version is linked once, from the first source that has it; a source that doesn't exist adds
+/// nothing. Returns the names it linked.
+pub fn link_mods(
+    sources: &[&Path],
+    dir: &Path,
+    factorio: Version,
+) -> Result<BTreeSet<OsString>, ModsError> {
+    std::fs::create_dir_all(dir).map_err(io(dir))?;
+    let mut seen = BTreeSet::new();
+    let mut linked = BTreeSet::new();
+    for source in sources.iter().filter(|source| source.is_dir()) {
+        for found in installed(source)? {
+            let name = found
+                .path
+                .file_name()
+                .expect("mods have names")
+                .to_os_string();
+            if !found.loads_on(factorio) || seen.contains(&found.mod_ref) || linked.contains(&name)
+            {
+                continue;
+            }
+            link(&found.path, &dir.join(&name)).map_err(|source| ModsError::Link {
+                path: found.path.clone(),
+                source,
+            })?;
+            seen.insert(found.mod_ref);
+            linked.insert(name);
+        }
+    }
+    Ok(linked)
+}
+
+/// Moves the mod zips `--sync-mods` downloaded into `dir` (whatever [`link_mods`] didn't put
+/// there) into the cache, and returns their names.
+pub fn adopt_downloads(
+    dir: &Path,
+    linked: &BTreeSet<OsString>,
+    cache: &Path,
+) -> Result<Vec<String>, ModsError> {
+    let mut adopted = Vec::new();
+    for entry in std::fs::read_dir(dir).map_err(io(dir))? {
+        let path = entry.map_err(io(dir))?.path();
+        let name = path.file_name().expect("entries have names");
+        let is_zip = path.extension().is_some_and(|extension| extension == "zip");
+        if !is_zip || linked.contains(name) {
+            continue;
+        }
+        let target = cache.join(name);
+        std::fs::rename(&path, &target).map_err(io(&target))?;
+        adopted.push(name.to_string_lossy().into_owned());
+    }
+    adopted.sort();
+    Ok(adopted)
+}
+
+/// Links are symbolic on Unix. On Windows symbolic links need extra rights, so it uses
+/// [`hard_link_tree`].
+#[cfg(unix)]
+fn link(original: &Path, link: &Path) -> std::io::Result<()> {
+    std::os::unix::fs::symlink(original, link)
+}
+
+#[cfg(windows)]
+fn link(original: &Path, link: &Path) -> std::io::Result<()> {
+    hard_link_tree(original, link)
+}
+
+/// Hard links `original` at `link`; a folder is rebuilt from hard-linked files. Needs one
+/// volume.
+#[cfg_attr(unix, allow(dead_code))]
+fn hard_link_tree(original: &Path, link: &Path) -> std::io::Result<()> {
+    if !original.is_dir() {
+        return std::fs::hard_link(original, link);
+    }
+    std::fs::create_dir(link)?;
+    for entry in std::fs::read_dir(original)? {
+        let path = entry?.path();
+        hard_link_tree(
+            &path,
+            &link.join(path.file_name().expect("entries have names")),
+        )?;
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+const LINK_HINT: &str = "";
+#[cfg(windows)]
+const LINK_HINT: &str = " (hard links need B.E.L.T.'s workspace on the same drive as Factorio's mods; see --workspace-dir)";
+
 /// Copies `wanted` from `source` (the user's mods) into `cache`. Returns whether it was there.
 /// A zip already in the cache is kept: a `name_version.zip` doesn't change. Folder mods are
 /// copied every time, because their content can change without a version bump.
@@ -668,6 +768,24 @@ pub fn read_credentials(player_data: &Path) -> Result<Credentials, String> {
     }
 }
 
+impl Credentials {
+    /// Writes a `player-data.json` into `write_data` holding only these two fields, so a run's
+    /// `--sync-mods` downloads as the user. Readable by the owner only, on Unix.
+    pub fn write_player_data(&self, write_data: &Path) -> std::io::Result<()> {
+        let json = serde_json::json!({
+            "service-username": self.username,
+            "service-token": self.token,
+        });
+        std::fs::create_dir_all(write_data)?;
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        let mut file = options.open(write_data.join("player-data.json"))?;
+        std::io::Write::write_all(&mut file, json.to_string().as_bytes())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -696,13 +814,18 @@ mod tests {
 
     /// Writes `dir/name_version.zip` holding `name_version/info.json`, as the mod portal ships it.
     fn zipped_mod(dir: &Path, name: &str, version: &str) {
+        zipped_mod_for(dir, name, version, "2.1");
+    }
+
+    /// Like [`zipped_mod`], made for Factorio `factorio` (`major.minor`).
+    fn zipped_mod_for(dir: &Path, name: &str, version: &str, factorio: &str) {
         let file = std::fs::File::create(dir.join(format!("{name}_{version}.zip"))).unwrap();
         let mut zip = zip::ZipWriter::new(file);
         let options = zip::write::SimpleFileOptions::default()
             .compression_method(zip::CompressionMethod::Stored);
         zip.start_file(format!("{name}_{version}/info.json"), options)
             .unwrap();
-        let info = json!({ "name": name, "version": version, "title": name, "author": "test", "factorio_version": "2.1" });
+        let info = json!({ "name": name, "version": version, "title": name, "author": "test", "factorio_version": factorio });
         std::io::Write::write_all(&mut zip, info.to_string().as_bytes()).unwrap();
         zip.finish().unwrap();
     }
@@ -863,6 +986,101 @@ mod tests {
         let error = read_credentials(&path).unwrap_err();
 
         assert!(error.contains(&path.display().to_string()), "{error}");
+    }
+
+    fn names(dir: &Path) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
+    fn folder_mod(dir: &Path, folder: &str, name: &str, version: &str) {
+        std::fs::create_dir_all(dir.join(folder)).unwrap();
+        let info = json!({ "name": name, "version": version, "factorio_version": "2.1" });
+        std::fs::write(dir.join(folder).join("info.json"), info.to_string()).unwrap();
+    }
+
+    #[test]
+    fn the_sync_folder_links_each_loadable_mod_version_once() {
+        let (user, cache, sync) = (
+            tempfile::tempdir().unwrap(),
+            tempfile::tempdir().unwrap(),
+            tempfile::tempdir().unwrap(),
+        );
+        zipped_mod(user.path(), "flib", "0.17.2");
+        zipped_mod_for(user.path(), "flib", "0.16.3", "2.0");
+        folder_mod(user.path(), "dev-mod", "dev-mod", "1.0.0");
+        for file in [MOD_LIST, MOD_SETTINGS] {
+            std::fs::write(user.path().join(file), "").unwrap();
+        }
+        zipped_mod(cache.path(), "flib", "0.17.2");
+        folder_mod(cache.path(), "dev-mod_1.0.0", "dev-mod", "1.0.0");
+        zipped_mod(cache.path(), "EditorExtensions", "2.6.1");
+
+        link_mods(&[user.path(), cache.path()], sync.path(), FACTORIO).unwrap();
+
+        assert_eq!(
+            names(sync.path()),
+            ["EditorExtensions_2.6.1.zip", "dev-mod", "flib_0.17.2.zip"]
+        );
+    }
+
+    #[test]
+    fn a_hard_linked_folder_mod_has_the_same_files() {
+        let (user, sync) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        folder_mod(user.path(), "dev-mod", "dev-mod", "1.0.0");
+        std::fs::create_dir(user.path().join("dev-mod/graphics")).unwrap();
+        std::fs::write(user.path().join("dev-mod/graphics/icon.png"), "png").unwrap();
+
+        hard_link_tree(&user.path().join("dev-mod"), &sync.path().join("dev-mod")).unwrap();
+
+        assert_eq!(
+            std::fs::read(sync.path().join("dev-mod/graphics/icon.png")).unwrap(),
+            b"png"
+        );
+    }
+
+    #[test]
+    fn what_the_sync_downloaded_moves_into_the_cache() {
+        let (user, cache, sync) = (
+            tempfile::tempdir().unwrap(),
+            tempfile::tempdir().unwrap(),
+            tempfile::tempdir().unwrap(),
+        );
+        zipped_mod(user.path(), "flib", "0.17.2");
+        let linked = link_mods(&[user.path()], sync.path(), FACTORIO).unwrap();
+        zipped_mod(sync.path(), "region-cloner", "3.3.1"); // downloaded by the sync
+        std::fs::write(sync.path().join(MOD_LIST), "{}").unwrap();
+
+        adopt_downloads(sync.path(), &linked, cache.path()).unwrap();
+
+        assert_eq!(names(cache.path()), ["region-cloner_3.3.1.zip"]);
+    }
+
+    #[test]
+    fn a_runs_player_data_holds_only_the_portal_identity() {
+        let (user, run) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let path = user.path().join("player-data.json");
+        let player_data = json!({
+            "service-username": "someone", "service-token": "secret", "last-played-version": {},
+        });
+        std::fs::write(&path, player_data.to_string()).unwrap();
+
+        read_credentials(&path)
+            .unwrap()
+            .write_player_data(run.path())
+            .unwrap();
+
+        let written: Value =
+            serde_json::from_slice(&std::fs::read(run.path().join("player-data.json")).unwrap())
+                .unwrap();
+        assert_eq!(
+            written,
+            json!({ "service-username": "someone", "service-token": "secret" })
+        );
     }
 
     #[test]

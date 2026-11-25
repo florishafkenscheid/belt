@@ -1,5 +1,32 @@
 # Changelog
 
+## 4.4.1
+
+### Fixed
+
+- A single save file is accepted again wherever a saves directory is, as in 4.3.1
+  (`belt sanitize path/to/save.zip`), and so is a single blueprint file for `blueprint`. 4.4.0
+  refused both with "Not a directory".
+- `--sync-mods` downloads work again. Factorio 2.1.25 downloads a save's missing mods while it
+  syncs, as the identity in the run's own `player-data.json`, which was missing, so the mod portal
+  answered 403 "Token mismatch". Each sync now gets your mod portal username and token (only those
+  two fields) from Factorio's `player-data.json`. A failed sync prints its exit code as a number.
+- Terminal output looks as it did in 4.3.1 again: levelled, coloured log lines on stdout (4.4.0
+  printed its messages on stderr) and a progress bar with the time left for `benchmark` and
+  `sanitize`. `--verbose` (or `verbose` in the config file or `BELT_GLOBAL__VERBOSE`) shows
+  B.E.L.T.'s debug lines, including Factorio's own output. Output files are unchanged.
+- `--pattern` matches save names without `.zip` again, as in 4.3.1: `--pattern CHOAM` selects
+  `CHOAM.zip` and `--pattern '*car'` selects `clean_car.zip`. 4.4.0 matched the whole file name,
+  so both selected nothing. (A 4.4.0-style pattern ending in `.zip` now selects nothing.) Blueprint
+  patterns still match the whole file name, as in 4.3.1.
+- A save whose mods are all installed syncs again without a mod portal token, as in 4.3.1. The sync
+  now sees your installed mods (through links; nothing is copied or changed in your mods
+  directory), so Factorio only downloads what is really missing. A mod that is missing with no
+  token still fails the save, which names the mod.
+- `--factorio-path` accepts a wrapper script again (for mimalloc, hugepages or AMD uProf, as the
+  README describes), and a symbolic link to the Factorio binary. 4.4.0 refused both with "no
+  Factorio data directory next to …".
+
 ## 4.4.0
 
 B.E.L.T. 4.4 is a rewrite that keeps the 4.x command line, config file and output files. It needs

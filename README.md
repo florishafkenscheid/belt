@@ -85,7 +85,7 @@ Every Factorio launch gets its own temporary configuration, so Factorio's log, s
 By default each save runs with the mods it was saved with, at the versions it recorded, using Factorio's own mod syncing. Mods you have installed are copied into BELT's mod folder; mods you don't have are downloaded from the mod portal. If a save recorded a mod version made for an older Factorio (a 2.0 mod on 2.1, say), BELT uses the newest version that works with your Factorio instead and prints a warning for every swap:
 
 ```text
-WARNING red_science: EditorExtensions 2.4.2 → 2.6.1 (2.4.2 is for Factorio 2.0)
+ WARN belt::factorio: red_science: EditorExtensions 2.4.2 → 2.6.1 (2.4.2 is for Factorio 2.0)
 ```
 
 A mod with no version that works with your Factorio fails that save, naming the mod. Pass `--mods-dir` to use one directory of mods for every save instead: each enabled mod then runs at the version that directory's `mod-list.json` pins, or else the newest one in it.
@@ -100,14 +100,14 @@ Run benchmarks on one or more save files.
 
 **Arguments:**
 
-- `[SAVES_DIR]` - The location of the save(s) to be benchmarked. Required unless `benchmark.saves_dir` is set in config.
+- `[SAVES_DIR]` - A directory of saves, or a single save file, to be benchmarked. Required unless `benchmark.saves_dir` is set in config.
 
 **Options:**
 | Option | Description | Default |
 | ------ | ----------- | ------- |
 | `--ticks <TICKS>` | How many ticks per run to run the benchmark for | `6000` |
 | `--runs <RUNS>` | How many runs per save file | `5` |
-| `--pattern <PATTERN>` | A pattern to match against when searching for save files in `<SAVES_DIR>` | `*` |
+| `--pattern <PATTERN>` | A glob matched against save names without `.zip` (`CHOAM`, `*car`) in `<SAVES_DIR>` | `*` |
 | `--output <OUTPUT_DIR>` | A directory to output the .csv and .md files to | `.` |
 | `--template-path <TEMPLATE>` | A Handlebars template for the report, instead of the built-in `results.md` | built-in |
 | `--mods-dir <MODS_DIR>` | A directory containing mods to be used for every save | each save's recorded mods |
@@ -125,7 +125,7 @@ Stamp blueprints into a base save.
 
 **Arguments:**
 
-- `<BLUEPRINTS_DIR>` - Directory containing blueprint files.
+- `<BLUEPRINTS_DIR>` - A directory of blueprint files, or a single blueprint file.
 - `<BASE_SAVE_PATH>` - Base save file to stamp blueprints into. It is never modified.
 
 **Options:**
@@ -164,12 +164,12 @@ Run saves for a while and report anything that would skew a benchmark, plus the 
 
 **Arguments:**
 
-- `[SAVES_DIR]` - The location of the save(s) to be sanitized. Required unless `sanitize.saves_dir` is set in config.
+- `[SAVES_DIR]` - A directory of saves, or a single save file, to be sanitized. Required unless `sanitize.saves_dir` is set in config.
 
 **Options:**
 | Option | Description | Default |
 | ------ | ----------- | ------- |
-| `--pattern <PATTERN>` | A pattern to match against when searching for save files in `<SAVES_DIR>` | `*` |
+| `--pattern <PATTERN>` | A glob matched against save names without `.zip` (`CHOAM`, `*car`) in `<SAVES_DIR>` | `*` |
 | `--ticks <TICKS>` | How many ticks to run the sanitization for | `3600` |
 | `--mods-dir <MODS_DIR>` | A directory containing mods to be used for every save | each save's recorded mods |
 | `--data-dir <DATA_DIR>` | If B.E.L.T. can't find your user data directory, pass it explicitly here. | OS default |
@@ -182,11 +182,11 @@ The report warns about pollution (enabled or present), enemy expansion, enemies 
 
 | Option                   | Description                             | Default                      |
 | ------------------------ | --------------------------------------- | ---------------------------- |
-| `--factorio-path <PATH>` | An explicit path to the Factorio binary | Auto-detected                |
+| `--factorio-path <PATH>` | An explicit path to the Factorio binary, or a script that starts it with its arguments | Auto-detected                |
 | `--config <CONFIG>`      | Path to config file (also `BELT_CONFIG`) | `~/.config/belt/config.toml` |
 | `--workspace-dir <DIR>`  | Where BELT keeps its mod folder and temporary run folders | OS data directory |
 | `--sanitizer-mod <DIR>`  | Use a local belt-sanitizer mod folder instead of the mod portal release | mod portal |
-| `--verbose`              | Shows every Factorio launch and its output | `false`                      |
+| `--verbose`              | Debug logging, including every Factorio launch and its output | `false`                      |
 | `--init-config`          | Initialize config directory             | n/a                          |
 | `--version`              | Print version                           | n/a                          |
 

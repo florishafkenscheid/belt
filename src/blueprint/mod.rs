@@ -88,7 +88,7 @@ pub fn run(
                 bot_count: settings.bot_count,
                 module_replacement: settings.module_replacement.clone(),
             };
-            eprintln!("stamping {name} ({} copies)", settings.count);
+            tracing::info!("stamping {name} ({} copies)", settings.count);
             let report = match stamper.stamp(&settings.base_save, &job, &output) {
                 Ok(report) => report,
                 Err(failure) if failure.reason == FailureReason::Interrupted => {
@@ -117,7 +117,7 @@ pub fn run(
         }
     }
     for warning in &outcome.warnings {
-        eprintln!("WARNING {warning}");
+        tracing::warn!("{warning}");
     }
     Ok(outcome)
 }

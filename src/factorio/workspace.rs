@@ -91,7 +91,7 @@ impl Workspace {
             }
             kill_marked(&dir);
             std::fs::remove_dir_all(&dir).map_err(io(&dir))?;
-            eprintln!(
+            tracing::info!(
                 "removed run directory {} left by an earlier belt",
                 dir.display()
             );
@@ -119,6 +119,11 @@ pub struct RunDir {
 }
 
 impl RunDir {
+    /// Factorio's write-data directory for this run (its log, saves and `player-data.json`).
+    pub fn write_data(&self) -> PathBuf {
+        self.path.join("data")
+    }
+
     pub fn path(&self) -> &Path {
         &self.path
     }
@@ -148,7 +153,7 @@ impl RunDir {
 impl Drop for RunDir {
     fn drop(&mut self) {
         if let Err(error) = std::fs::remove_dir_all(&self.path) {
-            eprintln!(
+            tracing::warn!(
                 "could not remove run directory {}: {error}; the next belt will remove it",
                 self.path.display()
             );
@@ -159,7 +164,7 @@ impl Drop for RunDir {
 /// Kills every process whose environment marks it as started by the run in `dir`, and logs each.
 fn kill_marked(dir: &Path) {
     let Ok(mut system) = System::new() else {
-        eprintln!(
+        tracing::warn!(
             "cannot inspect processes; anything Factorio started for {} may still run",
             dir.display()
         );
@@ -178,12 +183,12 @@ fn kill_marked(dir: &Path) {
         }
         let name = process.name().to_string_lossy();
         if process.kill() {
-            eprintln!(
+            tracing::warn!(
                 "killed {name} (pid {pid}), left running by Factorio of {}",
                 dir.display()
             );
         } else {
-            eprintln!(
+            tracing::warn!(
                 "could not kill {name} (pid {pid}), left running by Factorio of {}",
                 dir.display()
             );
@@ -210,7 +215,7 @@ impl RecordedProcess {
     /// PID is left alone.
     fn kill_if_alive(&self, dir: &Path) {
         let Ok(mut system) = System::new() else {
-            eprintln!(
+            tracing::warn!(
                 "cannot inspect processes; Factorio {} from {} may still run",
                 self.pid,
                 dir.display()
@@ -222,13 +227,13 @@ impl RecordedProcess {
         match system.process(pid) {
             Some(process) if process.start_time() == self.start_time => {
                 if process.kill() {
-                    eprintln!(
+                    tracing::warn!(
                         "killed Factorio (pid {}) left running by an earlier belt in {}",
                         self.pid,
                         dir.display()
                     );
                 } else {
-                    eprintln!(
+                    tracing::warn!(
                         "could not kill Factorio (pid {}) left running by an earlier belt",
                         self.pid
                     );

@@ -174,7 +174,7 @@ const FIELDS: &[Field] = &[
         "global",
         "verbose",
         Kind::Bool,
-        "Show Factorio's output and every command B.E.L.T. runs.",
+        "Debug logging, including Factorio's output and every command B.E.L.T. runs.",
     ),
     field(
         "global",

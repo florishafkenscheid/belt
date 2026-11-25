@@ -81,7 +81,7 @@ pub struct Failures {
 
 impl Failures {
     pub fn add(&mut self, name: &str, failure: RunFailure) {
-        eprintln!("FAILED {name}: {}", failure.reason);
+        tracing::error!("{name} failed: {}", failure.reason);
         self.entries.push((name.to_string(), failure));
     }
 
@@ -89,16 +89,15 @@ impl Failures {
         self.entries.is_empty()
     }
 
-    /// Each failed save with its reason and log tail, for the end of a command.
+    /// Each failed save with its reason and log tail, for the end of a command. One log
+    /// message, so it has no final newline.
     pub fn summary(&self) -> String {
-        let mut text = format!("{} failed:\n", self.entries.len());
+        let mut lines = vec![format!("{} failed:", self.entries.len())];
         for (name, failure) in &self.entries {
-            text.push_str(&format!("\n{name}: {}\n", failure.reason));
-            for line in &failure.log_tail {
-                text.push_str(&format!("  | {line}\n"));
-            }
+            lines.push(format!("\n{name}: {}", failure.reason));
+            lines.extend(failure.log_tail.iter().map(|line| format!("  | {line}")));
         }
-        text
+        lines.join("\n")
     }
 }
 
@@ -116,7 +115,7 @@ mod tests {
 
         assert_eq!(
             failures.summary(),
-            "1 failed:\n\na: Factorio exited with code 1\n  | Error: boom\n"
+            "1 failed:\n\na: Factorio exited with code 1\n  | Error: boom"
         );
     }
 }

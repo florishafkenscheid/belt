@@ -100,7 +100,7 @@ pub fn archive(save_name: &str, run_index: u32, run: &UprofRun, output_dir: &Pat
         .join(path_component(save_name))
         .join(format!("run_{run_index}"));
     if let Err(error) = std::fs::create_dir_all(&artifact_dir) {
-        eprintln!("WARNING cannot create {}: {error}", artifact_dir.display());
+        tracing::warn!("cannot create {}: {error}", artifact_dir.display());
     }
     let reports = run
         .report_paths
@@ -127,10 +127,7 @@ fn archive_report(original: &Path, copy: &Path) -> ReportArtifact {
         parse_error: None,
     };
     let parse_from = if !original.exists() {
-        eprintln!(
-            "WARNING the AMD uProf report {} does not exist",
-            original.display()
-        );
+        tracing::warn!("the AMD uProf report {} does not exist", original.display());
         artifact.copy_error = Some("report file does not exist".into());
         original.to_path_buf()
     } else {
@@ -140,8 +137,8 @@ fn archive_report(original: &Path, copy: &Path) -> ReportArtifact {
                 copy.to_path_buf()
             }
             Err(error) => {
-                eprintln!(
-                    "WARNING cannot copy the AMD uProf report {} to {}: {error}",
+                tracing::warn!(
+                    "cannot copy the AMD uProf report {} to {}: {error}",
                     original.display(),
                     copy.display()
                 );
@@ -156,8 +153,8 @@ fn archive_report(original: &Path, copy: &Path) -> ReportArtifact {
     {
         Ok(parsed) => artifact.parsed = Some(parsed),
         Err(error) => {
-            eprintln!(
-                "WARNING cannot read the AMD uProf report {}: {error}",
+            tracing::warn!(
+                "cannot read the AMD uProf report {}: {error}",
                 parse_from.display()
             );
             artifact.parse_error = Some(error);

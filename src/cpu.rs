@@ -19,7 +19,7 @@ impl CpuMonitor for SystemCpuMonitor {
             let mut system = match System::new() {
                 Ok(system) => system,
                 Err(error) => {
-                    eprintln!(
+                    tracing::warn!(
                         "cannot read CPU frequencies ({error}); this run has no cpu_freq.csv rows"
                     );
                     return Vec::new();

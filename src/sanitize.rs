@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use crate::failure::{FailureReason, Failures, RunFailure};
 use crate::protocol::{SanitizeJob, SanitizeReport};
 use crate::saves::Save;
+use crate::terminal::Progress;
 
 /// Runs one save with the job and returns the mod's report. Implemented by the Factorio
 /// adapter; the save is never written.
@@ -20,16 +21,11 @@ pub struct Outcome {
 
 pub fn run(job: &SanitizeJob, saves: &[Save], inspector: &mut dyn Inspector) -> Outcome {
     let mut outcome = Outcome::default();
+    let progress = Progress::new(saves.len());
     for (position, save) in saves.iter().enumerate() {
-        eprintln!(
-            "[{}/{}] sanitizing {} for {} ticks",
-            position + 1,
-            saves.len(),
-            save.name,
-            job.ticks
-        );
+        progress.start(position, &save.name);
         match inspector.sanitize(save, job) {
-            Ok(report) => print!("{}", render(&save.name, &report)),
+            Ok(report) => log(&save.name, &render(&report)),
             Err(failure) if failure.reason == FailureReason::Interrupted => {
                 outcome.interrupted = true;
                 break;
@@ -37,13 +33,38 @@ pub fn run(job: &SanitizeJob, saves: &[Save], inspector: &mut dyn Inspector) -> 
             Err(failure) => outcome.failures.add(&save.name, failure),
         }
     }
+    if outcome.interrupted {
+        progress.stop("Sanitization interrupted");
+    } else {
+        progress.finish("Sanitization complete!");
+    }
     outcome
 }
 
-/// The terminal report of one save. Problems are `WARNING` lines; flows leave out zero counts.
-pub fn render(name: &str, report: &SanitizeReport) -> String {
-    let mut lines = vec![format!("== {name} ==")];
-    let mut warn = |text: String| lines.push(format!("WARNING {text}"));
+/// One line of a save's terminal report.
+#[derive(Debug, PartialEq)]
+pub enum ReportLine {
+    /// Something that would skew a benchmark.
+    Problem(String),
+    /// A tracked item's or fluid's production and consumption.
+    Flow(String),
+}
+
+/// Logs a save's report under its name: problems as warnings, flows as information.
+fn log(name: &str, lines: &[ReportLine]) {
+    tracing::info!("== {name} ==");
+    for line in lines {
+        match line {
+            ReportLine::Problem(text) => tracing::warn!("{text}"),
+            ReportLine::Flow(text) => tracing::info!("{text}"),
+        }
+    }
+}
+
+/// The terminal report of one save. Flows leave out zero counts.
+pub fn render(report: &SanitizeReport) -> Vec<ReportLine> {
+    let mut lines = Vec::new();
+    let mut warn = |text: String| lines.push(ReportLine::Problem(text));
     if report.pollution_enabled {
         warn("pollution is enabled".into());
     }
@@ -90,7 +111,10 @@ pub fn render(name: &str, report: &SanitizeReport) -> String {
     let mut all_qualities: BTreeMap<&str, (f64, f64)> = BTreeMap::new();
     for item in &report.items {
         if let Some(text) = flow(item.produced, item.consumed) {
-            lines.push(format!("{} ({}): {text}", item.name, item.quality));
+            lines.push(ReportLine::Flow(format!(
+                "{} ({}): {text}",
+                item.name, item.quality
+            )));
         }
         let total = all_qualities.entry(&item.name).or_default();
         total.0 += item.produced;
@@ -98,16 +122,15 @@ pub fn render(name: &str, report: &SanitizeReport) -> String {
     }
     for (item, (produced, consumed)) in all_qualities {
         if let Some(text) = flow(produced, consumed) {
-            lines.push(format!("{item} (all qualities): {text}"));
+            lines.push(ReportLine::Flow(format!("{item} (all qualities): {text}")));
         }
     }
     for fluid in &report.fluids {
         if let Some(text) = flow(fluid.produced, fluid.consumed) {
-            lines.push(format!("{}: {text}", fluid.name));
+            lines.push(ReportLine::Flow(format!("{}: {text}", fluid.name)));
         }
     }
-    lines.push(String::new());
-    lines.join("\n")
+    lines
 }
 
 /// "produced X, consumed Y" without its zero parts, or nothing when both are zero.
@@ -157,8 +180,14 @@ mod tests {
         };
 
         assert_eq!(
-            render("s", &report),
-            "== s ==\niron-plate (normal): produced 10, consumed 4\niron-plate (rare): produced 2, consumed 1\niron-plate (all qualities): produced 12, consumed 5\nwater: produced 1500.5, consumed 1200\n"
+            render(&report),
+            [
+                "iron-plate (normal): produced 10, consumed 4",
+                "iron-plate (rare): produced 2, consumed 1",
+                "iron-plate (all qualities): produced 12, consumed 5",
+                "water: produced 1500.5, consumed 1200",
+            ]
+            .map(|text| ReportLine::Flow(text.into()))
         );
     }
 
@@ -170,8 +199,12 @@ mod tests {
         };
 
         assert_eq!(
-            render("s", &report),
-            "== s ==\niron-plate (normal): produced 10\niron-plate (all qualities): produced 10\n"
+            render(&report),
+            [
+                "iron-plate (normal): produced 10",
+                "iron-plate (all qualities): produced 10",
+            ]
+            .map(|text| ReportLine::Flow(text.into()))
         );
     }
 }
