@@ -107,7 +107,7 @@ Run benchmarks on one or more save files.
 | ------ | ----------- | ------- |
 | `--ticks <TICKS>` | How many ticks per run to run the benchmark for | `6000` |
 | `--runs <RUNS>` | How many runs per save file | `5` |
-| `--pattern <PATTERN>` | A pattern to match against when searching for save files in `<SAVES_DIR>` | `*` |
+| `--pattern <PATTERN>` | A glob matched against save names without `.zip` (`CHOAM`, `*car`) in `<SAVES_DIR>` | `*` |
 | `--output <OUTPUT_DIR>` | A directory to output the .csv and .md files to | `.` |
 | `--template-path <TEMPLATE>` | A Handlebars template for the report, instead of the built-in `results.md` | built-in |
 | `--mods-dir <MODS_DIR>` | A directory containing mods to be used for every save | each save's recorded mods |
@@ -169,7 +169,7 @@ Run saves for a while and report anything that would skew a benchmark, plus the 
 **Options:**
 | Option | Description | Default |
 | ------ | ----------- | ------- |
-| `--pattern <PATTERN>` | A pattern to match against when searching for save files in `<SAVES_DIR>` | `*` |
+| `--pattern <PATTERN>` | A glob matched against save names without `.zip` (`CHOAM`, `*car`) in `<SAVES_DIR>` | `*` |
 | `--ticks <TICKS>` | How many ticks to run the sanitization for | `3600` |
 | `--mods-dir <MODS_DIR>` | A directory containing mods to be used for every save | each save's recorded mods |
 | `--data-dir <DATA_DIR>` | If B.E.L.T. can't find your user data directory, pass it explicitly here. | OS default |

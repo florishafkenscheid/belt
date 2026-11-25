@@ -54,6 +54,15 @@ pub enum Kind {
 }
 
 impl Kind {
+    /// The glob a file name is matched against. A save pattern names saves without their
+    /// `.zip`, as 4.3.1 globbed `<dir>/<pattern>.zip`: `CHOAM` selects `CHOAM.zip`.
+    fn glob(self, pattern: &str) -> String {
+        match self {
+            Kind::Saves => format!("{pattern}.zip"),
+            Kind::Blueprints => pattern.to_string(),
+        }
+    }
+
     fn admits(self, path: &Path) -> bool {
         match self {
             Kind::Saves => path.extension().is_some_and(|extension| extension == "zip"),
@@ -70,8 +79,8 @@ impl Kind {
 }
 
 /// The files `path` names: `path` itself when it is a file (the pattern doesn't apply; a save
-/// must still be a `.zip`), or else the files directly in that directory whose name matches
-/// `pattern`, sorted by name. Matching nothing is an error, so a typo never yields an empty run.
+/// must still be a `.zip`), or else the files directly in that directory that `pattern` matches
+/// (see [`Kind::glob`]), sorted by name. Matching nothing is an error, so a typo never yields an empty run.
 pub fn select(path: &Path, pattern: &str, kind: Kind) -> Result<Vec<PathBuf>, SelectError> {
     if path.is_file() {
         if !kind.admits(path) {
@@ -80,7 +89,7 @@ pub fn select(path: &Path, pattern: &str, kind: Kind) -> Result<Vec<PathBuf>, Se
         return Ok(vec![path.into()]);
     }
     let dir = path;
-    let glob = glob::Pattern::new(pattern).map_err(|source| SelectError::Pattern {
+    let glob = glob::Pattern::new(&kind.glob(pattern)).map_err(|source| SelectError::Pattern {
         pattern: pattern.into(),
         source,
     })?;
@@ -141,6 +150,33 @@ mod tests {
         let selected = select(dir.path(), "base-*", Kind::Saves).unwrap();
 
         assert_eq!(names(selected), vec!["base-a.zip", "base-b.zip"]);
+    }
+
+    #[test]
+    fn a_save_pattern_matches_the_name_without_zip() {
+        let dir = dir_with(&["CHOAM.zip", "CHOAM-old.zip"]);
+
+        let selected = select(dir.path(), "CHOAM", Kind::Saves).unwrap();
+
+        assert_eq!(names(selected), vec!["CHOAM.zip"]);
+    }
+
+    #[test]
+    fn a_save_pattern_can_end_in_a_wildcard_before_the_zip() {
+        let dir = dir_with(&["clean_car.zip", "dirty_car.zip", "car_park.zip"]);
+
+        let selected = select(dir.path(), "*car", Kind::Saves).unwrap();
+
+        assert_eq!(names(selected), vec!["clean_car.zip", "dirty_car.zip"]);
+    }
+
+    #[test]
+    fn a_blueprint_pattern_matches_the_whole_file_name() {
+        let dir = dir_with(&["design_07.txt", "design_08.txt"]);
+
+        let selected = select(dir.path(), "*07*", Kind::Blueprints).unwrap();
+
+        assert_eq!(names(selected), vec!["design_07.txt"]);
     }
 
     #[test]
