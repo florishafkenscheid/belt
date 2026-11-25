@@ -1,5 +1,21 @@
 # Changelog
 
+## 4.4.1
+
+### Fixed
+
+- A single save file is accepted again wherever a saves directory is, as in 4.3.1
+  (`belt sanitize path/to/save.zip`), and so is a single blueprint file for `blueprint`. 4.4.0
+  refused both with "Not a directory".
+- `--sync-mods` downloads work again. Factorio 2.1.25 downloads a save's missing mods while it
+  syncs, as the identity in the run's own `player-data.json`, which was missing, so the mod portal
+  answered 403 "Token mismatch". Each sync now gets your mod portal username and token (only those
+  two fields) from Factorio's `player-data.json`. A failed sync prints its exit code as a number.
+- Terminal output looks as it did in 4.3.1 again: levelled, coloured log lines on stdout (4.4.0
+  printed its messages on stderr) and a progress bar with the time left for `benchmark` and
+  `sanitize`. `--verbose` (or `verbose` in the config file or `BELT_GLOBAL__VERBOSE`) shows
+  B.E.L.T.'s debug lines, including Factorio's own output. Output files are unchanged.
+
 ## 4.4.0
 
 B.E.L.T. 4.4 is a rewrite that keeps the 4.x command line, config file and output files. It needs
