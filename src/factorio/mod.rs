@@ -44,7 +44,9 @@ pub enum ModSource {
 
 #[derive(Debug, thiserror::Error)]
 pub enum FactorioError {
-    #[error("no Factorio data directory next to {0}")]
+    #[error(
+        "no Factorio data directory next to {0}, and Factorio started through it didn't name one"
+    )]
     NoInstallData(PathBuf),
     #[error(transparent)]
     Mods(#[from] ModsError),
@@ -88,7 +90,6 @@ pub struct FactorioOptions {
 
 pub struct Factorio {
     executable: PathBuf,
-    install_data: PathBuf,
     workspace: Workspace,
     cache: PathBuf,
     builtins: BTreeSet<String>,
@@ -116,9 +117,11 @@ impl Factorio {
             portal,
             command,
         } = options;
-        let install_data = discovery::install_data_dir(&executable)
-            .ok_or_else(|| FactorioError::NoInstallData(executable.clone()))?;
-        let version = read_version(&executable, &install_data, &workspace)?;
+        let version = read_version(&executable, &workspace)?;
+        let install_data = match discovery::install_data_dir(&executable) {
+            Some(dir) => dir,
+            None => ask_install_data(&executable, &workspace)?,
+        };
         launch::check(version, command)?;
         let cache = workspace.mod_cache();
         std::fs::create_dir_all(&cache).map_err(|source| ModsError::Io {
@@ -141,7 +144,6 @@ impl Factorio {
         Ok(Self {
             builtins: mods::builtins(&install_data)?,
             executable,
-            install_data,
             workspace,
             cache,
             source,
@@ -166,7 +168,7 @@ impl Factorio {
         args: &[OsString],
         on_line: impl FnMut(&str, &mut process::Stdin),
     ) -> Result<Finished, RunFailure> {
-        let config = write_config(run, &self.install_data).map_err(setup)?;
+        let config = write_config(run).map_err(setup)?;
         let mut command = Command::new(&self.executable);
         command
             .arg("-c")
@@ -375,13 +377,19 @@ impl Factorio {
 
 /// Writes the run's `config.ini`: the install's data, and write-data inside the run directory,
 /// so Factorio never writes to its own user data directory.
-fn write_config(run: &RunDir, install_data: &Path) -> std::io::Result<PathBuf> {
+/// Factorio's read-only data, relative to the binary Factorio runs as. Factorio resolves
+/// `__PATH__executable__` itself, so this holds when `--factorio-path` is a wrapper script.
+#[cfg(target_os = "macos")]
+const READ_DATA: &str = "__PATH__executable__/../data";
+#[cfg(not(target_os = "macos"))]
+const READ_DATA: &str = "__PATH__executable__/../../data";
+
+fn write_config(run: &RunDir) -> std::io::Result<PathBuf> {
     let write_data = run.write_data();
     std::fs::create_dir_all(write_data.join("saves"))?;
     let config = run.path().join("config.ini");
     let ini = format!(
-        "[path]\nread-data={}\nwrite-data={}\n",
-        install_data.display(),
+        "[path]\nread-data={READ_DATA}\nwrite-data={}\n",
         write_data.display()
     );
     std::fs::write(&config, ini)?;
@@ -389,17 +397,13 @@ fn write_config(run: &RunDir, install_data: &Path) -> std::io::Result<PathBuf> {
 }
 
 /// `factorio --version`, run with a run directory's config like every other launch.
-fn read_version(
-    executable: &Path,
-    install_data: &Path,
-    workspace: &Workspace,
-) -> Result<Version, FactorioError> {
+fn read_version(executable: &Path, workspace: &Workspace) -> Result<Version, FactorioError> {
     let fail = |message: String| FactorioError::Version {
         executable: executable.to_path_buf(),
         message,
     };
     let run = workspace.new_run()?;
-    let config = write_config(&run, install_data).map_err(|error| fail(error.to_string()))?;
+    let config = write_config(&run).map_err(|error| fail(error.to_string()))?;
     let output = Command::new(executable)
         .arg("-c")
         .arg(&config)
@@ -471,6 +475,44 @@ fn fetch_sanitizer(
         tracing::info!("downloaded {} {}", release.name, release.version);
     }
     Ok(mods::SanitizerSource::Zip(path))
+}
+
+/// Factorio's data directory, from the log header of a launch that ends at once (a sync of a
+/// save that doesn't exist), for an executable that isn't inside an install, such as a wrapper
+/// script.
+fn ask_install_data(executable: &Path, workspace: &Workspace) -> Result<PathBuf, FactorioError> {
+    let not_found = || FactorioError::NoInstallData(executable.to_path_buf());
+    let run = workspace.new_run()?;
+    let config = write_config(&run).map_err(|_| not_found())?;
+    let mods = run.path().join("mods");
+    std::fs::create_dir_all(&mods).map_err(|_| not_found())?;
+    let output = Command::new(executable)
+        .env(workspace::RUN_MARKER, run.path())
+        .arg("-c")
+        .arg(&config)
+        .arg("--mod-directory")
+        .arg(&mods)
+        .arg("--sync-mods")
+        .arg(run.path().join("no-save.zip"))
+        .stdin(std::process::Stdio::null())
+        .output()
+        .map_err(|_| not_found())?;
+    run.kill_leftovers();
+    let dir = read_data_path(&String::from_utf8_lossy(&output.stdout)).ok_or_else(not_found)?;
+    tracing::debug!(
+        "{} reads its data from {}",
+        executable.display(),
+        dir.display()
+    );
+    Ok(dir)
+}
+
+/// The `Read data path:` of a Factorio log header.
+fn read_data_path(log: &str) -> Option<PathBuf> {
+    log.lines()
+        .find_map(|line| line.split_once("Read data path: "))
+        .map(|(_, path)| PathBuf::from(path.trim()))
+        .filter(|dir| dir.join("base/info.json").is_file())
 }
 
 /// What `--sync-mods` found out about a save.
@@ -711,6 +753,19 @@ mod tests {
             tail: vec!["last line".into()],
             interrupted: false,
         }
+    }
+
+    #[test]
+    fn the_data_directory_is_read_from_factorios_log_header() {
+        let install = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(install.path().join("data/base")).unwrap();
+        std::fs::write(install.path().join("data/base/info.json"), "{}").unwrap();
+        let log = format!(
+            "   0.003 Config path: /tmp/run/config.ini\n   0.003 Read data path: {}\n   0.003 Write data path: /tmp/run/data [1/2MB]\n",
+            install.path().join("data").display()
+        );
+
+        assert_eq!(read_data_path(&log), Some(install.path().join("data")));
     }
 
     #[test]

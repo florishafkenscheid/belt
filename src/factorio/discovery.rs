@@ -89,9 +89,11 @@ pub fn default_data_dir(places: &Places) -> Result<PathBuf, DiscoveryError> {
     }
 }
 
-/// The install's read-only data directory, found next to the binary: `bin/x64/factorio` on
-/// Linux and Windows, `Contents/MacOS/factorio` on macOS.
+/// The install's read-only data directory, found next to the binary (a symbolic link is
+/// followed to it): `bin/x64/factorio` on Linux and Windows, `Contents/MacOS/factorio` on macOS.
+/// `None` for an executable outside an install, such as a wrapper script.
 pub fn install_data_dir(executable: &Path) -> Option<PathBuf> {
+    let executable = executable.canonicalize().ok()?;
     let binary_dir = executable.parent()?;
     [binary_dir.join("../../data"), binary_dir.join("../data")]
         .into_iter()
@@ -138,6 +140,25 @@ mod tests {
                 },
             )
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_link_to_the_binary_finds_the_data_next_to_the_binary() {
+        let tree = Tree::new();
+        let binary = tree.root().join("factorio/bin/x64/factorio");
+        tree.touch(&binary);
+        tree.touch(&tree.root().join("factorio/data/base/info.json"));
+        let link = tree.home().join("bin/factorio");
+        std::fs::create_dir_all(link.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(&binary, &link).unwrap();
+
+        let data = install_data_dir(&link).unwrap();
+
+        assert_eq!(
+            data.canonicalize().unwrap(),
+            tree.root().join("factorio/data").canonicalize().unwrap()
+        );
     }
 
     #[test]

@@ -621,6 +621,35 @@ fn failed_saves_are_listed_with_their_log_tail_and_the_exit_code_is_non_zero() {
     assert!(output.status.code() == Some(1) && listed, "{log}");
 }
 
+#[cfg(unix)]
+#[test]
+#[ignore = "runs Factorio"]
+fn factorio_started_through_a_wrapper_script_benchmarks() {
+    use std::os::unix::fs::PermissionsExt;
+    let mut sandbox = Sandbox::new();
+    let save = sandbox.create_save("plain", None);
+    let wrapper = sandbox.path("bin/factorio");
+    std::fs::create_dir_all(wrapper.parent().unwrap()).unwrap();
+    let script = format!("#!/bin/sh\n'{}' \"$@\"\n", sandbox.factorio.display());
+    std::fs::write(&wrapper, script).unwrap();
+    std::fs::set_permissions(&wrapper, std::fs::Permissions::from_mode(0o755)).unwrap();
+    sandbox.factorio = wrapper;
+    let out = sandbox.path("bench");
+
+    let output = sandbox.belt(&[
+        "benchmark",
+        save.to_str().unwrap(),
+        "--ticks",
+        "10",
+        "--runs",
+        "1",
+        "--output",
+        out.to_str().unwrap(),
+    ]);
+
+    assert_eq!(output.status.code(), Some(0), "{}", common::log(&output));
+}
+
 #[test]
 #[ignore = "runs Factorio"]
 fn a_failed_sync_without_a_portal_token_says_so_with_its_exit_code() {
