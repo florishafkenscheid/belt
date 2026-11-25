@@ -100,7 +100,7 @@ Run benchmarks on one or more save files.
 
 **Arguments:**
 
-- `[SAVES_DIR]` - The location of the save(s) to be benchmarked. Required unless `benchmark.saves_dir` is set in config.
+- `[SAVES_DIR]` - A directory of saves, or a single save file, to be benchmarked. Required unless `benchmark.saves_dir` is set in config.
 
 **Options:**
 | Option | Description | Default |
@@ -125,7 +125,7 @@ Stamp blueprints into a base save.
 
 **Arguments:**
 
-- `<BLUEPRINTS_DIR>` - Directory containing blueprint files.
+- `<BLUEPRINTS_DIR>` - A directory of blueprint files, or a single blueprint file.
 - `<BASE_SAVE_PATH>` - Base save file to stamp blueprints into. It is never modified.
 
 **Options:**
@@ -164,7 +164,7 @@ Run saves for a while and report anything that would skew a benchmark, plus the 
 
 **Arguments:**
 
-- `[SAVES_DIR]` - The location of the save(s) to be sanitized. Required unless `sanitize.saves_dir` is set in config.
+- `[SAVES_DIR]` - A directory of saves, or a single save file, to be sanitized. Required unless `sanitize.saves_dir` is set in config.
 
 **Options:**
 | Option | Description | Default |

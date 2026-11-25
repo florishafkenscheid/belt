@@ -83,7 +83,7 @@ pub enum CommandKind {
 
 #[derive(Debug, Args)]
 pub struct BenchmarkArgs {
-    /// Directory containing save files to benchmark
+    /// Directory containing save files to benchmark, or a single save file
     #[arg(value_name = "SAVES_DIR")]
     pub saves_dir: Option<PathBuf>,
     #[arg(long, help = "Number of ticks to run each benchmark")]
@@ -125,7 +125,7 @@ pub struct BenchmarkArgs {
 
 #[derive(Debug, Args)]
 pub struct BlueprintArgs {
-    /// Directory containing blueprint files
+    /// Directory containing blueprint files, or a single blueprint file
     pub blueprints_dir: PathBuf,
     /// Path to the base save file for blueprint testing
     pub base_save_path: PathBuf,
@@ -153,7 +153,7 @@ pub struct BlueprintArgs {
 
 #[derive(Debug, Args)]
 pub struct SanitizeArgs {
-    /// Directory containing save files to sanitize
+    /// Directory containing save files to sanitize, or a single save file
     #[arg(value_name = "SAVES_DIR")]
     pub saves_dir: Option<PathBuf>,
     #[arg(long, help = "Pattern to filter save files")]

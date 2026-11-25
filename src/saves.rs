@@ -34,6 +34,8 @@ pub enum SelectError {
         dir: PathBuf,
         source: std::io::Error,
     },
+    #[error("{path} is not a save: saves are .zip files")]
+    NotASave { path: PathBuf },
     #[error("no {what} in {dir} match {pattern:?}")]
     NothingMatched {
         what: &'static str,
@@ -67,9 +69,17 @@ impl Kind {
     }
 }
 
-/// Files directly in `dir` whose name matches `pattern`, sorted by name. Matching nothing is
-/// an error, so a typo never yields an empty run.
-pub fn select(dir: &Path, pattern: &str, kind: Kind) -> Result<Vec<PathBuf>, SelectError> {
+/// The files `path` names: `path` itself when it is a file (the pattern doesn't apply; a save
+/// must still be a `.zip`), or else the files directly in that directory whose name matches
+/// `pattern`, sorted by name. Matching nothing is an error, so a typo never yields an empty run.
+pub fn select(path: &Path, pattern: &str, kind: Kind) -> Result<Vec<PathBuf>, SelectError> {
+    if path.is_file() {
+        if !kind.admits(path) {
+            return Err(SelectError::NotASave { path: path.into() });
+        }
+        return Ok(vec![path.into()]);
+    }
+    let dir = path;
     let glob = glob::Pattern::new(pattern).map_err(|source| SelectError::Pattern {
         pattern: pattern.into(),
         source,
@@ -131,6 +141,33 @@ mod tests {
         let selected = select(dir.path(), "base-*", Kind::Saves).unwrap();
 
         assert_eq!(names(selected), vec!["base-a.zip", "base-b.zip"]);
+    }
+
+    #[test]
+    fn a_save_file_is_selected_on_its_own() {
+        let dir = dir_with(&["base-a.zip", "base-b.zip"]);
+
+        let selected = select(&dir.path().join("base-a.zip"), "other-*", Kind::Saves).unwrap();
+
+        assert_eq!(names(selected), vec!["base-a.zip"]);
+    }
+
+    #[test]
+    fn a_file_that_is_not_a_zip_is_not_a_save() {
+        let dir = dir_with(&["notes.txt"]);
+
+        let result = select(&dir.path().join("notes.txt"), "*", Kind::Saves);
+
+        assert!(matches!(result, Err(SelectError::NotASave { .. })));
+    }
+
+    #[test]
+    fn a_blueprint_file_is_selected_on_its_own() {
+        let dir = dir_with(&["design.txt"]);
+
+        let selected = select(&dir.path().join("design.txt"), "*", Kind::Blueprints).unwrap();
+
+        assert_eq!(names(selected), vec!["design.txt"]);
     }
 
     #[test]
