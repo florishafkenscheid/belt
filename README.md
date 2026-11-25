@@ -182,7 +182,7 @@ The report warns about pollution (enabled or present), enemy expansion, enemies 
 
 | Option                   | Description                             | Default                      |
 | ------------------------ | --------------------------------------- | ---------------------------- |
-| `--factorio-path <PATH>` | An explicit path to the Factorio binary | Auto-detected                |
+| `--factorio-path <PATH>` | An explicit path to the Factorio binary, or a script that starts it with its arguments | Auto-detected                |
 | `--config <CONFIG>`      | Path to config file (also `BELT_CONFIG`) | `~/.config/belt/config.toml` |
 | `--workspace-dir <DIR>`  | Where BELT keeps its mod folder and temporary run folders | OS data directory |
 | `--sanitizer-mod <DIR>`  | Use a local belt-sanitizer mod folder instead of the mod portal release | mod portal |

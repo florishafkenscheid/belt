@@ -15,6 +15,17 @@
   printed its messages on stderr) and a progress bar with the time left for `benchmark` and
   `sanitize`. `--verbose` (or `verbose` in the config file or `BELT_GLOBAL__VERBOSE`) shows
   B.E.L.T.'s debug lines, including Factorio's own output. Output files are unchanged.
+- `--pattern` matches save names without `.zip` again, as in 4.3.1: `--pattern CHOAM` selects
+  `CHOAM.zip` and `--pattern '*car'` selects `clean_car.zip`. 4.4.0 matched the whole file name,
+  so both selected nothing. (A 4.4.0-style pattern ending in `.zip` now selects nothing.) Blueprint
+  patterns still match the whole file name, as in 4.3.1.
+- A save whose mods are all installed syncs again without a mod portal token, as in 4.3.1. The sync
+  now sees your installed mods (through links; nothing is copied or changed in your mods
+  directory), so Factorio only downloads what is really missing. A mod that is missing with no
+  token still fails the save, which names the mod.
+- `--factorio-path` accepts a wrapper script again (for mimalloc, hugepages or AMD uProf, as the
+  README describes), and a symbolic link to the Factorio binary. 4.4.0 refused both with "no
+  Factorio data directory next to …".
 
 ## 4.4.0
 
