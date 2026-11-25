@@ -158,10 +158,11 @@ impl Factorio {
         self.workspace.new_run().map_err(setup)
     }
 
-    /// Runs Factorio in `run` with B.E.L.T.'s config and mod cache.
+    /// Runs Factorio in `run` with B.E.L.T.'s config and `mods` as its mod directory.
     fn spawn(
         &self,
         run: &RunDir,
+        mods: &Path,
         args: &[OsString],
         on_line: impl FnMut(&str, &mut process::Stdin),
     ) -> Result<Finished, RunFailure> {
@@ -171,7 +172,7 @@ impl Factorio {
             .arg("-c")
             .arg(&config)
             .arg("--mod-directory")
-            .arg(&self.cache)
+            .arg(mods)
             .args(args);
         self.supervisor.run(command, run, on_line)
     }
@@ -196,9 +197,9 @@ impl Factorio {
     /// [`mods::resolve`]). Downloads use the user's portal token. Every swap of a version made for
     /// another Factorio is a warning; a mod with no version that loads fails the save.
     fn recorded_mods(&self, save: &Path, user_mods: &Path) -> Result<ModSet, RunFailure> {
-        let entries = self.sync(save)?;
+        let synced = self.sync(save, user_mods)?;
         let mut set =
-            mods::needed(&entries, &self.cached()?, &self.builtins).map_err(mods_failure)?;
+            mods::needed(&synced.entries, &synced.present, &self.builtins).map_err(mods_failure)?;
         let available = self.available(user_mods)?;
         let mut resolution = mods::resolve(&set.mods, &available, &[], self.version);
         if !resolution.missing.is_empty() {
@@ -261,7 +262,7 @@ impl Factorio {
             tracing::warn!("{name}: {swap}");
         }
         set.mods = resolution.chosen;
-        set.settings = mods::read_settings(&self.cache).map_err(setup)?;
+        set.settings = synced.settings;
         Ok(set)
     }
 
@@ -278,14 +279,19 @@ impl Factorio {
         mods::installed(&self.cache).map_err(setup)
     }
 
-    /// `--sync-mods`: Factorio writes the save's recorded mods into the cache's `mod-list.json`
-    /// (and its startup settings into `mod-settings.dat`). Factorio 2.1.25 also downloads missing
-    /// mods during the sync, as the run's own `player-data.json` identity, so the run gets the
-    /// user's portal username and token when they have one. Without one, a sync that needs a
-    /// download fails, and the failure says the token was missing. Versions the sync leaves out
-    /// are B.E.L.T.'s own downloads (see `recorded_mods`).
-    fn sync(&self, save: &Path) -> Result<Vec<mods::ListEntry>, RunFailure> {
+    /// `--sync-mods`: Factorio writes the save's recorded mods into a `mod-list.json` (and its
+    /// startup settings into `mod-settings.dat`) in a folder of its own, which links to the
+    /// user's installed mods and the cache's (see [`mods::link_mods`]), so nothing installed is
+    /// downloaded. Factorio 2.1.25 downloads what is missing during the sync, as the run's own
+    /// `player-data.json` identity, so the run gets the user's portal username and token when
+    /// they have one; its downloads move into the cache. Without a token, a sync that needs a
+    /// download fails, naming the mods and the missing token. Versions the sync leaves out are
+    /// B.E.L.T.'s own downloads (see `recorded_mods`).
+    fn sync(&self, save: &Path, user_mods: &Path) -> Result<Synced, RunFailure> {
         let run = self.new_run()?;
+        let sync_mods = run.path().join("sync-mods");
+        let linked =
+            mods::link_mods(&[user_mods, &self.cache], &sync_mods, self.version).map_err(setup)?;
         let credentials = mods::read_credentials(&self.player_data);
         if let Ok(credentials) = &credentials {
             credentials
@@ -294,6 +300,7 @@ impl Factorio {
         }
         let finished = self.spawn(
             &run,
+            &sync_mods,
             &[OsString::from("--sync-mods"), save.into()],
             |_, _| {},
         )?;
@@ -306,6 +313,13 @@ impl Factorio {
                 None => "Factorio was killed by a signal while syncing the save's mods".to_string(),
             };
             if let Err(error) = credentials {
+                let downloads = portal_downloads(&finished.tail);
+                if !downloads.is_empty() {
+                    reason.push_str(&format!(
+                        "; it had to download {} from the mod portal",
+                        downloads.join(", ")
+                    ));
+                }
                 reason.push_str(&format!(
                     "; it ran without a mod portal identity, as there is {error}"
                 ));
@@ -315,7 +329,14 @@ impl Factorio {
                 finished.tail,
             ));
         }
-        mods::read_mod_list(&self.cache).map_err(setup)
+        for name in mods::adopt_downloads(&sync_mods, &linked, &self.cache).map_err(setup)? {
+            tracing::info!("downloaded {name}");
+        }
+        Ok(Synced {
+            entries: mods::read_mod_list(&sync_mods).map_err(setup)?,
+            present: mods::installed(&sync_mods).map_err(setup)?,
+            settings: mods::read_settings(&sync_mods).map_err(setup)?,
+        })
     }
 
     fn sanitizer(&self) -> Result<&mods::SanitizerSource, RunFailure> {
@@ -339,7 +360,7 @@ impl Factorio {
         mods::prepare_run(&self.cache, &self.builtins, &set, Sanitizer::Enabled).map_err(setup)?;
         let mut mod_run = ModRun::default();
         let mut quit_sent = false;
-        let finished = self.spawn(run, args, |line, stdin| {
+        let finished = self.spawn(run, &self.cache, args, |line, stdin| {
             let answered = mod_run.line(line);
             if answered && ending == Ending::Quit && !quit_sent {
                 quit_sent = true;
@@ -450,6 +471,30 @@ fn fetch_sanitizer(
         tracing::info!("downloaded {} {}", release.name, release.version);
     }
     Ok(mods::SanitizerSource::Zip(path))
+}
+
+/// What `--sync-mods` found out about a save.
+struct Synced {
+    /// The save's recorded mods, as the sync listed them.
+    entries: Vec<mods::ListEntry>,
+    /// Every mod the sync saw installed, its own downloads included.
+    present: Vec<mods::InstalledMod>,
+    /// The save's startup settings.
+    settings: Option<Vec<u8>>,
+}
+
+/// The mods a failed sync tried to download, by name, from the log lines Factorio prints for
+/// each download (`Downloading /download/<name>/…`).
+fn portal_downloads(log: &[String]) -> Vec<String> {
+    let mut names: Vec<String> = log
+        .iter()
+        .filter_map(|line| line.split_once("Downloading /download/"))
+        .filter_map(|(_, rest)| rest.split('/').next())
+        .map(String::from)
+        .collect();
+    names.sort();
+    names.dedup();
+    names
 }
 
 /// How a mod run ends once the mod has answered.
@@ -565,7 +610,7 @@ impl BenchmarkRunner for Factorio {
         let args = benchmark_args(save, request);
         let run = self.new_run()?;
         let mut parser = BenchmarkParser::default();
-        let finished = self.spawn(&run, &args, |line, _| parser.line(line))?;
+        let finished = self.spawn(&run, &self.cache, &args, |line, _| parser.line(line))?;
         if finished.interrupted {
             return Err(RunFailure::with_tail(
                 FailureReason::Interrupted,
@@ -666,6 +711,21 @@ mod tests {
             tail: vec!["last line".into()],
             interrupted: false,
         }
+    }
+
+    #[test]
+    fn a_failed_sync_names_the_mods_it_tried_to_download() {
+        let tail = [
+            "   0.841 Info ModPortal.cpp:612: Downloading /download/region-cloner/6a4c?username=<private>&token=<private> to /tmp/region-cloner_3.4.1.zip",
+            "   0.842 Info ModPortal.cpp:612: Downloading /download/Delete-Chunk-Tool/77ab?username=<private>&token=<private> to /tmp/x.zip",
+            "   1.279 Info HttpSharedState.cpp:187: Status code: 403",
+        ]
+        .map(String::from);
+
+        assert_eq!(
+            portal_downloads(&tail),
+            ["Delete-Chunk-Tool", "region-cloner"]
+        );
     }
 
     fn reason<T: std::fmt::Debug>(result: Result<T, RunFailure>) -> FailureReason {
