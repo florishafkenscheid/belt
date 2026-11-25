@@ -401,6 +401,33 @@ fn a_recorded_mod_missing_at_its_version_everywhere_fails_naming_it() {
     assert!(output.status.code() == Some(1) && named, "{stderr}");
 }
 
+#[test]
+#[ignore = "runs Factorio"]
+fn the_mod_sync_runs_as_the_users_mod_portal_identity() {
+    let sandbox = Sandbox::new();
+    let player_data = json!({ "service-username": "belt-test", "service-token": "not-a-token" });
+    std::fs::write(
+        sandbox.path("factorio-data/player-data.json"),
+        player_data.to_string(),
+    )
+    .unwrap();
+    let save = sandbox.create_save("plain", None);
+
+    let output = sandbox.belt(&[
+        "--verbose",
+        "sanitize",
+        save.to_str().unwrap(),
+        "--ticks",
+        "10",
+    ]);
+
+    let printed = format!("{}{}", text(&output.stdout), text(&output.stderr));
+    assert!(
+        printed.contains("Local player-data.json available"),
+        "{printed}"
+    );
+}
+
 /// One sanitize run of the world fixture, shared by the sanitize tests.
 struct World {
     _sandbox: Sandbox,
@@ -592,6 +619,25 @@ fn failed_saves_are_listed_with_their_log_tail_and_the_exit_code_is_non_zero() {
     let stderr = text(&output.stderr);
     let listed = stderr.contains("\nbroken: ") && stderr.contains("  | ");
     assert!(output.status.code() == Some(1) && listed, "{stderr}");
+}
+
+#[test]
+#[ignore = "runs Factorio"]
+fn a_failed_sync_without_a_portal_token_says_so_with_its_exit_code() {
+    let sandbox = Sandbox::new(); // its player-data.json has no token
+    let broken = sandbox.path("saves/broken.zip");
+    std::fs::create_dir_all(broken.parent().unwrap()).unwrap();
+    std::fs::write(&broken, "not a save").unwrap();
+
+    let output = sandbox.belt(&["sanitize", broken.to_str().unwrap(), "--ticks", "10"]);
+
+    let stderr = text(&output.stderr);
+    assert!(
+        stderr.contains(
+            "(exit code 1); it ran without a mod portal identity, as there is no mod portal token"
+        ),
+        "{stderr}"
+    );
 }
 
 #[test]

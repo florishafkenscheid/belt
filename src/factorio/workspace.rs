@@ -119,6 +119,11 @@ pub struct RunDir {
 }
 
 impl RunDir {
+    /// Factorio's write-data directory for this run (its log, saves and `player-data.json`).
+    pub fn write_data(&self) -> PathBuf {
+        self.path.join("data")
+    }
+
     pub fn path(&self) -> &Path {
         &self.path
     }

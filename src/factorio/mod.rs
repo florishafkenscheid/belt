@@ -286,10 +286,19 @@ impl Factorio {
     }
 
     /// `--sync-mods`: Factorio writes the save's recorded mods into the cache's `mod-list.json`
-    /// (and its startup settings into `mod-settings.dat`). Downloads are B.E.L.T.'s own (see
-    /// `portal`): with a token, Factorio 2.1.19's sync still downloaded nothing (research.md).
+    /// (and its startup settings into `mod-settings.dat`). Factorio 2.1.25 also downloads missing
+    /// mods during the sync, as the run's own `player-data.json` identity, so the run gets the
+    /// user's portal username and token when they have one. Without one, a sync that needs a
+    /// download fails, and the failure says the token was missing. Versions the sync leaves out
+    /// are B.E.L.T.'s own downloads (see `recorded_mods`).
     fn sync(&self, save: &Path) -> Result<Vec<mods::ListEntry>, RunFailure> {
         let run = self.new_run()?;
+        let credentials = mods::read_credentials(&self.player_data);
+        if let Ok(credentials) = &credentials {
+            credentials
+                .write_player_data(&run.write_data())
+                .map_err(setup)?;
+        }
         let finished = self.spawn(
             &run,
             &[OsString::from("--sync-mods"), save.into()],
@@ -299,10 +308,15 @@ impl Factorio {
             return Err(RunFailure::new(FailureReason::Interrupted));
         }
         if finished.code != Some(0) {
-            let reason = format!(
-                "Factorio could not sync the save's mods (exit code {:?})",
-                finished.code
-            );
+            let mut reason = match finished.code {
+                Some(code) => format!("Factorio could not sync the save's mods (exit code {code})"),
+                None => "Factorio was killed by a signal while syncing the save's mods".to_string(),
+            };
+            if let Err(error) = credentials {
+                reason.push_str(&format!(
+                    "; it ran without a mod portal identity, as there is {error}"
+                ));
+            }
             return Err(RunFailure::with_tail(
                 FailureReason::Mods(reason),
                 finished.tail,
@@ -348,7 +362,7 @@ impl Factorio {
 /// Writes the run's `config.ini`: the install's data, and write-data inside the run directory,
 /// so Factorio never writes to its own user data directory.
 fn write_config(run: &RunDir, install_data: &Path) -> std::io::Result<PathBuf> {
-    let write_data = run.path().join("data");
+    let write_data = run.write_data();
     std::fs::create_dir_all(write_data.join("saves"))?;
     let config = run.path().join("config.ini");
     let ini = format!(

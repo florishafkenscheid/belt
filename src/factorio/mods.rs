@@ -668,6 +668,24 @@ pub fn read_credentials(player_data: &Path) -> Result<Credentials, String> {
     }
 }
 
+impl Credentials {
+    /// Writes a `player-data.json` into `write_data` holding only these two fields, so a run's
+    /// `--sync-mods` downloads as the user. Readable by the owner only, on Unix.
+    pub fn write_player_data(&self, write_data: &Path) -> std::io::Result<()> {
+        let json = serde_json::json!({
+            "service-username": self.username,
+            "service-token": self.token,
+        });
+        std::fs::create_dir_all(write_data)?;
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        let mut file = options.open(write_data.join("player-data.json"))?;
+        std::io::Write::write_all(&mut file, json.to_string().as_bytes())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -863,6 +881,29 @@ mod tests {
         let error = read_credentials(&path).unwrap_err();
 
         assert!(error.contains(&path.display().to_string()), "{error}");
+    }
+
+    #[test]
+    fn a_runs_player_data_holds_only_the_portal_identity() {
+        let (user, run) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let path = user.path().join("player-data.json");
+        let player_data = json!({
+            "service-username": "someone", "service-token": "secret", "last-played-version": {},
+        });
+        std::fs::write(&path, player_data.to_string()).unwrap();
+
+        read_credentials(&path)
+            .unwrap()
+            .write_player_data(run.path())
+            .unwrap();
+
+        let written: Value =
+            serde_json::from_slice(&std::fs::read(run.path().join("player-data.json")).unwrap())
+                .unwrap();
+        assert_eq!(
+            written,
+            json!({ "service-username": "someone", "service-token": "secret" })
+        );
     }
 
     #[test]
