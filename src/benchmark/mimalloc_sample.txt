@@ -1,0 +1,22 @@
+heap stats:     peak       total     current       block      total#
+  reserved:     2.1 GiB    2.3 GiB    2.0 GiB
+ committed:   800.0 MiB    1.2 GiB  700.0 MiB
+     reset:       0
+    purged:       0
+   touched:   500.0 MiB  900.0 MiB  400.0 MiB   not all freed
+     pages:      1.5 Ki     3.2 Ki     1.1 Ki   not all freed
+-abandoned:       12         40          5      not all freed
+ -cached:        3          7          1
+ -extended:      0          0          0
+   -retire:      0          0          0
+    arenas:      4          4          4
+ -crossover:     0
+  -rollback:     0
+     mmaps:     18
+   commits:     52
+   mmaps:     18   commits:     52   resets:      0   purges:      0
+   threads:     16         21          4      not all freed
+  searches:     0.0 avg
+numa nodes:     1
+   elapsed:     7.412 s
+   process: user: 9.1 s, system: 0.4 s, faults: 12, peak rss: 400.0 MiB, peak commit: 812.0 MiB
