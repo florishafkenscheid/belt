@@ -1,472 +1,304 @@
-//! Main binary entrypoint for the BELT benchmarking tool.
-//!
-//! Parses CLI arguments, sets up logging, and dispatches to subcommands.
-
 mod benchmark;
 mod blueprint;
-mod core;
+mod cli;
+mod config;
+mod cpu;
+mod factorio;
+mod failure;
+mod protocol;
 mod sanitize;
+mod saves;
+mod version;
 
-use crate::core::{
-    GlobalConfig, Result, RunOrder,
-    config::{self, BenchmarkConfig, BlueprintConfig, SanitizeConfig},
-    error::BenchmarkErrorKind,
-};
-use clap::{CommandFactory, Parser, Subcommand};
-use std::{
-    path::{Path, PathBuf},
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-};
+use std::path::{Path, PathBuf};
+use std::process::ExitCode;
 
-#[derive(Parser)]
-#[command(name = "belt")]
-#[command(about = "Factorio benchmarking tool")]
-struct Cli {
-    #[command(subcommand)]
-    command: Option<Commands>,
+use clap::{CommandFactory, Parser};
+use directories::BaseDirs;
 
-    #[arg(
-        long,
-        global = true,
-        help_heading = "Global Options",
-        help = "Path to Factorio executable"
-    )]
-    factorio_path: Option<PathBuf>,
+use cli::{Cli, CommandKind};
+use config::{ConfigFile, Settings, required, split_list};
+use factorio::discovery::{self, Places};
+use factorio::launch::Command;
+use factorio::portal::Portal;
+use factorio::workspace::Workspace;
+use factorio::{Factorio, FactorioOptions, ModSource, SanitizerMod};
+use failure::Failures;
+use protocol::{ItemWithQuality, SanitizeJob};
+use saves::{Kind, Save};
 
-    #[arg(
-        long,
-        global = true,
-        help_heading = "Global Options",
-        help = "Enable verbose logging"
-    )]
-    verbose: bool,
+/// Exit codes: every save succeeded; a save failed or Ctrl-C stopped the command; the command
+/// itself couldn't run.
+const SUCCESS: u8 = 0;
+const SAVES_FAILED: u8 = 1;
+const COMMAND_FAILED: u8 = 2;
 
-    #[arg(
-        long,
-        global = true,
-        help_heading = "Global Options",
-        help = "Path to config file (default: ~/.config/belt/config.toml)"
-    )]
-    config: Option<PathBuf>,
-
-    #[arg(
-        long,
-        help_heading = "Global Options",
-        help = "Initialize config directory with example config"
-    )]
-    init_config: bool,
-
-    #[arg(
-        long,
-        help_heading = "Global Options",
-        help = "Prints the BELT binary's version"
-    )]
-    version: bool,
-
-    #[arg(
-        long,
-        global = true,
-        help_heading = "Global Options",
-        help = "Run Factorio in headless mode"
-    )]
-    headless: bool,
-}
-
-#[derive(Subcommand)]
-enum Commands {
-    #[command(next_help_heading = "Benchmark Options")]
-    Benchmark {
-        /// Directory containing save files to benchmark
-        #[arg(value_name = "SAVES_DIR")]
-        saves_dir: Option<PathBuf>,
-
-        #[arg(long, help = "Number of ticks to run each benchmark")]
-        ticks: Option<u32>,
-
-        #[arg(long, help = "Number of benchmark runs per save file")]
-        runs: Option<u32>,
-
-        #[arg(long, help = "Pattern to filter save files")]
-        pattern: Option<String>,
-
-        #[arg(long, help = "Output directory or file path")]
-        output: Option<PathBuf>,
-
-        #[arg(long, help = "Path to handlebars report template")]
-        template_path: Option<PathBuf>,
-
-        #[arg(long, help = "Directory containing mods to use")]
-        mods_dir: Option<PathBuf>,
-
-        #[arg(
-            long,
-            help = "Execution order: sequential (A,B,A,B), random (A,B,B,A), or grouped (A,A,B,B)"
-        )]
-        run_order: Option<RunOrder>,
-
-        #[arg(
-            long,
-            value_delimiter = ',',
-            help = "Export per-tick CSV data for specified Factorio benchmark metrics (e.g., 'wholeUpdate,gameUpdate'). Use 'all' to export all metrics."
-        )]
-        verbose_metrics: Option<Vec<String>>,
-
-        #[arg(long, help = "Prefix to strip from save file names in output")]
-        strip_prefix: Option<String>,
-
-        #[arg(long, help = "Record CPU frequency data during benchmark runs")]
-        record_cpu: bool,
-
-        #[arg(
-            long,
-            help = "Append the results of this benchmark to existing belt data as specified by --output",
-            long_help = "Append benchmark rows to existing output CSV files. Existing CSV headers must match the current output format and selected verbose metrics. Reports are regenerated from available CSV data, so details not stored in results.csv may not be preserved."
-        )]
-        append: bool,
-
-        #[arg(long, help = "Write verbose metric CSVs zstd-compressed (.csv.zst)")]
-        compress: bool,
-    },
-    #[command(next_help_heading = "Blueprint Options")]
-    Blueprint {
-        /// Directory containing blueprint files
-        blueprints_dir: PathBuf,
-
-        /// Path to the base save file for blueprint testing
-        base_save_path: PathBuf,
-
-        #[arg(long, help = "Number of blueprints to test")]
-        count: Option<u32>,
-
-        #[arg(long, help = "Number of buffer ticks before measuring")]
-        buffer_ticks: Option<u32>,
-
-        #[arg(long, default_value = "speed-module-3")]
-        mining_module_replacement: String,
-
-        #[arg(long, default_value = "legendary")]
-        mining_module_replacement_quality: String,
-
-        #[arg(long, help = "Directory containing mods to use")]
-        mods_dir: Option<PathBuf>,
-
-        #[arg(long, help = "Prefix for output file names")]
-        prefix: Option<String>,
-
-        #[arg(long, help = "Pattern to filter blueprint files")]
-        pattern: Option<String>,
-
-        #[arg(long, help = "Output directory or file path")]
-        output: Option<PathBuf>,
-
-        #[arg(long, help = "Number of construction bots to use")]
-        bot_count: Option<u32>,
-    },
-    #[command(next_help_heading = "Sanitize Options")]
-    Sanitize {
-        /// Directory containing save files to sanitize
-        #[arg(value_name = "SAVES_DIR")]
-        saves_dir: Option<PathBuf>,
-
-        #[arg(long, help = "Pattern to filter save files")]
-        pattern: Option<String>,
-
-        #[arg(long, help = "Number of ticks to run sanitization")]
-        ticks: Option<u32>,
-
-        #[arg(long, help = "Directory containing mods to use")]
-        mods_dir: Option<PathBuf>,
-
-        #[arg(long, help = "Output directory for sanitized saves")]
-        data_dir: Option<PathBuf>,
-
-        #[arg(long, help = "Items to preserve during sanitization (comma-separated)")]
-        items: Option<String>,
-
-        #[arg(
-            long,
-            help = "Fluids to preserve during sanitization (comma-separated)"
-        )]
-        fluids: Option<String>,
-    },
-}
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    // Parse input
+fn main() -> ExitCode {
     let cli = Cli::parse();
-
-    if cli.init_config {
-        match config::init_config_dir() {
-            Ok(path) => {
-                println!("Initialized config directory at: {}", path.display());
-                return Ok(());
-            }
-            Err(e) => {
-                eprintln!("Failed to initialize config directory: {}", e);
-                std::process::exit(1);
-            }
+    match run(&cli) {
+        Ok(code) => ExitCode::from(code),
+        Err(error) => {
+            eprintln!("error: {error}");
+            ExitCode::from(COMMAND_FAILED)
         }
     }
+}
 
+type BoxError = Box<dyn std::error::Error>;
+
+/// `<OS config dir>/belt`, as in 4.x (`~/.config/belt`, `%APPDATA%\belt`, …).
+fn config_dir(base_dirs: &BaseDirs) -> PathBuf {
+    base_dirs.config_dir().join("belt")
+}
+
+fn run(cli: &Cli) -> Result<u8, BoxError> {
+    let base_dirs = BaseDirs::new().ok_or("cannot determine the home directory")?;
     if cli.version {
-        let version = env!("CARGO_PKG_VERSION");
-        let bin = env!("CARGO_BIN_NAME");
-        println!("{bin} v{version}");
-
-        return Ok(());
+        println!("{} v{}", env!("CARGO_BIN_NAME"), env!("CARGO_PKG_VERSION"));
+        return Ok(SUCCESS);
     }
-
-    let Some(command) = cli.command else {
+    if cli.init_config {
+        return init_config(&config_dir(&base_dirs).join("config.toml"));
+    }
+    let Some(command) = &cli.command else {
         Cli::command().print_help()?;
         println!();
-        return Ok(());
+        return Ok(SUCCESS);
     };
-
-    // Create figment from config file and environment variables
-    let figment = if let Some(config_path) = &cli.config {
-        match config::create_figment_from_file(config_path) {
-            Ok(f) => f,
-            Err(e) => {
-                eprintln!("Failed to load config file: {}", e);
-                std::process::exit(1);
-            }
-        }
+    let file = match &cli.config {
+        Some(path) => ConfigFile::Explicit(path.clone()),
+        None => ConfigFile::Default(config_dir(&base_dirs).join("config.toml")),
+    };
+    let settings = config::resolve(cli.flags(), |name| std::env::var(name).ok(), &file)?;
+    let root = PathBuf::from(if std::env::consts::OS == "windows" {
+        r"C:\"
     } else {
-        config::create_figment().unwrap_or_else(|_| {
-            // If figment creation fails, use empty figment (defaults only)
-            figment::Figment::new()
-        })
+        "/"
+    });
+    let places = Places {
+        os: std::env::consts::OS,
+        home: base_dirs.home_dir(),
+        root: &root,
+        roaming_app_data: base_dirs.config_dir(),
     };
-
-    // Toggle the tracing level
-    if cli.verbose {
-        tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::DEBUG)
-            .init();
-    } else {
-        tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::INFO)
-            .init();
-    }
-
-    // Build global config: config file -> env vars -> CLI args
-    let mut global_config = GlobalConfig::from_figment(&figment).unwrap_or_default();
-    if cli.factorio_path.is_some() {
-        global_config.factorio_path = cli.factorio_path;
-    }
-    if cli.verbose {
-        global_config.verbose = cli.verbose;
-    }
-
-    // Listen to CTRL+C
-    let needs_shutdown = matches!(
-        &command,
-        Commands::Benchmark { .. } | Commands::Sanitize { .. } | Commands::Blueprint { .. }
-    );
-    let running = Arc::new(AtomicBool::new(true));
-    let shutdown_task = if needs_shutdown {
-        let r = running.clone();
-        Some(tokio::spawn(async move {
-            if let Err(e) = tokio::signal::ctrl_c().await {
-                tracing::warn!("Failed to listen for CTRL+C: {e}");
-            }
-            tracing::info!("Received CTRL+C. Initiating graceful shutdown...");
-            r.store(false, Ordering::SeqCst);
-        }))
-    } else {
-        None
+    let context = Context {
+        settings: &settings,
+        places: &places,
+        base_dirs: &base_dirs,
     };
-
-    // Capture the result of the benchmark
-    let result = match command {
-        Commands::Benchmark {
-            saves_dir,
-            ticks,
-            runs,
-            pattern,
-            output,
-            template_path,
-            mods_dir,
-            run_order,
-            verbose_metrics,
-            strip_prefix,
-            record_cpu,
-            append,
-            compress,
-        } => {
-            async {
-                let mut benchmark_config =
-                    BenchmarkConfig::from_figment(&figment).unwrap_or_default();
-                benchmark_config.append = append;
-
-                if let Some(v) = saves_dir {
-                    benchmark_config.saves_dir = v;
-                }
-                require_saves_dir(&benchmark_config.saves_dir, "benchmark")?;
-
-                if let Some(v) = ticks {
-                    benchmark_config.ticks = v;
-                }
-                if let Some(v) = runs {
-                    benchmark_config.runs = v;
-                }
-                if let Some(v) = pattern {
-                    benchmark_config.pattern = Some(v);
-                }
-                if let Some(v) = output {
-                    benchmark_config.output = Some(v);
-                }
-                if let Some(v) = template_path {
-                    benchmark_config.template_path = Some(v);
-                }
-                if let Some(v) = mods_dir {
-                    benchmark_config.mods_dir = Some(v);
-                }
-                if let Some(v) = run_order {
-                    benchmark_config.run_order = v;
-                }
-                if let Some(v) = verbose_metrics {
-                    benchmark_config.verbose_metrics = v;
-                }
-                if let Some(v) = strip_prefix {
-                    benchmark_config.strip_prefix = Some(v);
-                }
-                if cli.headless {
-                    benchmark_config.headless = true;
-                }
-                if record_cpu {
-                    benchmark_config.record_cpu = true;
-                }
-                if compress {
-                    benchmark_config.compress = true;
-                }
-
-                benchmark::run(global_config, benchmark_config, &running).await
-            }
-            .await
+    match command {
+        CommandKind::Benchmark(_) => {
+            let benchmark = &settings.benchmark;
+            let saves = select_saves(
+                benchmark.saves_dir.clone(),
+                &benchmark.pattern,
+                "benchmark",
+                &file,
+            )?;
+            let mods = Mods {
+                mods_dir: &benchmark.mods_dir,
+                data_dir: &benchmark.data_dir,
+            };
+            let mut factorio =
+                context.open_factorio(mods, SanitizerMod::NotNeeded, Command::Benchmark)?;
+            let monitor: Box<dyn benchmark::CpuMonitor> = if benchmark.record_cpu {
+                Box::new(cpu::SystemCpuMonitor)
+            } else {
+                Box::new(benchmark::NoCpuMonitor)
+            };
+            let date = chrono::Local::now().format("%Y-%m-%d").to_string();
+            let outcome = benchmark::run(
+                benchmark,
+                &saves,
+                &mut factorio,
+                monitor.as_ref(),
+                &date,
+                &mut fastrand::Rng::new(),
+            )?;
+            Ok(finish(&outcome.failures, outcome.interrupted))
         }
-
-        Commands::Blueprint {
-            blueprints_dir,
-            base_save_path,
-            count,
-            buffer_ticks,
-            mining_module_replacement,
-            mining_module_replacement_quality,
-            mods_dir,
-            pattern,
-            output,
-            prefix,
-            bot_count,
-        } => {
-            let mut blueprint_config = BlueprintConfig::from_figment(&figment).unwrap_or_default();
-            blueprint_config.blueprints_dir = blueprints_dir;
-            blueprint_config.base_save_path = base_save_path;
-            if let Some(v) = count {
-                blueprint_config.count = v;
-            }
-            if let Some(v) = buffer_ticks {
-                blueprint_config.buffer_ticks = v;
-            }
-            blueprint_config.mining_module_replacement = mining_module_replacement;
-            blueprint_config.mining_module_replacement_quality = mining_module_replacement_quality;
-            if let Some(v) = mods_dir {
-                blueprint_config.mods_dir = Some(v);
-            }
-            if let Some(v) = pattern {
-                blueprint_config.pattern = Some(v);
-            }
-            if let Some(v) = output {
-                blueprint_config.output = Some(v);
-            }
-            if let Some(v) = prefix {
-                blueprint_config.prefix = Some(v);
-            }
-            if cli.headless {
-                blueprint_config.headless = true;
-            }
-            if let Some(v) = bot_count {
-                blueprint_config.bot_count = Some(v);
-            }
-            blueprint::run(global_config, blueprint_config, &running).await
+        CommandKind::Blueprint(_) => {
+            let blueprint = &settings.blueprint;
+            let dir = required(
+                blueprint.blueprints_dir.clone(),
+                "blueprint",
+                "blueprints_dir",
+                "the BLUEPRINTS_DIR argument",
+                &file,
+            )?;
+            let files = saves::select(&dir, &blueprint.pattern, Kind::Blueprints)?;
+            let run = blueprint::BlueprintRun {
+                base_save: required(
+                    blueprint.base_save_path.clone(),
+                    "blueprint",
+                    "base_save_path",
+                    "the BASE_SAVE_PATH argument",
+                    &file,
+                )?,
+                count: required(blueprint.count, "blueprint", "count", "--count", &file)?,
+                buffer_ticks: required(
+                    blueprint.buffer_ticks,
+                    "blueprint",
+                    "buffer_ticks",
+                    "--buffer-ticks",
+                    &file,
+                )?,
+                bot_count: blueprint.bot_count,
+                prefix: blueprint.prefix.clone(),
+                output: blueprint.output.clone(),
+                module_replacement: ItemWithQuality {
+                    name: blueprint.mining_module_replacement.clone(),
+                    quality: blueprint.mining_module_replacement_quality.clone(),
+                },
+            };
+            let mods = Mods {
+                mods_dir: &blueprint.mods_dir,
+                data_dir: &blueprint.data_dir,
+            };
+            let mut factorio =
+                context.open_factorio(mods, context.sanitizer_mod(), Command::Blueprint)?;
+            let outcome = blueprint::run(&run, &files, &mut factorio)?;
+            Ok(finish(&outcome.failures, outcome.interrupted))
         }
-
-        Commands::Sanitize {
-            saves_dir,
-            pattern,
-            ticks,
-            mods_dir,
-            data_dir,
-            items,
-            fluids,
-        } => {
-            async {
-                let mut sanitize_config =
-                    SanitizeConfig::from_figment(&figment).unwrap_or_default();
-                if let Some(v) = saves_dir {
-                    sanitize_config.saves_dir = v;
-                }
-                require_saves_dir(&sanitize_config.saves_dir, "sanitize")?;
-
-                if let Some(v) = pattern {
-                    sanitize_config.pattern = Some(v);
-                }
-                if let Some(v) = ticks {
-                    sanitize_config.ticks = v;
-                }
-                if let Some(v) = mods_dir {
-                    sanitize_config.mods_dir = Some(v);
-                }
-                if let Some(v) = data_dir {
-                    sanitize_config.data_dir = Some(v);
-                }
-                if let Some(v) = items {
-                    sanitize_config.items = Some(v);
-                }
-                if let Some(v) = fluids {
-                    sanitize_config.fluids = Some(v);
-                }
-                if cli.headless {
-                    sanitize_config.headless = true;
-                }
-                sanitize::run(global_config, sanitize_config, &running).await
-            }
-            .await
-        }
-    };
-
-    // Await shutdown if needed
-    if let Some(task) = shutdown_task {
-        let interrupted = !running.load(Ordering::SeqCst);
-        if interrupted {
-            let _ = task.await;
-            tracing::info!("Shutdown complete");
-        } else {
-            drop(task);
+        CommandKind::Sanitize(_) => {
+            let sanitize = &settings.sanitize;
+            let saves = select_saves(
+                sanitize.saves_dir.clone(),
+                &sanitize.pattern,
+                "sanitize",
+                &file,
+            )?;
+            let mods = Mods {
+                mods_dir: &sanitize.mods_dir,
+                data_dir: &sanitize.data_dir,
+            };
+            let mut factorio =
+                context.open_factorio(mods, context.sanitizer_mod(), Command::Sanitize)?;
+            let job = SanitizeJob {
+                ticks: sanitize.ticks,
+                items: split_list(&sanitize.items),
+                fluids: split_list(&sanitize.fluids),
+            };
+            let outcome = sanitize::run(&job, &saves, &mut factorio);
+            Ok(finish(&outcome.failures, outcome.interrupted))
         }
     }
-
-    // If any command results in an error, print and exit
-    if let Err(e) = result {
-        tracing::error!("{e}");
-
-        std::process::exit(1);
-    }
-
-    Ok(())
 }
 
-fn require_saves_dir(saves_dir: &Path, section: &str) -> Result<()> {
-    if saves_dir.as_os_str().is_empty() {
-        return Err(BenchmarkErrorKind::ConfigLoadError(format!(
-            "SAVES_DIR is required unless {section}.saves_dir is set in config"
-        ))
-        .into());
+/// Writes the commented example config, as 4.x's `--init-config` does: an existing file is kept.
+fn init_config(path: &Path) -> Result<u8, BoxError> {
+    if !path.exists() {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(path, config::default_file())?;
+    }
+    println!("Initialized config directory at: {}", path.display());
+    Ok(SUCCESS)
+}
+
+fn select_saves(
+    dir: Option<PathBuf>,
+    pattern: &str,
+    section: &'static str,
+    file: &ConfigFile,
+) -> Result<Vec<Save>, BoxError> {
+    let dir = required(dir, section, "saves_dir", "the SAVES_DIR argument", file)?;
+    Ok(saves::select(&dir, pattern, Kind::Saves)?
+        .into_iter()
+        .map(Save::new)
+        .collect())
+}
+
+/// A command's mod settings: an explicit mods directory, and Factorio's user data directory.
+struct Mods<'a> {
+    mods_dir: &'a Option<PathBuf>,
+    data_dir: &'a Option<PathBuf>,
+}
+
+/// What every command needs to start Factorio.
+struct Context<'a> {
+    settings: &'a Settings,
+    places: &'a Places<'a>,
+    base_dirs: &'a BaseDirs,
+}
+
+impl Context<'_> {
+    /// The belt-sanitizer mod: the given folder, or else the mod portal's release.
+    fn sanitizer_mod(&self) -> SanitizerMod {
+        match &self.settings.global.sanitizer_mod {
+            Some(folder) => SanitizerMod::Folder(folder.clone()),
+            None => SanitizerMod::Portal,
+        }
     }
 
-    Ok(())
+    fn open_factorio(
+        &self,
+        mods: Mods,
+        sanitizer: SanitizerMod,
+        command: Command,
+    ) -> Result<Factorio, BoxError> {
+        let global = &self.settings.global;
+        let executable = discovery::find_factorio(global.factorio_path.as_deref(), self.places)?;
+        let workspace_dir = match &global.workspace_dir {
+            Some(dir) => dir.clone(),
+            None => self.base_dirs.data_dir().join("belt"),
+        };
+        let data_dir = match mods.data_dir {
+            Some(dir) => dir.clone(),
+            None => discovery::default_data_dir(self.places)?,
+        };
+        let source = match mods.mods_dir {
+            Some(dir) => ModSource::Directory(dir.clone()),
+            None => ModSource::Recorded {
+                user_mods: data_dir.join("mods"),
+            },
+        };
+        let options = FactorioOptions {
+            executable,
+            workspace: Workspace::open(&workspace_dir)?,
+            mods: source,
+            player_data: data_dir.join("player-data.json"),
+            sanitizer,
+            portal: Portal::official(),
+            command,
+            verbose: global.verbose,
+        };
+        Ok(Factorio::new(options)?)
+    }
+}
+
+/// Prints the failure summary and picks the exit code.
+fn finish(failures: &Failures, interrupted: bool) -> u8 {
+    if interrupted {
+        eprintln!("interrupted; completed runs were written");
+    }
+    if !failures.is_empty() {
+        eprint!("{}", failures.summary());
+    }
+    if failures.is_empty() && !interrupted {
+        SUCCESS
+    } else {
+        SAVES_FAILED
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn init_config_keeps_an_existing_config_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("belt/config.toml");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "[benchmark]\nticks = 1\n").unwrap();
+
+        init_config(&path).unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "[benchmark]\nticks = 1\n"
+        );
+    }
 }
